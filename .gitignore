@@ -1,0 +1,30 @@
+__pycache__/
+*.py[cod]
+*.pyo
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Home Assistant runtime/generated outputs
+*.log
+*.db
+*.storage/
+
+# Generated report and map images
+*_report.png
+*_map.png
+auto_trip*.png
+final_trip*.png
+manual_tracking*.png
+charge_report*.png
+
+# Secrets and local config
+secrets.yaml
+configuration.yaml
+*.env
+
+# OS/editor files
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
