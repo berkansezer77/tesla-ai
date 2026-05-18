@@ -1,16 +1,20 @@
-# POM Tesla Report
+﻿# POM Tesla AI
+
+<!-- AUTO:BADGES_START -->
+Version: 2.1.1-beta.1 | Last updated: 2026-05-18
+<!-- AUTO:BADGES_END -->
 
 <p align="center">
-  <img src="docs/images/logo.svg" alt="POM Tesla Report logo" width="160">
+  <img src="docs/images/tesla1.png" alt="POM Tesla AI logo" width="220">
 </p>
 
-Turn your Tesla into an AI-powered Home Assistant companion with Telegram chat, smart vehicle controls, trip reports, charging summaries, and map-based drive tracking.
+Turn your Tesla into an AI-powered assistant. Through Home Assistant and Telegram, you get a companion that can chat with you, explain vehicle details, and provide access to driving-related controls. It is more than chat: it can also send trip and charging reports to Telegram manually or automatically. The integration also includes a live driving card so you can monitor key trip data during a drive. Instead of handing over your Tesla account directly, you can authorize specific users for driving workflows through Tesla AI.
 
 > Beta status: this integration can send real commands to your vehicle. Start with read-only status questions, then test safe commands, and only enable risky controls when you understand the confirmation flow.
 
 ## What It Does
 
-POM Tesla Report is a custom Home Assistant integration built around a Tesla-focused AI assistant. It combines vehicle telemetry, Telegram conversation, curated vehicle-control capabilities, trip reports, charging reports, and route maps.
+POM Tesla AI is a custom Home Assistant integration built around a Tesla-focused AI assistant. It combines vehicle telemetry, Telegram conversation, curated vehicle-control capabilities, trip reports, charging reports, and route maps.
 
 Main features:
 
@@ -61,6 +65,20 @@ https://github.com/berkansezer77/pom_tesla_report
 4. Download `POM Tesla Report`
 5. Restart Home Assistant
 
+### Lovelace Resource Setup (Beta)
+
+If the dashboard card does not appear automatically, add the card resource manually:
+
+1. Home Assistant > Settings > Dashboards > three-dot menu > Resources
+2. Add resource URL:
+
+```text
+/local/community/pom_tesla_report/pom-tesla-dashboard-card.js
+```
+
+3. Resource type: `JavaScript Module`
+4. Save and reload the dashboard
+
 ## First Setup
 
 POM Tesla Report intentionally ships without your personal entity IDs. A new user must select entities manually.
@@ -96,14 +114,14 @@ This separation is important. A sensor can be useful for reports but not for AI,
 The Telegram listener no longer requires a prefix. You can write directly:
 
 ```text
-sentry açık mı?
-araç uyanık mı?
-şarj oluyor mu?
-çok sıcak
-klimayı aç
+sentry acik mi?
+arac uyanik mi?
+sarj oluyor mu?
+cok sicak
+klimayi ac
 ```
 
-If you still write `POM klimayı aç`, it is accepted as a legacy style, but it is not required.
+If you still write `POM klimayi ac`, it is accepted as a legacy style, but it is not required.
 
 ## Vehicle Controls and Confirmations
 
@@ -112,19 +130,19 @@ POM uses a curated capability manifest instead of guessing entity IDs. The AI ch
 Examples:
 
 ```text
-sentry mode aç
-klimayı kapat
-korna çal
-camları kapat
-bagajı aç
+sentry mode ac
+klimayi kapat
+korna cal
+camlari kapat
+bagaji ac
 ```
 
 Risky actions can require confirmation. Telegram confirmation supports both:
 
-- Inline buttons: Onayla / İptal
-- Text replies: evet, tamam, onaylıyorum, onay veriyorum, iptal
+- Inline buttons: Onayla / Iptal
+- Text replies: evet, tamam, onayliyorum, onay veriyorum, iptal
 
-If there is no real pending action and you write `onaylıyorum`, POM will not pretend to execute anything. It will tell you that there is no pending vehicle-control approval.
+If there is no real pending action and you write `onayliyorum`, POM will not pretend to execute anything. It will tell you that there is no pending vehicle-control approval.
 
 ## Trip Reports
 
@@ -138,6 +156,10 @@ Typical report inputs:
 - Speed / shift state
 - Climate state
 - Route points, when trip map collection is enabled
+
+Example output image:
+
+![Trip Report](docs/images/trip-report.jpg)
 
 ## Trip Maps
 
@@ -153,6 +175,10 @@ Settings:
 
 If `Send separate trip map PNG` is disabled, POM will not send the map as a second Telegram image after the trip report.
 
+Example output image:
+
+![Trip Map](docs/images/map-report.jpg)
+
 ## Charging Reports
 
 Charging reports can summarize sessions with:
@@ -162,6 +188,10 @@ Charging reports can summarize sessions with:
 - Provider pricing
 - Estimated or manually confirmed cost
 - Telegram prompt flow for real charging cost
+
+Example output image:
+
+![Charging Report](docs/images/charger-report.jpg)
 
 ## AI Alerts
 
@@ -179,6 +209,12 @@ AI alerts can watch selected entities and notify you about important vehicle sta
 The integration includes test/simulation tools for validating trip/report behavior without needing to drive the car every time.
 
 These tools are useful for beta testing and development. Normal users do not need them during daily use.
+
+## Recommended Data Source
+
+For best results, use this integration together with either Tessie or TeslaMate.
+
+At least one of these data providers is required. Their telemetry and control entities are what power the AI assistant, reporting pipeline, and vehicle-control workflows.
 
 ## Privacy and Safety
 
