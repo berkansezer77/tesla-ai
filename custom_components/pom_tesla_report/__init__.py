@@ -7839,11 +7839,25 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                     chat_id_value = chat.get("id")
             return normalize_telegram_id(chat_id_value)
 
+        def _event_user_id(event_data: dict[str, Any]) -> str:
+            user_id_value = event_data.get("user_id") or event_data.get("from_id")
+            if user_id_value is None and isinstance(event_data.get("message"), dict):
+                from_block = event_data.get("message", {}).get("from")
+                if isinstance(from_block, dict):
+                    user_id_value = from_block.get("id")
+            return normalize_telegram_id(user_id_value)
+
+        def _event_text(event_data: dict[str, Any]) -> str:
+            text_value = event_data.get("text")
+            if text_value is None and isinstance(event_data.get("message"), dict):
+                text_value = event_data.get("message", {}).get("text")
+            return str(text_value or "").strip()
+
         async def _handle_telegram_callback_event(event) -> None:
             event_data = event.data or {}
             callback_data = str(event_data.get("data") or "").strip()
             chat_id = _event_chat_id(event_data)
-            user_id = normalize_telegram_id(event_data.get("user_id") or event_data.get("from_id"))
+            user_id = _event_user_id(event_data)
 
             if listener_chat_id and chat_id and chat_id != listener_chat_id:
                 return
@@ -8076,9 +8090,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
         async def _handle_telegram_text_event(event) -> None:
             event_data = event.data or {}
-            chat_id = normalize_telegram_id(event_data.get("chat_id"))
-            user_id = normalize_telegram_id(event_data.get("user_id"))
-            raw_message = str(event_data.get("text") or "").strip()
+            chat_id = _event_chat_id(event_data)
+            user_id = _event_user_id(event_data)
+            raw_message = _event_text(event_data)
 
             if not raw_message:
                 return
