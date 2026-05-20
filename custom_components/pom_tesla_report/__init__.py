@@ -1,4 +1,4 @@
-"""POM Tesla Report custom integration."""
+﻿"""POM Tesla Report custom integration."""
 
 from __future__ import annotations
 
@@ -320,13 +320,13 @@ GENERATE_TEST_TRIP_IMAGE_SCHEMA = vol.Schema(
         vol.Optional("consumption_kwh_100km", default=18.95): vol.Coerce(float),
         vol.Optional("start_battery", default=82.0): vol.Coerce(float),
         vol.Optional("end_battery", default=78.0): vol.Coerce(float),
-        vol.Optional("climate_text", default="Klima yolculuk boyunca 18 dakika açıktı."): cv.string,
+        vol.Optional("climate_text", default="Klima yolculuk boyunca 18 dakika aÃ§Ä±ktÄ±."): cv.string,
         vol.Optional("min_elevation", default=24): vol.Coerce(float),
         vol.Optional("max_elevation", default=74): vol.Coerce(float),
         vol.Optional("elevation_range", default=50): vol.Coerce(float),
         vol.Optional(
             "efficiency_comment",
-            default="Bu PNG Chromium olmadan doğrudan entegrasyon içinde oluşturuldu.",
+            default="Bu PNG Chromium olmadan doÄŸrudan entegrasyon iÃ§inde oluÅŸturuldu.",
         ): cv.string,
     }
 )
@@ -362,7 +362,7 @@ GENERATE_TRIP_IMAGE_FROM_JSON_SCHEMA = vol.Schema(
         vol.Optional("json_path", default=DEFAULT_TRIP_JSON_PATH): cv.string,
         vol.Optional("output_path", default=DEFAULT_TRIP_IMAGE_OUTPUT_PATH): cv.string,
         vol.Optional("send_telegram", default=True): cv.boolean,
-        vol.Optional("caption", default="🚗 POM Tesla Report - Sürüş Görseli"): cv.string,
+        vol.Optional("caption", default="ğŸš— POM Tesla Report - SÃ¼rÃ¼ÅŸ GÃ¶rseli"): cv.string,
     }
 )
 
@@ -378,7 +378,7 @@ START_TRIP_SCHEMA = vol.Schema(
 FINISH_TRIP_SCHEMA = vol.Schema(
     {
         vol.Optional("send_telegram", default=True): cv.boolean,
-        vol.Optional("caption", default="🚗 POM Tesla Report - Manuel Sürüş Raporu"): cv.string,
+        vol.Optional("caption", default="ğŸš— POM Tesla Report - Manuel SÃ¼rÃ¼ÅŸ Raporu"): cv.string,
         vol.Optional("output_path", default=DEFAULT_MANUAL_TRIP_IMAGE_OUTPUT_PATH): cv.string,
         vol.Optional("test_mode", default=False): cv.boolean,
         vol.Optional("override_trip_km"): vol.Coerce(float),
@@ -750,7 +750,7 @@ def build_trip_map_render_data(
         "trip_km": report_data.get("trip_km"),
         "duration_text": report_data.get("duration_text"),
         "points": trip_state.get("map_points", []),
-        "footer": f"Oluşturulma: {datetime.now().strftime('%d.%m.%Y %H:%M')}",
+        "footer": f"OluÅŸturulma: {datetime.now().strftime('%d.%m.%Y %H:%M')}",
     }
 
 
@@ -783,27 +783,27 @@ def update_trip_map_samples_for_active_states(
 def get_report_type_label(state_key: str) -> str:
     """Return a Turkish label for the report/map type."""
     if state_key == MANUAL_TRACKING_STATE_KEY:
-        return "Manuel Takip Haritası"
-    return "Sürüş Haritası"
+        return "Manuel Takip HaritasÄ±"
+    return "SÃ¼rÃ¼ÅŸ HaritasÄ±"
 
 
 def get_report_type_short_caption(state_key: str) -> str:
     """Return Telegram caption for the separate map PNG."""
     if state_key == MANUAL_TRACKING_STATE_KEY:
-        return "🗺️ POM Tesla Report - Manuel Takip Haritası"
-    return "🗺️ POM Tesla Report - Son Sürüş Haritası"
+        return "ğŸ—ºï¸ POM Tesla Report - Manuel Takip HaritasÄ±"
+    return "ğŸ—ºï¸ POM Tesla Report - Son SÃ¼rÃ¼ÅŸ HaritasÄ±"
 
 
 def normalize_text_for_match(value: str) -> str:
     """Normalize Turkish text for simple command matching."""
     text = str(value or "").lower()
     text = text.translate(str.maketrans({
-        "ç": "c",
-        "ğ": "g",
-        "ı": "i",
-        "ö": "o",
-        "ş": "s",
-        "ü": "u",
+        "Ã§": "c",
+        "ÄŸ": "g",
+        "Ä±": "i",
+        "Ã¶": "o",
+        "ÅŸ": "s",
+        "Ã¼": "u",
     }))
     for ch in ["'", '"', "`", "?", "!", ",", ".", ":", ";", "(", ")", "[", "]"]:
         text = text.replace(ch, " ")
@@ -861,7 +861,7 @@ def is_vehicle_status_question(message: str) -> bool:
             "hiz", "batarya", "menzil", "sicaklik", "konum", "nerede", "nerdesin", "durum",
         ]
         if _has_any_phrase(n, read_only_terms):
-            # Do not block polite commands like "şarjı başlatır mısın".
+            # Do not block polite commands like "ÅŸarjÄ± baÅŸlatÄ±r mÄ±sÄ±n".
             explicit_command_terms = [
                 "baslat", "calistir", "kilitle", "kilidi ac", "kilidini ac", "kapilari ac",
                 "uyandir", "press", "turn on", "turn off", "set", "start", "stop", "enable", "disable",
@@ -911,20 +911,20 @@ def _get_vehicle_state_text(hass: HomeAssistant, data: dict[str, Any]) -> str:
         or _find_vehicle_entity_by_terms(hass, data, any_terms=["status", "online", "awake"])
     )
     if not entity_id:
-        return "Berkan, uyku/online durumunu okuyacak araç durum entity'si seçili değil. Vehicle Entity Manager'da araç status/online entity'sini eklemek gerekiyor."
+        return "Berkan, uyku/online durumunu okuyacak araÃ§ durum entity'si seÃ§ili deÄŸil. Vehicle Entity Manager'da araÃ§ status/online entity'sini eklemek gerekiyor."
     st = hass.states.get(entity_id)
     if st is None:
-        return f"Berkan, araç durum entity'si seçili ama şu an okunamıyor: {entity_id}"
-    status = _format_binary_status_label(str(st.state), on_text="uyanık ve online", off_text="uykuda veya offline", unknown_text="belirsiz")
-    return f"Berkan, araç şu an {status} görünüyor."
+        return f"Berkan, araÃ§ durum entity'si seÃ§ili ama ÅŸu an okunamÄ±yor: {entity_id}"
+    status = _format_binary_status_label(str(st.state), on_text="uyanÄ±k ve online", off_text="uykuda veya offline", unknown_text="belirsiz")
+    return f"Berkan, araÃ§ ÅŸu an {status} gÃ¶rÃ¼nÃ¼yor."
 
 
 def _get_simple_binary_answer(hass: HomeAssistant, entity_id: str, *, label: str, on_text: str, off_text: str) -> str:
     st = hass.states.get(entity_id) if entity_id else None
     if st is None:
-        return f"Berkan, {label} için ilgili entity şu an okunamıyor."
+        return f"Berkan, {label} iÃ§in ilgili entity ÅŸu an okunamÄ±yor."
     status = _format_binary_status_label(str(st.state), on_text=on_text, off_text=off_text, unknown_text="belirsiz")
-    return f"Berkan, {label} {status} görünüyor."
+    return f"Berkan, {label} {status} gÃ¶rÃ¼nÃ¼yor."
 
 
 def build_direct_vehicle_status_answer(hass: HomeAssistant, data: dict[str, Any], message: str) -> str | None:
@@ -944,18 +944,18 @@ def build_direct_vehicle_status_answer(hass: HomeAssistant, data: dict[str, Any]
             or _find_vehicle_entity_by_terms(hass, data, domain="binary_sensor", required_terms=["charging"])
             or _find_vehicle_entity_by_terms(hass, data, domain="binary_sensor", required_terms=["sarj"])
         )
-        return _get_simple_binary_answer(hass, entity_id, label="araç şarj durumu", on_text="şarj oluyor", off_text="şarj olmuyor")
+        return _get_simple_binary_answer(hass, entity_id, label="araÃ§ ÅŸarj durumu", on_text="ÅŸarj oluyor", off_text="ÅŸarj olmuyor")
 
     # Climate state.
     if _has_phrase(n, "klima") or _has_phrase(n, "climate"):
         entity_id = get_vehicle_role_entity(data, VEHICLE_ROLE_CLIMATE) or _find_vehicle_entity_by_terms(hass, data, domain="climate", any_terms=["climate", "klima"])
         st = hass.states.get(entity_id) if entity_id else None
         if st is None:
-            return "Berkan, klima entity'si şu an okunamıyor."
+            return "Berkan, klima entity'si ÅŸu an okunamÄ±yor."
         state = str(st.state or "").lower()
         if state in {"off", "unavailable", "unknown", "none", ""}:
-            return "Berkan, klima kapalı görünüyor."
-        return f"Berkan, klima açık görünüyor. Mod: {st.state}."
+            return "Berkan, klima kapalÄ± gÃ¶rÃ¼nÃ¼yor."
+        return f"Berkan, klima aÃ§Ä±k gÃ¶rÃ¼nÃ¼yor. Mod: {st.state}."
 
     # Sentry mode state. Keep this deterministic so chat memory cannot override
     # the actual Home Assistant switch state.
@@ -966,13 +966,13 @@ def build_direct_vehicle_status_answer(hass: HomeAssistant, data: dict[str, Any]
             entity_id = _find_vehicle_entity_by_terms(hass, data, domain="switch", any_terms=["sentry", "nobetci"])
         st = hass.states.get(entity_id) if entity_id else None
         if st is None:
-            return "Berkan, Sentry Mode entity'si şu an okunamıyor."
+            return "Berkan, Sentry Mode entity'si ÅŸu an okunamÄ±yor."
         state = str(st.state or "").lower()
         if state in {"on", "true", "active"}:
-            return "Berkan, Sentry Mode açık görünüyor."
+            return "Berkan, Sentry Mode aÃ§Ä±k gÃ¶rÃ¼nÃ¼yor."
         if state in {"off", "false", "inactive"}:
-            return "Berkan, Sentry Mode kapalı görünüyor."
-        return f"Berkan, Sentry Mode durumu belirsiz görünüyor: {st.state}."
+            return "Berkan, Sentry Mode kapalÄ± gÃ¶rÃ¼nÃ¼yor."
+        return f"Berkan, Sentry Mode durumu belirsiz gÃ¶rÃ¼nÃ¼yor: {st.state}."
 
     # Windows / doors. Specific windows first.
     if _has_any_phrase(n, ["cam", "camlar", "pencere", "pencereler", "window", "windows"]):
@@ -983,33 +983,33 @@ def build_direct_vehicle_status_answer(hass: HomeAssistant, data: dict[str, Any]
             label = "sol arka cam"
         elif _has_any_phrase(n, ["sag arka", "arka sag", "rear right", "right rear"]):
             terms = ["rear", "passenger", "window"]
-            label = "sağ arka cam"
+            label = "saÄŸ arka cam"
         elif _has_any_phrase(n, ["sol on", "on sol", "front left", "left front", "surucu"]):
             terms = ["front", "driver", "window"]
-            label = "sol ön cam"
+            label = "sol Ã¶n cam"
         elif _has_any_phrase(n, ["sag on", "on sag", "front right", "right front", "yolcu"]):
             terms = ["front", "passenger", "window"]
-            label = "sağ ön cam"
+            label = "saÄŸ Ã¶n cam"
         entity_id = _find_vehicle_entity_by_terms(hass, data, domain="binary_sensor", required_terms=terms)
         if not entity_id and label == "camlar":
             entity_id = _find_vehicle_entity_by_terms(hass, data, domain="binary_sensor", any_terms=["windows", "window", "cam"])
-        return _get_simple_binary_answer(hass, entity_id, label=label, on_text="açık", off_text="kapalı")
+        return _get_simple_binary_answer(hass, entity_id, label=label, on_text="aÃ§Ä±k", off_text="kapalÄ±")
 
     if _has_any_phrase(n, ["kapi", "kapilar", "door", "doors"]):
         entity_id = _find_vehicle_entity_by_terms(hass, data, domain="binary_sensor", any_terms=["doors", "door", "kapi"])
-        return _get_simple_binary_answer(hass, entity_id, label="kapılar", on_text="açık", off_text="kapalı")
+        return _get_simple_binary_answer(hass, entity_id, label="kapÄ±lar", on_text="aÃ§Ä±k", off_text="kapalÄ±")
 
     if _has_any_phrase(n, ["kilitli", "lock"]):
         entity_id = get_vehicle_role_entity(data, VEHICLE_ROLE_LOCK_STATE) or _find_vehicle_entity_by_terms(hass, data, domain="lock", any_terms=["lock", "kilit"])
         st = hass.states.get(entity_id) if entity_id else None
         if st is None:
-            return "Berkan, kilit durumu entity'si şu an okunamıyor."
+            return "Berkan, kilit durumu entity'si ÅŸu an okunamÄ±yor."
         state = str(st.state or "").lower()
         if state in {"locked", "lock", "on"}:
-            return "Berkan, araç kilitli görünüyor."
+            return "Berkan, araÃ§ kilitli gÃ¶rÃ¼nÃ¼yor."
         if state in {"unlocked", "unlock", "off"}:
-            return "Berkan, araç kilidi açık görünüyor."
-        return f"Berkan, kilit durumu belirsiz görünüyor: {st.state}."
+            return "Berkan, araÃ§ kilidi aÃ§Ä±k gÃ¶rÃ¼nÃ¼yor."
+        return f"Berkan, kilit durumu belirsiz gÃ¶rÃ¼nÃ¼yor: {st.state}."
 
     return None
 
@@ -1080,13 +1080,13 @@ def get_latest_trip_report_info(hass: HomeAssistant) -> dict[str, Any] | None:
     for state_key, caption, fallback_paths, fallback_map_paths in [
         (
             TRIP_STATE_KEY,
-            "🚗 POM Tesla Report - Son Otomatik Sürüş Raporu",
+            "ğŸš— POM Tesla Report - Son Otomatik SÃ¼rÃ¼ÅŸ Raporu",
             [DEFAULT_AUTO_TRIP_IMAGE_OUTPUT_PATH, DEFAULT_TRIP_IMAGE_OUTPUT_PATH],
             [DEFAULT_AUTO_TRIP_MAP_OUTPUT_PATH, DEFAULT_FINAL_TRIP_MAP_OUTPUT_PATH],
         ),
         (
             MANUAL_TRACKING_STATE_KEY,
-            "🚗 POM Tesla Report - Son Manuel Takip Raporu",
+            "ğŸš— POM Tesla Report - Son Manuel Takip Raporu",
             [DEFAULT_MANUAL_TRACKING_IMAGE_OUTPUT_PATH, DEFAULT_MANUAL_TRIP_IMAGE_OUTPUT_PATH],
             [DEFAULT_MANUAL_TRACKING_MAP_OUTPUT_PATH],
         ),
@@ -1201,7 +1201,7 @@ def get_entities_for_device(hass: HomeAssistant, device_id: str | None) -> list[
 def get_device_label(hass: HomeAssistant, device_id: str | None) -> str:
     """Return a readable device label."""
     if not device_id:
-        return "seçilmemiş"
+        return "seÃ§ilmemiÅŸ"
     try:
         device_reg = dr.async_get(hass)
         device = device_reg.async_get(device_id)
@@ -1298,7 +1298,7 @@ def get_vehicle_entity_context_lines(hass: HomeAssistant, data: dict[str, Any]) 
     """Return a readable list of central entity entries for AI/debug context."""
     entries = get_vehicle_entity_entries(data)
     if not entries:
-        return ["- Merkezi Vehicle Entity Manager listesi boş."]
+        return ["- Merkezi Vehicle Entity Manager listesi boÅŸ."]
     lines = []
     for item in entries[:80]:
         state = hass.states.get(item["entity_id"])
@@ -1446,22 +1446,22 @@ def categorize_entity_for_ai(entity_id: str, state: Any | None = None) -> str:
     """Categorize entities so the prompt is easier for the model to use."""
     e = ai_entity_match_text(entity_id, state)
     if any(k in e for k in ["battery", "charge", "charger", "energy", "range"]):
-        return "Batarya / şarj"
+        return "Batarya / ÅŸarj"
     if any(k in e for k in ["speed", "odometer", "shift", "gear", "drive", "elevation", "heading", "power"]):
-        return "Sürüş / hareket"
+        return "SÃ¼rÃ¼ÅŸ / hareket"
     if any(k in e for k in ["location", "gps", "latitude", "longitude", "route", "destination", "address", "tracker"]):
         return "Konum / rota"
     if any(k in e for k in ["climate", "temperature", "temp", "ambient", "outside", "exterior", "seat_heater", "seat heater", "steering heater", "hvac", "defrost"]):
-        return "Klima / sıcaklık"
+        return "Klima / sÄ±caklÄ±k"
     if any(k in e for k in ["user present", "user_present", "presence", "occupancy", "occupied", "occupant"]):
-        return "Kullanıcı / varlık"
+        return "KullanÄ±cÄ± / varlÄ±k"
     if any(k in e for k in ["door", "window", "lock", "trunk", "frunk", "sentry", "valet"]):
-        return "Güvenlik / kapılar"
+        return "GÃ¼venlik / kapÄ±lar"
     if any(k in e for k in ["tire", "pressure", "tpms"]):
-        return "Lastik / basınç"
+        return "Lastik / basÄ±nÃ§"
     if entity_id.startswith("switch.") or entity_id.startswith("button.") or entity_id.startswith("cover.") or entity_id.startswith("lock."):
-        return "Kontrol entity’leri (bilgi amaçlı)"
-    return "Diğer Tesla verileri"
+        return "Kontrol entityâ€™leri (bilgi amaÃ§lÄ±)"
+    return "DiÄŸer Tesla verileri"
 
 def get_core_ai_entities(data: dict[str, Any]) -> list[str]:
     """Return manually configured core entities for AI context."""
@@ -1509,7 +1509,7 @@ def discover_ai_entities_from_main_device(hass: HomeAssistant, data: dict[str, A
 
     device_id = get_device_id_for_entity(hass, main_entity)
     if not device_id:
-        return [], "cihaz bulunamadı"
+        return [], "cihaz bulunamadÄ±"
 
     device_label = get_device_label(hass, device_id)
     return get_entities_for_device(hass, device_id), device_label
@@ -1532,7 +1532,7 @@ def format_entities_for_ai_context(
         state = hass.states.get(entity_id)
         if state is None:
             if include_unavailable:
-                grouped.setdefault("Eksik / bulunamadı", []).append(f"- {entity_id}: yok")
+                grouped.setdefault("Eksik / bulunamadÄ±", []).append(f"- {entity_id}: yok")
                 count += 1
             continue
 
@@ -1548,15 +1548,15 @@ def format_entities_for_ai_context(
 
     lines: list[str] = []
     preferred_order = [
-        "Batarya / şarj",
-        "Sürüş / hareket",
+        "Batarya / ÅŸarj",
+        "SÃ¼rÃ¼ÅŸ / hareket",
         "Konum / rota",
-        "Klima / sıcaklık",
-        "Güvenlik / kapılar",
-        "Lastik / basınç",
-        "Kontrol entity’leri (bilgi amaçlı)",
-        "Diğer Tesla verileri",
-        "Eksik / bulunamadı",
+        "Klima / sÄ±caklÄ±k",
+        "GÃ¼venlik / kapÄ±lar",
+        "Lastik / basÄ±nÃ§",
+        "Kontrol entityâ€™leri (bilgi amaÃ§lÄ±)",
+        "DiÄŸer Tesla verileri",
+        "Eksik / bulunamadÄ±",
     ]
 
     for category in preferred_order:
@@ -1622,22 +1622,22 @@ def build_ai_context_text(hass: HomeAssistant, data: dict[str, Any]) -> str:
     entity_ids = selection["entity_ids"]
 
     lines = [
-        "POM AI akıllı bağlam verisi:",
+        "POM AI akÄ±llÄ± baÄŸlam verisi:",
         f"- Context mode: {selection['context_mode']}",
-        f"- Ana Tesla cihazı: {selection['device_label'] or 'otomatik / seçilmemiş'}",
-        f"- Kullanılan entity sınırı: {max_entities}",
+        f"- Ana Tesla cihazÄ±: {selection['device_label'] or 'otomatik / seÃ§ilmemiÅŸ'}",
+        f"- KullanÄ±lan entity sÄ±nÄ±rÄ±: {max_entities}",
         f"- Unavailable dahil: {include_unavailable}",
-        f"- Merkezi Vehicle Entity Manager kayıtları: {len(get_vehicle_entity_entries(data))}",
-        f"- Seçili AI entity kutuları: {len(selection['extra_entities'])}",
-        f"- Hariç tutulan entity: {len(selection['excluded_entities'])}",
+        f"- Merkezi Vehicle Entity Manager kayÄ±tlarÄ±: {len(get_vehicle_entity_entries(data))}",
+        f"- SeÃ§ili AI entity kutularÄ±: {len(selection['extra_entities'])}",
+        f"- HariÃ§ tutulan entity: {len(selection['excluded_entities'])}",
         "",
-        "Kural: Bir entity unavailable/unknown ise bunu veri yok diye uydurma; kullanıcıya şu anda bu veriyi göremediğini söyle. Araç uyandığında veya hareket halindeyken available olabileceğini belirtebilirsin.",
-        "Kural: Vehicle state / sleep status rolünde açık bir entity yoksa veya bu entity sleep/asleep/online/awake gibi net veri vermiyorsa, aracın uyuduğunu kesin söyleme. Parkta, veri sınırlı veya uyuyor olabilir şeklinde temkinli konuş.",
-        "Kural: Açık adres içinde kapı/bina no yoksa kapı numarası uydurma. Sadece OpenStreetMap/Nominatim verisinde açıkça gelen house_number değerini kapı no olarak söyle.",
+        "Kural: Bir entity unavailable/unknown ise bunu veri yok diye uydurma; kullanÄ±cÄ±ya ÅŸu anda bu veriyi gÃ¶remediÄŸini sÃ¶yle. AraÃ§ uyandÄ±ÄŸÄ±nda veya hareket halindeyken available olabileceÄŸini belirtebilirsin.",
+        "Kural: Vehicle state / sleep status rolÃ¼nde aÃ§Ä±k bir entity yoksa veya bu entity sleep/asleep/online/awake gibi net veri vermiyorsa, aracÄ±n uyuduÄŸunu kesin sÃ¶yleme. Parkta, veri sÄ±nÄ±rlÄ± veya uyuyor olabilir ÅŸeklinde temkinli konuÅŸ.",
+        "Kural: AÃ§Ä±k adres iÃ§inde kapÄ±/bina no yoksa kapÄ± numarasÄ± uydurma. Sadece OpenStreetMap/Nominatim verisinde aÃ§Ä±kÃ§a gelen house_number deÄŸerini kapÄ± no olarak sÃ¶yle.",
         "",
-        "Kural: Sadece son konuşma turunu bağlam olarak kullan; eski konuşmalardan araç durumu veya komut niyeti çıkarma. Güncel entity state her zaman konuşma hafızasından üstündür.",
-        "Kural: Sistem tarafından gerçek pending confirmation/suggestion oluşturulmadıysa 'onay bekliyorum', 'onayınız alındı', 'komutu devreye alıyorum' veya benzeri işlem sözü verme.",
-        "Merkezi Vehicle Entity Manager rol eşlemesi:",
+        "Kural: Sadece son konuÅŸma turunu baÄŸlam olarak kullan; eski konuÅŸmalardan araÃ§ durumu veya komut niyeti Ã§Ä±karma. GÃ¼ncel entity state her zaman konuÅŸma hafÄ±zasÄ±ndan Ã¼stÃ¼ndÃ¼r.",
+        "Kural: Sistem tarafÄ±ndan gerÃ§ek pending confirmation/suggestion oluÅŸturulmadÄ±ysa 'onay bekliyorum', 'onayÄ±nÄ±z alÄ±ndÄ±', 'komutu devreye alÄ±yorum' veya benzeri iÅŸlem sÃ¶zÃ¼ verme.",
+        "Merkezi Vehicle Entity Manager rol eÅŸlemesi:",
     ]
     lines.extend(get_vehicle_entity_context_lines(hass, data))
 
@@ -1646,28 +1646,28 @@ def build_ai_context_text(hass: HomeAssistant, data: dict[str, Any]) -> str:
         parts = get_cached_reverse_geocode_parts(hass)
         lines.extend([
             "",
-            "Açık adres / reverse geocode:",
+            "AÃ§Ä±k adres / reverse geocode:",
             f"- Tam adres: {cached_address}",
         ])
         if parts:
             detail_labels = {
-                "house_number": "Kapı/bina no",
+                "house_number": "KapÄ±/bina no",
                 "road": "Sokak/cadde",
                 "neighbourhood": "Mahalle/semt",
-                "suburb": "İlçe bölgesi",
-                "town": "İlçe/şehir",
-                "state": "İl",
+                "suburb": "Ä°lÃ§e bÃ¶lgesi",
+                "town": "Ä°lÃ§e/ÅŸehir",
+                "state": "Ä°l",
                 "postcode": "Posta kodu",
-                "country": "Ülke",
+                "country": "Ãœlke",
             }
             for key, label in detail_labels.items():
                 value = str(parts.get(key) or "").strip()
                 if value:
                     lines.append(f"- {label}: {value}")
             if not str(parts.get("house_number") or "").strip():
-                lines.append("- Kapı/bina no: OpenStreetMap verisinde yok; kesinlikle uydurma.")
+                lines.append("- KapÄ±/bina no: OpenStreetMap verisinde yok; kesinlikle uydurma.")
 
-    lines.extend(["", "Güncel Tesla / Home Assistant entity durumları:"])
+    lines.extend(["", "GÃ¼ncel Tesla / Home Assistant entity durumlarÄ±:"])
 
     entity_lines = format_entities_for_ai_context(
         hass,
@@ -1675,27 +1675,27 @@ def build_ai_context_text(hass: HomeAssistant, data: dict[str, Any]) -> str:
         include_unavailable=include_unavailable,
         max_entities=max_entities,
     )
-    lines.extend(entity_lines or ["- Kullanılabilir entity verisi bulunamadı."])
+    lines.extend(entity_lines or ["- KullanÄ±labilir entity verisi bulunamadÄ±."])
 
     lines.extend([
         "",
-        "Takip durumları:",
+        "Takip durumlarÄ±:",
         f"- Otomatik/normal takip aktif: {bool(normal_state.get('active', False))}",
         f"- Manuel switch takip aktif: {bool(manual_state.get('active', False))}",
-        f"- Otomatik rota noktası: {normal_state.get('map_point_count', 0)}",
-        f"- Manuel rota noktası: {manual_state.get('map_point_count', 0)}",
+        f"- Otomatik rota noktasÄ±: {normal_state.get('map_point_count', 0)}",
+        f"- Manuel rota noktasÄ±: {manual_state.get('map_point_count', 0)}",
     ])
 
     last_normal_report = normal_state.get("last_report_data")
     if isinstance(last_normal_report, dict):
         lines.extend([
             "",
-            "Son otomatik/normal rapor özeti:",
+            "Son otomatik/normal rapor Ã¶zeti:",
             f"- Mesafe: {last_normal_report.get('trip_km')} km",
-            f"- Süre: {last_normal_report.get('duration_text')}",
+            f"- SÃ¼re: {last_normal_report.get('duration_text')}",
             f"- Trafik: {last_normal_report.get('traffic_text')}",
             f"- Enerji: {last_normal_report.get('used_kwh')} kWh",
-            f"- Tüketim: {last_normal_report.get('consumption_kwh_100km')} kWh/100 km",
+            f"- TÃ¼ketim: {last_normal_report.get('consumption_kwh_100km')} kWh/100 km",
             f"- Batarya: {last_normal_report.get('start_battery')} -> {last_normal_report.get('end_battery')}",
         ])
 
@@ -1703,23 +1703,23 @@ def build_ai_context_text(hass: HomeAssistant, data: dict[str, Any]) -> str:
     if isinstance(last_manual_report, dict):
         lines.extend([
             "",
-            "Son manuel takip raporu özeti:",
+            "Son manuel takip raporu Ã¶zeti:",
             f"- Mesafe: {last_manual_report.get('trip_km')} km",
-            f"- Süre: {last_manual_report.get('duration_text')}",
+            f"- SÃ¼re: {last_manual_report.get('duration_text')}",
             f"- Trafik: {last_manual_report.get('traffic_text')}",
             f"- Enerji: {last_manual_report.get('used_kwh')} kWh",
-            f"- Tüketim: {last_manual_report.get('consumption_kwh_100km')} kWh/100 km",
+            f"- TÃ¼ketim: {last_manual_report.get('consumption_kwh_100km')} kWh/100 km",
             f"- Batarya: {last_manual_report.get('start_battery')} -> {last_manual_report.get('end_battery')}",
         ])
 
     lines.extend([
         "",
-        "Maliyet ayarları:",
+        "Maliyet ayarlarÄ±:",
         f"- Supercharger: {data.get(CONF_SUPERCHARGER_PRICE)} TL/kWh",
         f"- ZES: {data.get(CONF_ZES_PRICE)} TL/kWh",
         f"- Astor: {data.get(CONF_ASTOR_PRICE)} TL/kWh",
         "",
-        "Güvenlik kuralı: Araç kontrol komutları sadece POM onay sistemi üzerinden çalışır; LLM doğrudan servis çağrısı uydurmaz. Kilit/frunk/trunk/klima/korna/far gibi işlemler kullanıcı onayı ister.",
+        "GÃ¼venlik kuralÄ±: AraÃ§ kontrol komutlarÄ± sadece POM onay sistemi Ã¼zerinden Ã§alÄ±ÅŸÄ±r; LLM doÄŸrudan servis Ã§aÄŸrÄ±sÄ± uydurmaz. Kilit/frunk/trunk/klima/korna/far gibi iÅŸlemler kullanÄ±cÄ± onayÄ± ister.",
     ])
 
     return "\n".join(lines)
@@ -1786,7 +1786,7 @@ def build_ai_context_entity_debug(
         display_name = custom_label or role_label or entity_id
 
         if state is None:
-            return "Eksik / bulunamadı", f"❌ {display_name}: entity bulunamadı\n   {entity_id}"
+            return "Eksik / bulunamadÄ±", f"âŒ {display_name}: entity bulunamadÄ±\n   {entity_id}"
 
         friendly = state.attributes.get("friendly_name") or ""
         unit = state.attributes.get("unit_of_measurement") or ""
@@ -1794,11 +1794,11 @@ def build_ai_context_entity_debug(
         category = categorize_entity_for_ai(entity_id, state)
 
         if value.lower() in {"unknown", "unavailable", "none", ""}:
-            value_text = "şu anda okunamıyor"
-            icon = "⚠️"
+            value_text = "ÅŸu anda okunamÄ±yor"
+            icon = "âš ï¸"
         else:
             value_text = f"{value} {unit}".strip()
-            icon = "✅"
+            icon = "âœ…"
 
         detail_parts = []
         if entity_id:
@@ -1808,7 +1808,7 @@ def build_ai_context_entity_debug(
         if role_label and role_label != display_name:
             detail_parts.append(str(role_label))
 
-        detail = " · ".join(detail_parts)
+        detail = " Â· ".join(detail_parts)
         return category, f"{icon} {display_name}: {value_text}\n   {detail}"
 
     grouped: dict[str, list[str]] = {}
@@ -1822,7 +1822,7 @@ def build_ai_context_entity_debug(
     device_id = get_device_id_for_entity(hass, main_entity)
 
     lines = [
-        "📊 POM AI Veri Erişimi",
+        "ğŸ“Š POM AI Veri EriÅŸimi",
         "",
         f"Main entity: {main_entity or '-'}",
         f"Device: {selection['device_label'] or get_device_label(hass, device_id) or '-'}",
@@ -1832,19 +1832,19 @@ def build_ai_context_entity_debug(
         f"Excluded entities: {len(selection['excluded_entities'])}",
         f"AI context'e giren entity: {len(included)} / max {max_entities}",
         "",
-        "Kural: unavailable / unknown değerlerde POM veri uydurmaz; 'şu anda okuyamıyorum' der.",
+        "Kural: unavailable / unknown deÄŸerlerde POM veri uydurmaz; 'ÅŸu anda okuyamÄ±yorum' der.",
     ]
 
     preferred_order = [
-        "Batarya / şarj",
-        "Sürüş / hareket",
+        "Batarya / ÅŸarj",
+        "SÃ¼rÃ¼ÅŸ / hareket",
         "Konum / rota",
-        "Klima / sıcaklık",
-        "Lastik / basınç",
-        "Güvenlik / kapılar",
-        "Kontrol entity’leri (bilgi amaçlı)",
-        "Diğer Tesla verileri",
-        "Eksik / bulunamadı",
+        "Klima / sÄ±caklÄ±k",
+        "Lastik / basÄ±nÃ§",
+        "GÃ¼venlik / kapÄ±lar",
+        "Kontrol entityâ€™leri (bilgi amaÃ§lÄ±)",
+        "DiÄŸer Tesla verileri",
+        "Eksik / bulunamadÄ±",
     ]
 
     for category in preferred_order:
@@ -1856,12 +1856,12 @@ def build_ai_context_entity_debug(
 
     if selection["excluded_entities"]:
         lines.extend(["", "EXCLUDED ENTITIES"])
-        lines.extend([f"❌ {entity_id}" for entity_id in selection["excluded_entities"]])
+        lines.extend([f"âŒ {entity_id}" for entity_id in selection["excluded_entities"]])
 
     if skipped_limit:
         lines.extend([
             "",
-            f"Not: {skipped_limit} entity max context sınırı nedeniyle gösterilmedi/gönderilmedi. Gerekirse Max context entities değerini artır.",
+            f"Not: {skipped_limit} entity max context sÄ±nÄ±rÄ± nedeniyle gÃ¶sterilmedi/gÃ¶nderilmedi. Gerekirse Max context entities deÄŸerini artÄ±r.",
         ])
 
     missing_expected = []
@@ -1880,8 +1880,8 @@ def build_ai_context_entity_debug(
         if role not in roles_present:
             missing_expected.append(VEHICLE_ROLE_LABELS.get(role, role))
     if missing_expected:
-        lines.extend(["", "SEÇİLMEMİŞ OLABİLECEK ÖNEMLİ VERİLER"])
-        lines.extend([f"⚠️ {item}" for item in missing_expected[:20]])
+        lines.extend(["", "SEÃ‡Ä°LMEMÄ°Å OLABÄ°LECEK Ã–NEMLÄ° VERÄ°LER"])
+        lines.extend([f"âš ï¸ {item}" for item in missing_expected[:20]])
 
     return "\n".join(lines)
 
@@ -1892,7 +1892,7 @@ def split_telegram_message(message: str, limit: int = 3000) -> list[str]:
     """
     text = str(message or "").strip()
     if not text:
-        return ["Boş mesaj."]
+        return ["BoÅŸ mesaj."]
 
     chunks: list[str] = []
     current = ""
@@ -2051,7 +2051,7 @@ def get_pending_ai_vehicle_suggestion_state(hass: HomeAssistant) -> dict[str, An
 
     This is intentionally separate from risk/confirmation prompts. It is used
     for natural follow-ups such as:
-    - "çok sıcak oldu" -> POM offers climate
+    - "Ã§ok sÄ±cak oldu" -> POM offers climate
     - "evet / hadi bas / yap" -> execute the newest safe suggestion
 
     There is only one active suggestion. New suggestions replace old ones.
@@ -2126,7 +2126,7 @@ def remember_pom_ai_conversation_turn(
     memory[key] = turns[-max_turns:]
 
 
-AI_CONTROL_CAPABILITY_MANIFEST = [{'entity_example': 'switch.pom_charge', 'capability': 'charge_control', 'name': 'Charge Control', 'domain': 'switch', 'purpose': 'Aracın şarj başlat/durdur kontrolüdür. Durum gösterimi için binary_sensor.pom_charging daha uygundur; switch ise kontrol amaçlıdır.', 'service_text': 'switch.turn_on / switch.turn_off', 'services': ['switch.turn_on', 'switch.turn_off'], 'confirmation': 'optional', 'aliases': ['şarjı başlat', 'şarj etmeye başla', 'şarjı durdur', 'şarjı kes', 'şarjı kapat', 'start charging', 'stop charging', 'enable charging', 'disable charging'], 'notes': "Kullanıcı dosyasında 'şarj olma durumunu gösterir' notu var; ancak switch domain olduğu için kontrol amaçlı kullanılabilir. Durum için binary_sensor.pom_charging tercih edilmeli."}, {'entity_example': 'lock.pom_charge_cable_lock', 'capability': 'charge_cable_lock', 'name': 'Charge Cable Lock', 'domain': 'lock', 'purpose': 'Şarj kablosu kilidini kontrol eder veya durumunu gösterir.', 'service_text': 'lock.lock / lock.unlock', 'services': ['lock.lock', 'lock.unlock'], 'confirmation': 'required', 'aliases': ['şarj kablosunu kilitle', 'şarj kablosu kilidini aç', 'kablo kilidini aç', 'lock charge cable', 'unlock charge cable', 'release charge cable lock'], 'notes': 'Kablo kilidini açmak fiziksel güvenlik/şarj güvenliği etkileyebilir; onay önerilir.'}, {'entity_example': 'cover.pom_charge_port_door', 'capability': 'charge_port_door', 'name': 'Charge Port Door', 'domain': 'cover', 'purpose': 'Şarj port kapağını açıp kapatır.', 'service_text': 'cover.open_cover / cover.close_cover', 'services': ['cover.open_cover', 'cover.close_cover'], 'confirmation': 'optional', 'aliases': ['şarj kapağını aç', 'şarj portunu aç', 'şarj kapağını kapat', 'şarj portunu kapat', 'open charge port', 'close charge port', 'open charge port door', 'close charge port door'], 'notes': 'Genelde düşük riskli; yine de kullanıcı isterse tüm araç kontrollerinde onay açılabilir.'}, {'entity_example': 'climate.pom_climate', 'capability': 'climate', 'name': 'Cabin Climate', 'domain': 'climate', 'purpose': 'Tesla kabin klimasını kontrol eder; aç/kapat, hedef sıcaklık ayarı ve desteklenen modlar için kullanılır.', 'service_text': 'climate.turn_on / climate.turn_off / climate.set_temperature / climate.set_hvac_mode', 'services': ['climate.turn_on', 'climate.turn_off', 'climate.set_temperature', 'climate.set_hvac_mode'], 'confirmation': 'none', 'aliases': ['klimayı aç', 'klimayı kapat', 'araç klimasını kapat', 'araba klimasını kapat', 'klimasını kapat', 'klimasını aç', 'soğutmayı aç', 'ısıtmayı aç', 'klimayı 22 derece yap', 'sıcaklığı 25 yap', 'arabayı serinlet', 'arabayı ısıt', 'turn on climate', 'turn off climate', 'set climate to 22', 'set temperature to 25', 'cool the car', 'heat the car'], 'notes': "Çoklu komutta 'klimayı aç ve 28 derece yap' iki aksiyon üretmeli: turn_on + set_temperature."}, {'entity_example': 'switch.pom_defrost_mode', 'capability': 'defrost_mode', 'name': 'Defrost Mode', 'domain': 'switch', 'purpose': 'Cam buğu/buz çözme defrost modunu açıp kapatır.', 'service_text': 'switch.turn_on / switch.turn_off', 'services': ['switch.turn_on', 'switch.turn_off'], 'confirmation': 'optional', 'aliases': ['defrost aç', 'defrost kapat', 'buz çözmeyi aç', 'cam buzunu çöz', 'buğu çözmeyi aç', 'ön camı çöz', 'turn on defrost', 'turn off defrost', 'defrost the car', 'clear windshield', 'windshield defrost'], 'notes': 'Genelde güvenli ama aracı uyandırabilir ve enerji tüketir.'}, {'entity_example': 'button.pom_flash_lights', 'capability': 'flash_lights', 'name': 'Flash Lights', 'domain': 'button', 'purpose': 'Araç farlarını kısa süreli flaşlar/sellektör yapar.', 'service_text': 'button.press', 'services': ['button.press'], 'confirmation': 'none', 'aliases': ['farları yak', 'farları flaşla', 'ışıkları yak', 'selektör yap', 'ışık çak', 'arabayı bulmak için ışık yak', 'flash lights', 'flash the lights', 'blink lights', 'find my car with lights'], 'notes': 'Tek aksiyonlu button.press. Genel olarak düşük riskli.'}, {'entity_example': 'cover.pom_frunk', 'capability': 'frunk', 'name': 'Frunk', 'domain': 'cover', 'purpose': 'Ön bagaj/frunk kapağını açar. Genellikle kapatma desteği yoktur veya araca göre değişebilir.', 'service_text': 'cover.open_cover', 'services': ['cover.open_cover'], 'confirmation': 'required', 'aliases': ['frunku aç', 'ön frunku aç', 'ön bagajı aç', 'ön kaputu aç', 'open frunk', 'open front trunk', 'open front boot'], 'notes': 'Riskli komuttur. Her zaman onay gerekir. Kapatma servisi desteklenmeyebilir.'}, {'entity_example': 'button.pom_homelink', 'capability': 'homelink', 'name': 'HomeLink', 'domain': 'button', 'purpose': 'Araçtaki HomeLink komutunu tetikler; garaj kapısı/bariyer gibi eşleşmiş sistemi çalıştırabilir.', 'service_text': 'button.press', 'services': ['button.press'], 'confirmation': 'required', 'aliases': ['homelink çalıştır', 'garajı aç', 'garaj kapısını aç', 'bariyeri aç', 'trigger homelink', 'open garage', 'open garage door', 'open gate'], 'notes': 'Çevresel kapı/bariyer kontrolü olduğu için onay önerilir.'}, {'entity_example': 'button.pom_honk_horn', 'capability': 'honk_horn', 'name': 'Honk Horn', 'domain': 'button', 'purpose': 'Araç kornasını çalar.', 'service_text': 'button.press', 'services': ['button.press'], 'confirmation': 'optional', 'aliases': ['korna çal', 'kornaya bas', 'kornayı çal', 'ses çıkar', 'honk', 'honk horn', 'sound horn', 'beep the horn'], 'notes': 'Düşük/orta riskli; rahatsızlık verebileceği için kullanıcı ayarına göre onaylı yapılabilir.'}, {'entity_example': 'button.pom_keyless_driving', 'capability': 'keyless_driving', 'name': 'Keyless Driving / Remote Start', 'domain': 'button', 'purpose': 'Aracı keyless driving / remote start moduna alır; sürüşe hazırlama komutudur.', 'service_text': 'button.press', 'services': ['button.press'], 'confirmation': 'required', 'aliases': ['arabayı çalıştır', 'aracı çalıştır', 'teslayı çalıştır', 'sürüşe hazırla', 'anahtarsız sürüşü aç', 'uzaktan çalıştır', 'remote start', 'keyless driving', 'start the car', 'enable keyless driving', 'start Tesla'], 'notes': 'Çok riskli komut. Her zaman onay gerekir.'}, {'entity_example': 'lock.pom_lock', 'capability': 'vehicle_lock', 'name': 'Vehicle Lock', 'domain': 'lock', 'purpose': 'Aracın kilidini kilitler veya açar.', 'service_text': 'lock.lock / lock.unlock', 'services': ['lock.lock', 'lock.unlock'], 'confirmation': 'mixed', 'aliases': ['arabayı kilitle', 'aracı kilitle', 'kapıları kilitle', 'teslayı kilitle', 'kapıları aç', 'kilidi aç', 'araç kilidini aç', 'arabayı aç', 'lock car', 'unlock car', 'lock doors', 'unlock doors', 'unlock Tesla'], 'notes': 'lock.lock genelde onaysız olabilir; lock.unlock mutlaka onay ister.'}, {'entity_example': 'media_player.pom_media_player', 'capability': 'media_player', 'name': 'Tesla Media Player', 'domain': 'media_player', 'purpose': 'Araç içi medya oynatıcısının durumunu ve desteklenen medya kontrollerini temsil eder.', 'service_text': 'media_player.media_play_pause / media_player.volume_set / media_player.media_next_track / media_player.media_previous_track', 'services': ['media_player.media_play_pause', 'media_player.volume_set', 'media_player.media_next_track', 'media_player.media_previous_track'], 'confirmation': 'none', 'aliases': ['müziği durdur', 'müziği başlat', 'sesi aç', 'sesi kıs', 'sonraki şarkı', 'önceki şarkı', 'pause music', 'play music', 'volume up', 'volume down', 'next track', 'previous track'], 'notes': 'Tessie media player her araçta aynı kontrol setini sunmayabilir; sadece desteklenen servisler kullanılmalı.'}, {'entity_example': 'button.pom_play_fart', 'capability': 'play_fart', 'name': 'Play Fart', 'domain': 'button', 'purpose': 'Tesla eğlence/boombox fart sesini çalar.', 'service_text': 'button.press', 'services': ['button.press'], 'confirmation': 'optional', 'aliases': ['arabayı osurt', 'osur', 'osurt', 'gaz çıkar', 'şaka sesi çal', 'fart çal', 'play fart', 'fart the car', 'fart', 'boombox fart'], 'notes': 'Düşük riskli ama kullanıcı tercihiyle onaylı yapılabilir.'}, {'entity_example': 'select.pom_seat_heater_left', 'capability': 'seat_heater_front_left', 'name': 'Front Left Seat Heater', 'domain': 'select', 'purpose': 'Sol ön koltuk ısıtma seviyesini Off/Low/Medium/High benzeri seçeneklerle ayarlar.', 'service_text': 'select.select_option', 'services': ['select.select_option'], 'confirmation': 'optional', 'aliases': ['sol ön koltuk ısıtma aç', 'sol ön koltuk ısıtma kapat', 'sol ön koltuk ısıtma düşük yap', 'sol ön koltuk ısıtma orta yap', 'sol ön koltuk ısıtma yüksek yap', 'turn on front left seat heater', 'turn off front left seat heater', 'set front left seat heater low', 'set front left seat heater medium', 'set front left seat heater high'], 'notes': 'Select seçenekleri araca göre değişebilir; geçerli option listesi entity attributes içinden alınmalı.'}, {'entity_example': 'select.pom_seat_heater_right', 'capability': 'seat_heater_front_right', 'name': 'Front Right Seat Heater', 'domain': 'select', 'purpose': 'Sağ ön koltuk ısıtma seviyesini Off/Low/Medium/High benzeri seçeneklerle ayarlar.', 'service_text': 'select.select_option', 'services': ['select.select_option'], 'confirmation': 'optional', 'aliases': ['sağ ön koltuk ısıtma aç', 'sağ ön koltuk ısıtma kapat', 'sağ ön koltuk ısıtma düşük yap', 'sağ ön koltuk ısıtma orta yap', 'sağ ön koltuk ısıtma yüksek yap', 'turn on front right seat heater', 'turn off front right seat heater', 'set front right seat heater low', 'set front right seat heater medium', 'set front right seat heater high'], 'notes': 'Select seçenekleri araca göre değişebilir; geçerli option listesi entity attributes içinden alınmalı.'}, {'entity_example': 'select.pom_seat_heater_rear_left', 'capability': 'seat_heater_rear_left', 'name': 'Rear Left Seat Heater', 'domain': 'select', 'purpose': 'Sol arka koltuk ısıtma seviyesini Off/Low/Medium/High benzeri seçeneklerle ayarlar.', 'service_text': 'select.select_option', 'services': ['select.select_option'], 'confirmation': 'optional', 'aliases': ['sol arka koltuk ısıtma aç', 'sol arka koltuk ısıtma kapat', 'sol arka koltuk ısıtma düşük yap', 'sol arka koltuk ısıtma orta yap', 'sol arka koltuk ısıtma yüksek yap', 'turn on rear left seat heater', 'turn off rear left seat heater', 'set rear left seat heater low', 'set rear left seat heater medium', 'set rear left seat heater high'], 'notes': 'Select seçenekleri araca göre değişebilir; geçerli option listesi entity attributes içinden alınmalı.'}, {'entity_example': 'select.pom_seat_heater_rear_center', 'capability': 'seat_heater_rear_center', 'name': 'Rear Center Seat Heater', 'domain': 'select', 'purpose': 'Arka orta koltuk ısıtma seviyesini Off/Low/Medium/High benzeri seçeneklerle ayarlar.', 'service_text': 'select.select_option', 'services': ['select.select_option'], 'confirmation': 'optional', 'aliases': ['arka orta koltuk ısıtma aç', 'arka orta koltuk ısıtma kapat', 'arka orta koltuk ısıtma düşük yap', 'arka orta koltuk ısıtma orta yap', 'arka orta koltuk ısıtma yüksek yap', 'turn on rear center seat heater', 'turn off rear center seat heater', 'set rear center seat heater low', 'set rear center seat heater medium', 'set rear center seat heater high'], 'notes': 'Select seçenekleri araca göre değişebilir; geçerli option listesi entity attributes içinden alınmalı.'}, {'entity_example': 'select.pom_seat_heater_rear_right', 'capability': 'seat_heater_rear_right', 'name': 'Rear Right Seat Heater', 'domain': 'select', 'purpose': 'Sağ arka koltuk ısıtma seviyesini Off/Low/Medium/High benzeri seçeneklerle ayarlar.', 'service_text': 'select.select_option', 'services': ['select.select_option'], 'confirmation': 'optional', 'aliases': ['sağ arka koltuk ısıtma aç', 'sağ arka koltuk ısıtma kapat', 'sağ arka koltuk ısıtma düşük yap', 'sağ arka koltuk ısıtma orta yap', 'sağ arka koltuk ısıtma yüksek yap', 'turn on rear right seat heater', 'turn off rear right seat heater', 'set rear right seat heater low', 'set rear right seat heater medium', 'set rear right seat heater high'], 'notes': 'Select seçenekleri araca göre değişebilir; geçerli option listesi entity attributes içinden alınmalı.'}, {'entity_example': 'switch.pom_sentry_mode', 'capability': 'sentry_mode', 'name': 'Sentry Mode', 'domain': 'switch', 'purpose': 'Tesla Sentry/Nöbetçi güvenlik modunu açıp kapatır.', 'service_text': 'switch.turn_on / switch.turn_off', 'services': ['switch.turn_on', 'switch.turn_off'], 'confirmation': 'optional', 'aliases': ['sentry aç', 'sentry kapat', 'nöbetçi modunu aç', 'güvenlik modunu aç', 'nöbetçi modunu kapat', 'turn on sentry mode', 'turn off sentry mode', 'enable sentry', 'disable sentry'], 'notes': 'Güvenlik modu; kapatma komutu kullanıcı ayarına göre onaylı yapılabilir.'}, {'entity_example': 'switch.pom_steering_wheel_heater', 'capability': 'steering_wheel_heater', 'name': 'Steering Wheel Heater', 'domain': 'switch', 'purpose': 'Direksiyon ısıtmasını açıp kapatır.', 'service_text': 'switch.turn_on / switch.turn_off', 'services': ['switch.turn_on', 'switch.turn_off'], 'confirmation': 'optional', 'aliases': ['direksiyon ısıtmasını aç', 'direksiyon ısıtmasını kapat', 'direksiyonu ısıt', 'turn on steering wheel heater', 'turn off steering wheel heater', 'heat steering wheel'], 'notes': 'Düşük riskli konfor kontrolü.'}, {'entity_example': 'cover.pom_trunk', 'capability': 'trunk', 'name': 'Trunk', 'domain': 'cover', 'purpose': 'Arka bagaj/trunk kapağını açıp kapatır; destek araca göre değişir.', 'service_text': 'cover.open_cover / cover.close_cover', 'services': ['cover.open_cover', 'cover.close_cover'], 'confirmation': 'required', 'aliases': ['arka bagajı aç', 'bagajı aç', 'trunk aç', 'arka bagajı kapat', 'bagajı kapat', 'open trunk', 'close trunk', 'open rear trunk', 'close boot'], 'notes': 'Riskli komut. Açma/kapatma için onay gerekir.'}, {'entity_example': 'switch.pom_valet_mode', 'capability': 'valet_mode', 'name': 'Valet Mode', 'domain': 'switch', 'purpose': 'Vale modunu açıp kapatır.', 'service_text': 'switch.turn_on / switch.turn_off', 'services': ['switch.turn_on', 'switch.turn_off'], 'confirmation': 'required', 'aliases': ['vale modunu aç', 'valet mode aç', 'vale modunu kapat', 'valet mode kapat', 'turn on valet mode', 'turn off valet mode', 'enable valet mode', 'disable valet mode'], 'notes': 'Riskli araç erişim/sürüş kısıtlama ayarı. Her zaman onay ister.'}, {'entity_example': 'cover.pom_vent_windows', 'capability': 'vent_windows', 'name': 'Vent Windows', 'domain': 'cover', 'purpose': 'Camları havalandırma pozisyonuna alır veya kapatır.', 'service_text': 'cover.open_cover / cover.close_cover', 'services': ['cover.open_cover', 'cover.close_cover'], 'confirmation': 'required', 'aliases': ['camları havalandır', 'camları arala', 'camları aç', 'camları kapat', 'vent windows', 'close windows', 'open windows slightly', 'close vented windows'], 'notes': 'Cam kontrolü güvenlik/yağmur riski taşır; onay gerekir.'}, {'entity_example': 'button.pom_wake', 'capability': 'wake_vehicle', 'name': 'Wake Vehicle', 'domain': 'button', 'purpose': 'Aracı uyandırır/online hale getirmeyi dener.', 'service_text': 'button.press', 'services': ['button.press'], 'confirmation': 'optional', 'aliases': ['aracı uyandır', 'teslayı uyandır', 'uyan', 'arabayı uyandır', 'wake car', 'wake vehicle', 'wake Tesla'], 'notes': 'Bilgi soruları için otomatik wake yapılmamalı; kullanıcı açıkça isterse çalıştırılmalı.'}]
+AI_CONTROL_CAPABILITY_MANIFEST = [{'entity_example': 'switch.pom_charge', 'capability': 'charge_control', 'name': 'Charge Control', 'domain': 'switch', 'purpose': 'AracÄ±n ÅŸarj baÅŸlat/durdur kontrolÃ¼dÃ¼r. Durum gÃ¶sterimi iÃ§in binary_sensor.pom_charging daha uygundur; switch ise kontrol amaÃ§lÄ±dÄ±r.', 'service_text': 'switch.turn_on / switch.turn_off', 'services': ['switch.turn_on', 'switch.turn_off'], 'confirmation': 'optional', 'aliases': ['ÅŸarjÄ± baÅŸlat', 'ÅŸarj etmeye baÅŸla', 'ÅŸarjÄ± durdur', 'ÅŸarjÄ± kes', 'ÅŸarjÄ± kapat', 'start charging', 'stop charging', 'enable charging', 'disable charging'], 'notes': "KullanÄ±cÄ± dosyasÄ±nda 'ÅŸarj olma durumunu gÃ¶sterir' notu var; ancak switch domain olduÄŸu iÃ§in kontrol amaÃ§lÄ± kullanÄ±labilir. Durum iÃ§in binary_sensor.pom_charging tercih edilmeli."}, {'entity_example': 'lock.pom_charge_cable_lock', 'capability': 'charge_cable_lock', 'name': 'Charge Cable Lock', 'domain': 'lock', 'purpose': 'Åarj kablosu kilidini kontrol eder veya durumunu gÃ¶sterir.', 'service_text': 'lock.lock / lock.unlock', 'services': ['lock.lock', 'lock.unlock'], 'confirmation': 'required', 'aliases': ['ÅŸarj kablosunu kilitle', 'ÅŸarj kablosu kilidini aÃ§', 'kablo kilidini aÃ§', 'lock charge cable', 'unlock charge cable', 'release charge cable lock'], 'notes': 'Kablo kilidini aÃ§mak fiziksel gÃ¼venlik/ÅŸarj gÃ¼venliÄŸi etkileyebilir; onay Ã¶nerilir.'}, {'entity_example': 'cover.pom_charge_port_door', 'capability': 'charge_port_door', 'name': 'Charge Port Door', 'domain': 'cover', 'purpose': 'Åarj port kapaÄŸÄ±nÄ± aÃ§Ä±p kapatÄ±r.', 'service_text': 'cover.open_cover / cover.close_cover', 'services': ['cover.open_cover', 'cover.close_cover'], 'confirmation': 'optional', 'aliases': ['ÅŸarj kapaÄŸÄ±nÄ± aÃ§', 'ÅŸarj portunu aÃ§', 'ÅŸarj kapaÄŸÄ±nÄ± kapat', 'ÅŸarj portunu kapat', 'open charge port', 'close charge port', 'open charge port door', 'close charge port door'], 'notes': 'Genelde dÃ¼ÅŸÃ¼k riskli; yine de kullanÄ±cÄ± isterse tÃ¼m araÃ§ kontrollerinde onay aÃ§Ä±labilir.'}, {'entity_example': 'climate.pom_climate', 'capability': 'climate', 'name': 'Cabin Climate', 'domain': 'climate', 'purpose': 'Tesla kabin klimasÄ±nÄ± kontrol eder; aÃ§/kapat, hedef sÄ±caklÄ±k ayarÄ± ve desteklenen modlar iÃ§in kullanÄ±lÄ±r.', 'service_text': 'climate.turn_on / climate.turn_off / climate.set_temperature / climate.set_hvac_mode', 'services': ['climate.turn_on', 'climate.turn_off', 'climate.set_temperature', 'climate.set_hvac_mode'], 'confirmation': 'none', 'aliases': ['klimayÄ± aÃ§', 'klimayÄ± kapat', 'araÃ§ klimasÄ±nÄ± kapat', 'araba klimasÄ±nÄ± kapat', 'klimasÄ±nÄ± kapat', 'klimasÄ±nÄ± aÃ§', 'soÄŸutmayÄ± aÃ§', 'Ä±sÄ±tmayÄ± aÃ§', 'klimayÄ± 22 derece yap', 'sÄ±caklÄ±ÄŸÄ± 25 yap', 'arabayÄ± serinlet', 'arabayÄ± Ä±sÄ±t', 'turn on climate', 'turn off climate', 'set climate to 22', 'set temperature to 25', 'cool the car', 'heat the car'], 'notes': "Ã‡oklu komutta 'klimayÄ± aÃ§ ve 28 derece yap' iki aksiyon Ã¼retmeli: turn_on + set_temperature."}, {'entity_example': 'switch.pom_defrost_mode', 'capability': 'defrost_mode', 'name': 'Defrost Mode', 'domain': 'switch', 'purpose': 'Cam buÄŸu/buz Ã§Ã¶zme defrost modunu aÃ§Ä±p kapatÄ±r.', 'service_text': 'switch.turn_on / switch.turn_off', 'services': ['switch.turn_on', 'switch.turn_off'], 'confirmation': 'optional', 'aliases': ['defrost aÃ§', 'defrost kapat', 'buz Ã§Ã¶zmeyi aÃ§', 'cam buzunu Ã§Ã¶z', 'buÄŸu Ã§Ã¶zmeyi aÃ§', 'Ã¶n camÄ± Ã§Ã¶z', 'turn on defrost', 'turn off defrost', 'defrost the car', 'clear windshield', 'windshield defrost'], 'notes': 'Genelde gÃ¼venli ama aracÄ± uyandÄ±rabilir ve enerji tÃ¼ketir.'}, {'entity_example': 'button.pom_flash_lights', 'capability': 'flash_lights', 'name': 'Flash Lights', 'domain': 'button', 'purpose': 'AraÃ§ farlarÄ±nÄ± kÄ±sa sÃ¼reli flaÅŸlar/sellektÃ¶r yapar.', 'service_text': 'button.press', 'services': ['button.press'], 'confirmation': 'none', 'aliases': ['farlarÄ± yak', 'farlarÄ± flaÅŸla', 'Ä±ÅŸÄ±klarÄ± yak', 'selektÃ¶r yap', 'Ä±ÅŸÄ±k Ã§ak', 'arabayÄ± bulmak iÃ§in Ä±ÅŸÄ±k yak', 'flash lights', 'flash the lights', 'blink lights', 'find my car with lights'], 'notes': 'Tek aksiyonlu button.press. Genel olarak dÃ¼ÅŸÃ¼k riskli.'}, {'entity_example': 'cover.pom_frunk', 'capability': 'frunk', 'name': 'Frunk', 'domain': 'cover', 'purpose': 'Ã–n bagaj/frunk kapaÄŸÄ±nÄ± aÃ§ar. Genellikle kapatma desteÄŸi yoktur veya araca gÃ¶re deÄŸiÅŸebilir.', 'service_text': 'cover.open_cover', 'services': ['cover.open_cover'], 'confirmation': 'required', 'aliases': ['frunku aÃ§', 'Ã¶n frunku aÃ§', 'Ã¶n bagajÄ± aÃ§', 'Ã¶n kaputu aÃ§', 'open frunk', 'open front trunk', 'open front boot'], 'notes': 'Riskli komuttur. Her zaman onay gerekir. Kapatma servisi desteklenmeyebilir.'}, {'entity_example': 'button.pom_homelink', 'capability': 'homelink', 'name': 'HomeLink', 'domain': 'button', 'purpose': 'AraÃ§taki HomeLink komutunu tetikler; garaj kapÄ±sÄ±/bariyer gibi eÅŸleÅŸmiÅŸ sistemi Ã§alÄ±ÅŸtÄ±rabilir.', 'service_text': 'button.press', 'services': ['button.press'], 'confirmation': 'required', 'aliases': ['homelink Ã§alÄ±ÅŸtÄ±r', 'garajÄ± aÃ§', 'garaj kapÄ±sÄ±nÄ± aÃ§', 'bariyeri aÃ§', 'trigger homelink', 'open garage', 'open garage door', 'open gate'], 'notes': 'Ã‡evresel kapÄ±/bariyer kontrolÃ¼ olduÄŸu iÃ§in onay Ã¶nerilir.'}, {'entity_example': 'button.pom_honk_horn', 'capability': 'honk_horn', 'name': 'Honk Horn', 'domain': 'button', 'purpose': 'AraÃ§ kornasÄ±nÄ± Ã§alar.', 'service_text': 'button.press', 'services': ['button.press'], 'confirmation': 'optional', 'aliases': ['korna Ã§al', 'kornaya bas', 'kornayÄ± Ã§al', 'ses Ã§Ä±kar', 'honk', 'honk horn', 'sound horn', 'beep the horn'], 'notes': 'DÃ¼ÅŸÃ¼k/orta riskli; rahatsÄ±zlÄ±k verebileceÄŸi iÃ§in kullanÄ±cÄ± ayarÄ±na gÃ¶re onaylÄ± yapÄ±labilir.'}, {'entity_example': 'button.pom_keyless_driving', 'capability': 'keyless_driving', 'name': 'Keyless Driving / Remote Start', 'domain': 'button', 'purpose': 'AracÄ± keyless driving / remote start moduna alÄ±r; sÃ¼rÃ¼ÅŸe hazÄ±rlama komutudur.', 'service_text': 'button.press', 'services': ['button.press'], 'confirmation': 'required', 'aliases': ['arabayÄ± Ã§alÄ±ÅŸtÄ±r', 'aracÄ± Ã§alÄ±ÅŸtÄ±r', 'teslayÄ± Ã§alÄ±ÅŸtÄ±r', 'sÃ¼rÃ¼ÅŸe hazÄ±rla', 'anahtarsÄ±z sÃ¼rÃ¼ÅŸÃ¼ aÃ§', 'uzaktan Ã§alÄ±ÅŸtÄ±r', 'remote start', 'keyless driving', 'start the car', 'enable keyless driving', 'start Tesla'], 'notes': 'Ã‡ok riskli komut. Her zaman onay gerekir.'}, {'entity_example': 'lock.pom_lock', 'capability': 'vehicle_lock', 'name': 'Vehicle Lock', 'domain': 'lock', 'purpose': 'AracÄ±n kilidini kilitler veya aÃ§ar.', 'service_text': 'lock.lock / lock.unlock', 'services': ['lock.lock', 'lock.unlock'], 'confirmation': 'mixed', 'aliases': ['arabayÄ± kilitle', 'aracÄ± kilitle', 'kapÄ±larÄ± kilitle', 'teslayÄ± kilitle', 'kapÄ±larÄ± aÃ§', 'kilidi aÃ§', 'araÃ§ kilidini aÃ§', 'arabayÄ± aÃ§', 'lock car', 'unlock car', 'lock doors', 'unlock doors', 'unlock Tesla'], 'notes': 'lock.lock genelde onaysÄ±z olabilir; lock.unlock mutlaka onay ister.'}, {'entity_example': 'media_player.pom_media_player', 'capability': 'media_player', 'name': 'Tesla Media Player', 'domain': 'media_player', 'purpose': 'AraÃ§ iÃ§i medya oynatÄ±cÄ±sÄ±nÄ±n durumunu ve desteklenen medya kontrollerini temsil eder.', 'service_text': 'media_player.media_play_pause / media_player.volume_set / media_player.media_next_track / media_player.media_previous_track', 'services': ['media_player.media_play_pause', 'media_player.volume_set', 'media_player.media_next_track', 'media_player.media_previous_track'], 'confirmation': 'none', 'aliases': ['mÃ¼ziÄŸi durdur', 'mÃ¼ziÄŸi baÅŸlat', 'sesi aÃ§', 'sesi kÄ±s', 'sonraki ÅŸarkÄ±', 'Ã¶nceki ÅŸarkÄ±', 'pause music', 'play music', 'volume up', 'volume down', 'next track', 'previous track'], 'notes': 'Tessie media player her araÃ§ta aynÄ± kontrol setini sunmayabilir; sadece desteklenen servisler kullanÄ±lmalÄ±.'}, {'entity_example': 'button.pom_play_fart', 'capability': 'play_fart', 'name': 'Play Fart', 'domain': 'button', 'purpose': 'Tesla eÄŸlence/boombox fart sesini Ã§alar.', 'service_text': 'button.press', 'services': ['button.press'], 'confirmation': 'optional', 'aliases': ['arabayÄ± osurt', 'osur', 'osurt', 'gaz Ã§Ä±kar', 'ÅŸaka sesi Ã§al', 'fart Ã§al', 'play fart', 'fart the car', 'fart', 'boombox fart'], 'notes': 'DÃ¼ÅŸÃ¼k riskli ama kullanÄ±cÄ± tercihiyle onaylÄ± yapÄ±labilir.'}, {'entity_example': 'select.pom_seat_heater_left', 'capability': 'seat_heater_front_left', 'name': 'Front Left Seat Heater', 'domain': 'select', 'purpose': 'Sol Ã¶n koltuk Ä±sÄ±tma seviyesini Off/Low/Medium/High benzeri seÃ§eneklerle ayarlar.', 'service_text': 'select.select_option', 'services': ['select.select_option'], 'confirmation': 'optional', 'aliases': ['sol Ã¶n koltuk Ä±sÄ±tma aÃ§', 'sol Ã¶n koltuk Ä±sÄ±tma kapat', 'sol Ã¶n koltuk Ä±sÄ±tma dÃ¼ÅŸÃ¼k yap', 'sol Ã¶n koltuk Ä±sÄ±tma orta yap', 'sol Ã¶n koltuk Ä±sÄ±tma yÃ¼ksek yap', 'turn on front left seat heater', 'turn off front left seat heater', 'set front left seat heater low', 'set front left seat heater medium', 'set front left seat heater high'], 'notes': 'Select seÃ§enekleri araca gÃ¶re deÄŸiÅŸebilir; geÃ§erli option listesi entity attributes iÃ§inden alÄ±nmalÄ±.'}, {'entity_example': 'select.pom_seat_heater_right', 'capability': 'seat_heater_front_right', 'name': 'Front Right Seat Heater', 'domain': 'select', 'purpose': 'SaÄŸ Ã¶n koltuk Ä±sÄ±tma seviyesini Off/Low/Medium/High benzeri seÃ§eneklerle ayarlar.', 'service_text': 'select.select_option', 'services': ['select.select_option'], 'confirmation': 'optional', 'aliases': ['saÄŸ Ã¶n koltuk Ä±sÄ±tma aÃ§', 'saÄŸ Ã¶n koltuk Ä±sÄ±tma kapat', 'saÄŸ Ã¶n koltuk Ä±sÄ±tma dÃ¼ÅŸÃ¼k yap', 'saÄŸ Ã¶n koltuk Ä±sÄ±tma orta yap', 'saÄŸ Ã¶n koltuk Ä±sÄ±tma yÃ¼ksek yap', 'turn on front right seat heater', 'turn off front right seat heater', 'set front right seat heater low', 'set front right seat heater medium', 'set front right seat heater high'], 'notes': 'Select seÃ§enekleri araca gÃ¶re deÄŸiÅŸebilir; geÃ§erli option listesi entity attributes iÃ§inden alÄ±nmalÄ±.'}, {'entity_example': 'select.pom_seat_heater_rear_left', 'capability': 'seat_heater_rear_left', 'name': 'Rear Left Seat Heater', 'domain': 'select', 'purpose': 'Sol arka koltuk Ä±sÄ±tma seviyesini Off/Low/Medium/High benzeri seÃ§eneklerle ayarlar.', 'service_text': 'select.select_option', 'services': ['select.select_option'], 'confirmation': 'optional', 'aliases': ['sol arka koltuk Ä±sÄ±tma aÃ§', 'sol arka koltuk Ä±sÄ±tma kapat', 'sol arka koltuk Ä±sÄ±tma dÃ¼ÅŸÃ¼k yap', 'sol arka koltuk Ä±sÄ±tma orta yap', 'sol arka koltuk Ä±sÄ±tma yÃ¼ksek yap', 'turn on rear left seat heater', 'turn off rear left seat heater', 'set rear left seat heater low', 'set rear left seat heater medium', 'set rear left seat heater high'], 'notes': 'Select seÃ§enekleri araca gÃ¶re deÄŸiÅŸebilir; geÃ§erli option listesi entity attributes iÃ§inden alÄ±nmalÄ±.'}, {'entity_example': 'select.pom_seat_heater_rear_center', 'capability': 'seat_heater_rear_center', 'name': 'Rear Center Seat Heater', 'domain': 'select', 'purpose': 'Arka orta koltuk Ä±sÄ±tma seviyesini Off/Low/Medium/High benzeri seÃ§eneklerle ayarlar.', 'service_text': 'select.select_option', 'services': ['select.select_option'], 'confirmation': 'optional', 'aliases': ['arka orta koltuk Ä±sÄ±tma aÃ§', 'arka orta koltuk Ä±sÄ±tma kapat', 'arka orta koltuk Ä±sÄ±tma dÃ¼ÅŸÃ¼k yap', 'arka orta koltuk Ä±sÄ±tma orta yap', 'arka orta koltuk Ä±sÄ±tma yÃ¼ksek yap', 'turn on rear center seat heater', 'turn off rear center seat heater', 'set rear center seat heater low', 'set rear center seat heater medium', 'set rear center seat heater high'], 'notes': 'Select seÃ§enekleri araca gÃ¶re deÄŸiÅŸebilir; geÃ§erli option listesi entity attributes iÃ§inden alÄ±nmalÄ±.'}, {'entity_example': 'select.pom_seat_heater_rear_right', 'capability': 'seat_heater_rear_right', 'name': 'Rear Right Seat Heater', 'domain': 'select', 'purpose': 'SaÄŸ arka koltuk Ä±sÄ±tma seviyesini Off/Low/Medium/High benzeri seÃ§eneklerle ayarlar.', 'service_text': 'select.select_option', 'services': ['select.select_option'], 'confirmation': 'optional', 'aliases': ['saÄŸ arka koltuk Ä±sÄ±tma aÃ§', 'saÄŸ arka koltuk Ä±sÄ±tma kapat', 'saÄŸ arka koltuk Ä±sÄ±tma dÃ¼ÅŸÃ¼k yap', 'saÄŸ arka koltuk Ä±sÄ±tma orta yap', 'saÄŸ arka koltuk Ä±sÄ±tma yÃ¼ksek yap', 'turn on rear right seat heater', 'turn off rear right seat heater', 'set rear right seat heater low', 'set rear right seat heater medium', 'set rear right seat heater high'], 'notes': 'Select seÃ§enekleri araca gÃ¶re deÄŸiÅŸebilir; geÃ§erli option listesi entity attributes iÃ§inden alÄ±nmalÄ±.'}, {'entity_example': 'switch.pom_sentry_mode', 'capability': 'sentry_mode', 'name': 'Sentry Mode', 'domain': 'switch', 'purpose': 'Tesla Sentry/NÃ¶betÃ§i gÃ¼venlik modunu aÃ§Ä±p kapatÄ±r.', 'service_text': 'switch.turn_on / switch.turn_off', 'services': ['switch.turn_on', 'switch.turn_off'], 'confirmation': 'optional', 'aliases': ['sentry aÃ§', 'sentry kapat', 'nÃ¶betÃ§i modunu aÃ§', 'gÃ¼venlik modunu aÃ§', 'nÃ¶betÃ§i modunu kapat', 'turn on sentry mode', 'turn off sentry mode', 'enable sentry', 'disable sentry'], 'notes': 'GÃ¼venlik modu; kapatma komutu kullanÄ±cÄ± ayarÄ±na gÃ¶re onaylÄ± yapÄ±labilir.'}, {'entity_example': 'switch.pom_steering_wheel_heater', 'capability': 'steering_wheel_heater', 'name': 'Steering Wheel Heater', 'domain': 'switch', 'purpose': 'Direksiyon Ä±sÄ±tmasÄ±nÄ± aÃ§Ä±p kapatÄ±r.', 'service_text': 'switch.turn_on / switch.turn_off', 'services': ['switch.turn_on', 'switch.turn_off'], 'confirmation': 'optional', 'aliases': ['direksiyon Ä±sÄ±tmasÄ±nÄ± aÃ§', 'direksiyon Ä±sÄ±tmasÄ±nÄ± kapat', 'direksiyonu Ä±sÄ±t', 'turn on steering wheel heater', 'turn off steering wheel heater', 'heat steering wheel'], 'notes': 'DÃ¼ÅŸÃ¼k riskli konfor kontrolÃ¼.'}, {'entity_example': 'cover.pom_trunk', 'capability': 'trunk', 'name': 'Trunk', 'domain': 'cover', 'purpose': 'Arka bagaj/trunk kapaÄŸÄ±nÄ± aÃ§Ä±p kapatÄ±r; destek araca gÃ¶re deÄŸiÅŸir.', 'service_text': 'cover.open_cover / cover.close_cover', 'services': ['cover.open_cover', 'cover.close_cover'], 'confirmation': 'required', 'aliases': ['arka bagajÄ± aÃ§', 'bagajÄ± aÃ§', 'trunk aÃ§', 'arka bagajÄ± kapat', 'bagajÄ± kapat', 'open trunk', 'close trunk', 'open rear trunk', 'close boot'], 'notes': 'Riskli komut. AÃ§ma/kapatma iÃ§in onay gerekir.'}, {'entity_example': 'switch.pom_valet_mode', 'capability': 'valet_mode', 'name': 'Valet Mode', 'domain': 'switch', 'purpose': 'Vale modunu aÃ§Ä±p kapatÄ±r.', 'service_text': 'switch.turn_on / switch.turn_off', 'services': ['switch.turn_on', 'switch.turn_off'], 'confirmation': 'required', 'aliases': ['vale modunu aÃ§', 'valet mode aÃ§', 'vale modunu kapat', 'valet mode kapat', 'turn on valet mode', 'turn off valet mode', 'enable valet mode', 'disable valet mode'], 'notes': 'Riskli araÃ§ eriÅŸim/sÃ¼rÃ¼ÅŸ kÄ±sÄ±tlama ayarÄ±. Her zaman onay ister.'}, {'entity_example': 'cover.pom_vent_windows', 'capability': 'vent_windows', 'name': 'Vent Windows', 'domain': 'cover', 'purpose': 'CamlarÄ± havalandÄ±rma pozisyonuna alÄ±r veya kapatÄ±r.', 'service_text': 'cover.open_cover / cover.close_cover', 'services': ['cover.open_cover', 'cover.close_cover'], 'confirmation': 'required', 'aliases': ['camlarÄ± havalandÄ±r', 'camlarÄ± arala', 'camlarÄ± aÃ§', 'camlarÄ± kapat', 'vent windows', 'close windows', 'open windows slightly', 'close vented windows'], 'notes': 'Cam kontrolÃ¼ gÃ¼venlik/yaÄŸmur riski taÅŸÄ±r; onay gerekir.'}, {'entity_example': 'button.pom_wake', 'capability': 'wake_vehicle', 'name': 'Wake Vehicle', 'domain': 'button', 'purpose': 'AracÄ± uyandÄ±rÄ±r/online hale getirmeyi dener.', 'service_text': 'button.press', 'services': ['button.press'], 'confirmation': 'optional', 'aliases': ['aracÄ± uyandÄ±r', 'teslayÄ± uyandÄ±r', 'uyan', 'arabayÄ± uyandÄ±r', 'wake car', 'wake vehicle', 'wake Tesla'], 'notes': 'Bilgi sorularÄ± iÃ§in otomatik wake yapÄ±lmamalÄ±; kullanÄ±cÄ± aÃ§Ä±kÃ§a isterse Ã§alÄ±ÅŸtÄ±rÄ±lmalÄ±.'}]
 
 
 
@@ -2231,28 +2231,28 @@ def build_action_for_trained_alias(hass: HomeAssistant, entity_id: str, message:
         return single(label, "press")
     if domain == "switch":
         turn_off = any(term in n for term in ["kapat", "off", "disable", "pasif", "durdur", "stop"])
-        return single(f"{label} kapat" if turn_off else f"{label} aç", "turn_off" if turn_off else "turn_on")
+        return single(f"{label} kapat" if turn_off else f"{label} aÃ§", "turn_off" if turn_off else "turn_on")
     if domain == "lock":
-        wants_unlock = any(term in n for term in ["ac", "aç", "unlock", "kilidini ac", "kapilari ac", "kapıları aç", "arabayi ac", "arabayı aç"])
+        wants_unlock = any(term in n for term in ["ac", "aÃ§", "unlock", "kilidini ac", "kapilari ac", "kapÄ±larÄ± aÃ§", "arabayi ac", "arabayÄ± aÃ§"])
         wants_lock = any(term in n for term in ["kilitle", "lock", "kitle"])
         if wants_lock and not wants_unlock:
-            return single("Araç kilitle", "lock")
-        return single("Araç kilidini aç", "unlock")
+            return single("AraÃ§ kilitle", "lock")
+        return single("AraÃ§ kilidini aÃ§", "unlock")
     if domain == "cover":
         close = any(term in n for term in ["kapat", "close"])
-        return single(f"{label} kapat" if close else f"{label} aç", "close_cover" if close else "open_cover")
+        return single(f"{label} kapat" if close else f"{label} aÃ§", "close_cover" if close else "open_cover")
     if domain == "climate":
         actions: list[dict[str, Any]] = []
         turn_off = any(term in n for term in ["kapat", "off", "durdur"])
-        turn_on = any(term in n for term in ["ac", "aç", "calistir", "çalıştır", "on", "serinlet", "isit", "ısıt"])
+        turn_on = any(term in n for term in ["ac", "aÃ§", "calistir", "Ã§alÄ±ÅŸtÄ±r", "on", "serinlet", "isit", "Ä±sÄ±t"])
         temp = parse_temperature_from_text(message)
         if turn_off:
             actions.append(single("Klima kapat", "turn_off"))
         else:
             if turn_on:
-                actions.append(single("Klima aç", "turn_on"))
+                actions.append(single("Klima aÃ§", "turn_on"))
             if temp is not None:
-                actions.append(single(f"Klimayı {temp:g}°C yap", "set_temperature", {"temperature": temp}))
+                actions.append(single(f"KlimayÄ± {temp:g}Â°C yap", "set_temperature", {"temperature": temp}))
         if not actions:
             actions.append(single(label, "turn_on"))
         if len(actions) == 1:
@@ -2396,7 +2396,7 @@ def is_ai_vehicle_control_cancel_text(message: str) -> bool:
     n = normalize_text_for_match(message)
     if not n:
         return False
-    return n in {"hayir", "hayır", "iptal", "cancel", "vazgec", "vazgeç", "dur", "stop"} or any(term in n for term in ["iptal et", "vazgectim", "vazgeçtim"])
+    return n in {"hayir", "hayÄ±r", "iptal", "cancel", "vazgec", "vazgeÃ§", "dur", "stop"} or any(term in n for term in ["iptal et", "vazgectim", "vazgeÃ§tim"])
 
 
 
@@ -2428,11 +2428,11 @@ def is_contextual_ai_vehicle_control_confirmation_text(message: str, pending_ite
             options.append(normalize_text_for_match(str(sd.get("option") or "")))
 
     wants_off_pending = any(x in {"off", "turn_off", "close_cover", "lock"} for x in services + options) or any(_has_any_phrase(label, ["kapat", "off", "close"]) for label in labels)
-    wants_on_pending = any(x in {"on", "turn_on", "open_cover", "unlock", "press"} for x in services + options) or any(_has_any_phrase(label, ["ac", "aç", "on", "open", "calistir", "press"]) for label in labels)
+    wants_on_pending = any(x in {"on", "turn_on", "open_cover", "unlock", "press"} for x in services + options) or any(_has_any_phrase(label, ["ac", "aÃ§", "on", "open", "calistir", "press"]) for label in labels)
 
     if wants_off_pending and n in {"kapat", "kapat onu", "tamam kapat", "evet kapat", "kapatabilirsin", "off", "close"}:
         return True
-    if wants_on_pending and n in {"ac", "aç", "tamam ac", "evet ac", "calistir", "baslat", "on", "open", "press"}:
+    if wants_on_pending and n in {"ac", "aÃ§", "tamam ac", "evet ac", "calistir", "baslat", "on", "open", "press"}:
         return True
     return False
 
@@ -2464,10 +2464,10 @@ def looks_like_vehicle_control_request(message: str) -> bool:
 def is_indirect_vehicle_suggestion_statement(message: str) -> bool:
     """Detect comfort/status complaints that should become a *suggestion*, not an immediate control.
 
-    Examples: "çok sıcak", "içerisi çok sıcak", "üşüdüm". These should let POM
+    Examples: "Ã§ok sÄ±cak", "iÃ§erisi Ã§ok sÄ±cak", "Ã¼ÅŸÃ¼dÃ¼m". These should let POM
     answer naturally and store a single pending_suggestion. They must not be routed
     through the immediate vehicle-control executor before chat generation.
-    Direct commands such as "serinlet", "klimayı aç", "ısıt" still go through
+    Direct commands such as "serinlet", "klimayÄ± aÃ§", "Ä±sÄ±t" still go through
     the control pipeline.
     """
     n = normalize_text_for_match(message)
@@ -2486,7 +2486,7 @@ def is_indirect_vehicle_suggestion_statement(message: str) -> bool:
     hot_phrases = [
         "cok sicak", "icerisi cok sicak", "icersi cok sicak", "araba cok sicak",
         "baya sicak", "baya sicak oldu", "sicak oldu", "ic sicaklik yuksek",
-        "bunaldim", "terledim", "sicaktan bunaldim", "sıcaktan bunaldim",
+        "bunaldim", "terledim", "sicaktan bunaldim", "sÄ±caktan bunaldim",
     ]
     cold_phrases = [
         "cok soguk", "icerisi cok soguk", "araba cok soguk", "baya soguk",
@@ -2502,7 +2502,7 @@ def _normalize_manifest_aliases(aliases: list[str]) -> list[str]:
         n = normalize_text_for_match(alias)
         if n and n not in result:
             result.append(n)
-        # Turkish users often use aç/yak interchangeably for lights.
+        # Turkish users often use aÃ§/yak interchangeably for lights.
         if " yak" in f" {n}" or n.endswith(" yak"):
             v = n.replace(" yak", " ac")
             if v and v not in result:
@@ -2631,11 +2631,11 @@ def _message_mentions_capability(message: str, cap: dict[str, Any]) -> bool:
         ])
 
     if capability.startswith("seat_heater_"):
-        # Seat heater commands may be written as "sol arka koltuk ısıtıcı"
-        # or simply "sol arka ısıtıcı". Do not require the word koltuk.
+        # Seat heater commands may be written as "sol arka koltuk Ä±sÄ±tÄ±cÄ±"
+        # or simply "sol arka Ä±sÄ±tÄ±cÄ±". Do not require the word koltuk.
         if _has_any_phrase(normalized, ["direksiyon", "steering"]):
             return False
-        # Seat heater commands may include either a heater verb (ısıt/aç) or
+        # Seat heater commands may include either a heater verb (Ä±sÄ±t/aÃ§) or
         # a direct level value such as "low/medium/high". Example:
         # "sol arka koltuk low" should still route to rear-left seat heater.
         if not _has_any_phrase(normalized, [
@@ -2673,7 +2673,7 @@ def _message_mentions_capability(message: str, cap: dict[str, Any]) -> bool:
         has_action = _has_any_phrase(normalized, ["kilitle", "kitle", "kilidi ac", "kilidini ac", "kapilari ac", "arabayi ac", "araci ac", "lock", "unlock", "lock doors", "unlock doors"])
         return has_vehicle and has_action
     if capability == "vent_windows":
-        # Only control commands, not "cam açık mı" status questions.
+        # Only control commands, not "cam aÃ§Ä±k mÄ±" status questions.
         return _has_any_phrase(normalized, ["camlari havalandir", "camlari arala", "camlari ac", "camlari kapat", "vent windows", "close windows"])
 
     return False
@@ -2736,10 +2736,10 @@ def _build_actions_for_capability(hass: HomeAssistant, data: dict[str, Any], cap
             if action: actions.append(action)
         else:
             if wants_on or temp is not None:
-                action = _make_manifest_action("Klima aç", "climate", "turn_on", entity_id, cap, data=data)
+                action = _make_manifest_action("Klima aÃ§", "climate", "turn_on", entity_id, cap, data=data)
                 if action and wants_on: actions.append(action)
             if temp is not None:
-                action = _make_manifest_action(f"Klimayı {temp:g}°C yap", "climate", "set_temperature", entity_id, cap, {"temperature": temp}, data=data)
+                action = _make_manifest_action(f"KlimayÄ± {temp:g}Â°C yap", "climate", "set_temperature", entity_id, cap, {"temperature": temp}, data=data)
                 if action: actions.append(action)
             elif wants_on:
                 pass
@@ -2748,12 +2748,12 @@ def _build_actions_for_capability(hass: HomeAssistant, data: dict[str, Any], cap
     if domain == "button":
         label = str(cap.get("name") or capability).strip()
         special_labels = {
-            "flash_lights": "Işıkları yak / flash lights",
-            "honk_horn": "Korna çal",
-            "play_fart": "Fart mode çalıştır",
+            "flash_lights": "IÅŸÄ±klarÄ± yak / flash lights",
+            "honk_horn": "Korna Ã§al",
+            "play_fart": "Fart mode Ã§alÄ±ÅŸtÄ±r",
             "keyless_driving": "Keyless driving / remote start",
-            "wake_vehicle": "Aracı uyandır",
-            "homelink": "HomeLink çalıştır",
+            "wake_vehicle": "AracÄ± uyandÄ±r",
+            "homelink": "HomeLink Ã§alÄ±ÅŸtÄ±r",
         }
         action = _make_manifest_action(special_labels.get(capability, label), "button", "press", entity_id, cap, data=data)
         return [action] if action else []
@@ -2761,20 +2761,20 @@ def _build_actions_for_capability(hass: HomeAssistant, data: dict[str, Any], cap
     if domain == "switch":
         service = "turn_off" if wants_off else "turn_on"
         label = str(cap.get("name") or capability).strip()
-        suffix = "kapat" if service == "turn_off" else "aç"
+        suffix = "kapat" if service == "turn_off" else "aÃ§"
         action = _make_manifest_action(f"{label} {suffix}", "switch", service, entity_id, cap, data=data)
         return [action] if action else []
 
     if domain == "lock":
         service = "unlock" if wants_unlock and not wants_lock else "lock"
-        label = "Araç kilidini aç" if capability == "vehicle_lock" and service == "unlock" else "Aracı kilitle" if capability == "vehicle_lock" else f"{cap.get('name') or capability} {'aç' if service == 'unlock' else 'kilitle'}"
+        label = "AraÃ§ kilidini aÃ§" if capability == "vehicle_lock" and service == "unlock" else "AracÄ± kilitle" if capability == "vehicle_lock" else f"{cap.get('name') or capability} {'aÃ§' if service == 'unlock' else 'kilitle'}"
         action = _make_manifest_action(label, "lock", service, entity_id, cap, data=data)
         return [action] if action else []
 
     if domain == "cover":
         service = "close_cover" if wants_close else "open_cover"
         label = str(cap.get("name") or capability).strip()
-        suffix = "kapat" if service == "close_cover" else "aç"
+        suffix = "kapat" if service == "close_cover" else "aÃ§"
         action = _make_manifest_action(f"{label} {suffix}", "cover", service, entity_id, cap, data=data)
         return [action] if action else []
 
@@ -2791,7 +2791,7 @@ def _build_actions_for_capability(hass: HomeAssistant, data: dict[str, Any], cap
             desired = "medium"
         elif _has_any_phrase(normalized, ["yuksek", "high", "3", "ac", "isit", "isitici", "isiticiyi", "isitma", "isitmayi", "heat", "heater"]):
             desired = "high"
-        # Natural commands like "sol arka koltuk ısıt" usually mean turn it on.
+        # Natural commands like "sol arka koltuk Ä±sÄ±t" usually mean turn it on.
         if desired is None and _has_any_phrase(normalized, ["isit", "isitici", "isiticiyi", "isitma", "isitmayi", "heat", "heater"]):
             desired = "high"
         if desired:
@@ -2813,7 +2813,7 @@ def _build_actions_for_capability(hass: HomeAssistant, data: dict[str, Any], cap
         if _has_any_phrase(normalized, ["sonraki", "next"]):
             service = "media_next_track"; label = "Sonraki medya"
         elif _has_any_phrase(normalized, ["onceki", "previous"]):
-            service = "media_previous_track"; label = "Önceki medya"
+            service = "media_previous_track"; label = "Ã–nceki medya"
         elif _has_any_phrase(normalized, ["durdur", "baslat", "play", "pause"]):
             service = "media_play_pause"; label = "Medya oynat/duraklat"
         if service:
@@ -2828,9 +2828,9 @@ def _build_all_seat_heater_actions(hass: HomeAssistant, data: dict[str, Any], me
     """Build actions for broad seat heater commands.
 
     Handles commands such as:
-    - "koltuk ısıtıcılarını kapat" -> all seat heaters off
-    - "arka ısıtıcıyı kapat" -> all rear seat heaters off
-    - "ön koltuk ısıtıcıları low" -> front seat heaters low
+    - "koltuk Ä±sÄ±tÄ±cÄ±larÄ±nÄ± kapat" -> all seat heaters off
+    - "arka Ä±sÄ±tÄ±cÄ±yÄ± kapat" -> all rear seat heaters off
+    - "Ã¶n koltuk Ä±sÄ±tÄ±cÄ±larÄ± low" -> front seat heaters low
     """
     normalized = normalize_text_for_match(message)
     if _has_any_phrase(normalized, ["direksiyon", "steering", "klima", "climate"]):
@@ -2859,9 +2859,9 @@ def _build_all_seat_heater_actions(hass: HomeAssistant, data: dict[str, Any], me
         return []
 
     rear_only = _has_any_phrase(normalized, ["arka", "rear"])
-    front_only = _has_any_phrase(normalized, ["on", "front", "ön"])
+    front_only = _has_any_phrase(normalized, ["on", "front", "Ã¶n"])
     left_only = _has_any_phrase(normalized, ["sol", "left"])
-    right_only = _has_any_phrase(normalized, ["sag", "sağ", "right"])
+    right_only = _has_any_phrase(normalized, ["sag", "saÄŸ", "right"])
     center_only = _has_any_phrase(normalized, ["orta", "center", "middle"])
 
     actions: list[dict[str, Any]] = []
@@ -2921,7 +2921,7 @@ def build_ai_vehicle_control_action(hass: HomeAssistant, data: dict[str, Any], m
         matched_any = True
         cap_actions = _build_actions_for_capability(hass, data, cap, message)
         if not cap_actions:
-            missing_caps.append(str(cap.get("name") or cap.get("capability") or "Araç kontrolü"))
+            missing_caps.append(str(cap.get("name") or cap.get("capability") or "AraÃ§ kontrolÃ¼"))
             continue
         for action in cap_actions:
             if not action:
@@ -2932,13 +2932,13 @@ def build_ai_vehicle_control_action(hass: HomeAssistant, data: dict[str, Any], m
 
     if not actions:
         if matched_any or looks_like_vehicle_control_request(message):
-            missing = missing_caps[0] if missing_caps else "Araç kontrolü"
+            missing = missing_caps[0] if missing_caps else "AraÃ§ kontrolÃ¼"
             return {
                 "error": True,
                 "label": missing,
                 "message": (
-                    f"{missing} için yetkili Home Assistant entity'si bulunamadı. "
-                    "Vehicle Entity Manager içinde ilgili entity'yi ekle ve AI kullanımını açık bırak."
+                    f"{missing} iÃ§in yetkili Home Assistant entity'si bulunamadÄ±. "
+                    "Vehicle Entity Manager iÃ§inde ilgili entity'yi ekle ve AI kullanÄ±mÄ±nÄ± aÃ§Ä±k bÄ±rak."
                 ),
             }
         return None
@@ -2948,7 +2948,7 @@ def build_ai_vehicle_control_action(hass: HomeAssistant, data: dict[str, Any], m
         single["actions"] = [copy.deepcopy(single)]
         return single
 
-    label = " ve ".join(str(action.get("label") or "Araç kontrolü") for action in actions)
+    label = " ve ".join(str(action.get("label") or "AraÃ§ kontrolÃ¼") for action in actions)
     return {
         "label": label,
         "actions": actions,
@@ -2978,16 +2978,16 @@ async def async_send_ai_vehicle_control_confirmation(
     valid_actions = [item for item in actions if isinstance(item, dict) and not item.get("error")]
 
     if len(valid_actions) > 1:
-        action_lines = ["Çalıştırılacak işlemler:"]
+        action_lines = ["Ã‡alÄ±ÅŸtÄ±rÄ±lacak iÅŸlemler:"]
         for index, item in enumerate(valid_actions, start=1):
             entity_id = str(item.get("entity_id") or (item.get("service_data") or {}).get("entity_id") or "-")
             service = f"{item.get('domain')}.{item.get('service')}"
-            action_lines.append(f"{index}. {item.get('label') or 'Araç kontrolü'}  ({service} · {entity_id})")
+            action_lines.append(f"{index}. {item.get('label') or 'AraÃ§ kontrolÃ¼'}  ({service} Â· {entity_id})")
         action_detail = "\n".join(action_lines)
     else:
         item = valid_actions[0] if valid_actions else action
         entity_id = str(item.get("entity_id") or (item.get("service_data") or {}).get("entity_id") or "-")
-        action_detail = f"İstenen işlem: {item.get('label') or action.get('label')}\nEntity: {entity_id}"
+        action_detail = f"Ä°stenen iÅŸlem: {item.get('label') or action.get('label')}\nEntity: {entity_id}"
 
     await hass.services.async_call(
         "telegram_bot",
@@ -2996,12 +2996,12 @@ async def async_send_ai_vehicle_control_confirmation(
             "target": target,
             "parse_mode": "plain_text",
             "message": (
-                "⚠️ POM araç kontrol onayı\n\n"
+                "âš ï¸ POM araÃ§ kontrol onayÄ±\n\n"
                 f"{action_detail}\n\n"
-                "Bu işlem araca komut gönderecek. Onaylıyor musun?"
+                "Bu iÅŸlem araca komut gÃ¶nderecek. OnaylÄ±yor musun?"
             ),
             "inline_keyboard": [
-                f"✅ Onayla:/pom_ai_control_confirm_{token}, ❌ İptal:/pom_ai_control_cancel_{token}",
+                f"âœ… Onayla:/pom_ai_control_confirm_{token}, âŒ Ä°ptal:/pom_ai_control_cancel_{token}",
             ],
         },
         blocking=True,
@@ -3013,24 +3013,24 @@ async def async_execute_ai_vehicle_control_action(hass: HomeAssistant, action: d
     raw_actions = action.get("actions") if isinstance(action.get("actions"), list) else [action]
     actions = [item for item in raw_actions if isinstance(item, dict) and not item.get("error")]
     if not actions:
-        raise ValueError("Çalıştırılacak geçerli araç kontrol işlemi bulunamadı.")
+        raise ValueError("Ã‡alÄ±ÅŸtÄ±rÄ±lacak geÃ§erli araÃ§ kontrol iÅŸlemi bulunamadÄ±.")
 
     results: list[str] = []
     for item in actions:
         domain = str(item.get("domain") or "").strip()
         service = str(item.get("service") or "").strip()
         service_data = dict(item.get("service_data") or {})
-        label = str(item.get("label") or "Araç kontrolü").strip()
+        label = str(item.get("label") or "AraÃ§ kontrolÃ¼").strip()
 
         if not domain or not service or not service_data.get("entity_id"):
-            raise ValueError(f"{label} için eksik servis bilgisi nedeniyle araç kontrolü çalıştırılamadı.")
+            raise ValueError(f"{label} iÃ§in eksik servis bilgisi nedeniyle araÃ§ kontrolÃ¼ Ã§alÄ±ÅŸtÄ±rÄ±lamadÄ±.")
 
         await hass.services.async_call(domain, service, service_data, blocking=True)
-        results.append(f"✅ {label} komutu gönderildi.")
+        results.append(f"âœ… {label} komutu gÃ¶nderildi.")
 
     if len(results) == 1:
         return results[0]
-    return "✅ Araç kontrol komutları gönderildi:\n" + "\n".join(f"{idx}. {line.replace('✅ ', '')}" for idx, line in enumerate(results, start=1))
+    return "âœ… AraÃ§ kontrol komutlarÄ± gÃ¶nderildi:\n" + "\n".join(f"{idx}. {line.replace('âœ… ', '')}" for idx, line in enumerate(results, start=1))
 
 
 
@@ -3128,17 +3128,17 @@ def _build_manifest_action_from_llm_action(
 
     if domain == "switch":
         service = "turn_off" if action in {"turn_off", "off", "stop", "disable", "close"} else "turn_on"
-        label = f"{name} {'kapat' if service == 'turn_off' else 'aç'}"
+        label = f"{name} {'kapat' if service == 'turn_off' else 'aÃ§'}"
         return _make_manifest_action(label, "switch", service, entity_id, cap, data=data)
 
     if domain == "lock":
         service = "unlock" if action in {"unlock", "open", "turn_on"} else "lock"
-        label = "Araç kilidini aç" if service == "unlock" else "Aracı kilitle"
+        label = "AraÃ§ kilidini aÃ§" if service == "unlock" else "AracÄ± kilitle"
         return _make_manifest_action(label, "lock", service, entity_id, cap, data=data)
 
     if domain == "cover":
         service = "close_cover" if action in {"close", "close_cover", "turn_off", "off"} else "open_cover"
-        label = f"{name} {'kapat' if service == 'close_cover' else 'aç'}"
+        label = f"{name} {'kapat' if service == 'close_cover' else 'aÃ§'}"
         return _make_manifest_action(label, "cover", service, entity_id, cap, data=data)
 
     if domain == "climate":
@@ -3151,11 +3151,11 @@ def _build_manifest_action_from_llm_action(
                 temp = safe_float(raw_data.get("value"), None)
             if temp is None:
                 return None
-            return _make_manifest_action(f"Klimayı {temp:g}°C yap", "climate", "set_temperature", entity_id, cap, {"temperature": temp}, data=data)
+            return _make_manifest_action(f"KlimayÄ± {temp:g}Â°C yap", "climate", "set_temperature", entity_id, cap, {"temperature": temp}, data=data)
         if action in {"set_hvac_mode", "hvac_mode"}:
             hvac_mode = str(raw_data.get("hvac_mode") or raw_data.get("mode") or "heat_cool").strip() or "heat_cool"
             return _make_manifest_action(f"Klima modunu {hvac_mode} yap", "climate", "set_hvac_mode", entity_id, cap, {"hvac_mode": hvac_mode}, data=data)
-        return _make_manifest_action("Klima aç", "climate", "turn_on", entity_id, cap, data=data)
+        return _make_manifest_action("Klima aÃ§", "climate", "turn_on", entity_id, cap, data=data)
 
     if domain == "select":
         option = str(raw_data.get("option") or raw_data.get("level") or raw_data.get("value") or "").strip()
@@ -3177,7 +3177,7 @@ def _build_manifest_action_from_llm_action(
         if action in {"next", "media_next_track", "next_track"}:
             service = "media_next_track"; label = "Sonraki medya"
         elif action in {"previous", "media_previous_track", "previous_track"}:
-            service = "media_previous_track"; label = "Önceki medya"
+            service = "media_previous_track"; label = "Ã–nceki medya"
         elif action in {"play_pause", "media_play_pause", "play", "pause"}:
             service = "media_play_pause"; label = "Medya oynat/duraklat"
         elif action in {"set_volume", "volume_set"}:
@@ -3236,8 +3236,8 @@ def build_ai_vehicle_control_action_from_llm_intent(
                 "error": True,
                 "label": missing_label,
                 "message": (
-                    f"{missing_label} için yetkili Home Assistant entity'si bulunamadı veya servis uyumsuz. "
-                    "Vehicle Entity Manager içinde ilgili entity'yi eklediğinden emin ol."
+                    f"{missing_label} iÃ§in yetkili Home Assistant entity'si bulunamadÄ± veya servis uyumsuz. "
+                    "Vehicle Entity Manager iÃ§inde ilgili entity'yi eklediÄŸinden emin ol."
                 ),
             }
         return None
@@ -3249,7 +3249,7 @@ def build_ai_vehicle_control_action_from_llm_intent(
         return single
     risky = any(bool(a.get("risky", True)) for a in actions)
     return {
-        "label": str(intent.get("summary_tr") or intent.get("summary") or "Araç kontrol komutları"),
+        "label": str(intent.get("summary_tr") or intent.get("summary") or "AraÃ§ kontrol komutlarÄ±"),
         "domain": "multi",
         "service": "multi",
         "entity_id": "",
@@ -3292,7 +3292,7 @@ async def async_build_ai_vehicle_control_action_with_llm(
         "For seat heater commands, use the most specific seat_heater_* capability available; levels are off/low/medium/high in data.option. "
         "For 'arka isiticiyi kapat', return all available rear seat heater capabilities with action set_option and data {option:'off'}. "
         "For buttons such as horn, flash lights, fart, wake, keyless driving, return action press. "
-        "For Turkish text, understand spelling without Turkish characters too: klima/klima, klıma, serinlet, isit, osurt, korna, cal, ac, kapat. "
+        "For Turkish text, understand spelling without Turkish characters too: klima/klima, klÄ±ma, serinlet, isit, osurt, korna, cal, ac, kapat. "
     )
     context_text = "AVAILABLE_CAPABILITIES:\n" + capability_json
     try:
@@ -3326,8 +3326,8 @@ def is_ai_vehicle_suggestion_followup_text(message: str, pending: dict[str, Any]
     """Return True for short contextual replies that accept the single suggestion.
 
     This is deliberately stricter than a generic parser. It should not catch
-    clear new commands such as "kilidi aç" or status questions such as
-    "şarjım kaç". Those must be handled as new messages, not as acceptance of
+    clear new commands such as "kilidi aÃ§" or status questions such as
+    "ÅŸarjÄ±m kaÃ§". Those must be handled as new messages, not as acceptance of
     an old suggestion.
     """
     n = normalize_text_for_match(message)
@@ -3340,11 +3340,11 @@ def is_ai_vehicle_suggestion_followup_text(message: str, pending: dict[str, Any]
 
     short_yes = {
         "evet", "tamam", "olur", "ok", "okay", "yes", "yap", "hadi", "hadi bas",
-        "bas", "devam", "devam et", "calistir", "çalıştır", "baslat", "başlat",
+        "bas", "devam", "devam et", "calistir", "Ã§alÄ±ÅŸtÄ±r", "baslat", "baÅŸlat",
         "uygula", "aynen", "olur yap", "tamam yap", "tamam bas", "evet yap",
-        "evet bas", "evet ac", "tamam ac", "ac", "aç", "ac bakalim", "aç bakalım",
-        "hadi ac", "hadi aç", "bas bakalim", "bas bakalım", "kapat", "tamam kapat",
-        "evet kapat", "veririm", "onay veririm", "onayliyorum", "onaylıyorum",
+        "evet bas", "evet ac", "tamam ac", "ac", "aÃ§", "ac bakalim", "aÃ§ bakalÄ±m",
+        "hadi ac", "hadi aÃ§", "bas bakalim", "bas bakalÄ±m", "kapat", "tamam kapat",
+        "evet kapat", "veririm", "onay veririm", "onayliyorum", "onaylÄ±yorum",
         "onay veriyorum", "evet onay veriyorum", "tamam onay veriyorum",
         "izin veriyorum", "tamam izin veriyorum", "veriyorum",
     }
@@ -3382,9 +3382,9 @@ async def async_handle_ai_vehicle_suggestion_text(
             )
 
     if is_ai_vehicle_control_cancel_text(user_message):
-        label = str((pending.get("action") or {}).get("label") or "öneri")
+        label = str((pending.get("action") or {}).get("label") or "Ã¶neri")
         pending.clear()
-        await _send(f"Tamam Berkan, {label} için bir şey yapmıyorum.")
+        await _send(f"Tamam Berkan, {label} iÃ§in bir ÅŸey yapmÄ±yorum.")
         return True
 
     if not is_ai_vehicle_suggestion_followup_text(user_message, pending):
@@ -3413,14 +3413,14 @@ async def async_handle_ai_vehicle_suggestion_text(
                 user_message=str(pending.get("source_message") or user_message),
             )
         else:
-            await _send(f"{action.get('label') or 'Bu işlem'} için onay gerekiyor.")
+            await _send(f"{action.get('label') or 'Bu iÅŸlem'} iÃ§in onay gerekiyor.")
         return True
 
     try:
         result = await async_execute_ai_vehicle_control_action(hass, action)
     except Exception as err:
         _LOGGER.exception("POM AI pending suggestion execution failed")
-        result = f"Önerilen araç kontrolü çalıştırılamadı: {err}"
+        result = f"Ã–nerilen araÃ§ kontrolÃ¼ Ã§alÄ±ÅŸtÄ±rÄ±lamadÄ±: {err}"
     await _send(result)
     return True
 
@@ -3436,7 +3436,7 @@ def build_contextual_vehicle_suggestion_without_llm(
     """Deterministically bind obvious comfort statements to one safe pending suggestion.
 
     This is intentionally small and safe. It is not a general command parser.
-    It only prevents POM from saying "istersen yaparım" without storing a real
+    It only prevents POM from saying "istersen yaparÄ±m" without storing a real
     follow-up action. The LLM can still handle richer cases, but these common
     Turkish comfort phrases must always create a pending suggestion when the
     matching capability is configured.
@@ -3449,24 +3449,24 @@ def build_contextual_vehicle_suggestion_without_llm(
 
     hot_terms = [
         "cok sicak", "sicak oldu", "baya sicak", "cok isindi", "bunaldim",
-        "sıcaktan", "sicaktan", "terledim", "serinlemek", "serinletsen", "sogutmak lazim",
+        "sÄ±caktan", "sicaktan", "terledim", "serinlemek", "serinletsen", "sogutmak lazim",
     ]
     cold_terms = [
-        "cok soguk", "soguk oldu", "baya soguk", "usudum", "üşüdüm",
+        "cok soguk", "soguk oldu", "baya soguk", "usudum", "Ã¼ÅŸÃ¼dÃ¼m",
         "donuyorum", "isitmak lazim", "sicak olsun",
     ]
 
     if _has_any_phrase(n, hot_terms):
         return build_ai_vehicle_control_action_from_llm_intent(hass, data, {
             "type": "vehicle_control",
-            "summary_tr": "Klimayı açıp serinlet",
+            "summary_tr": "KlimayÄ± aÃ§Ä±p serinlet",
             "actions": [{"capability": "climate", "action": "turn_on"}],
         })
 
     if _has_any_phrase(n, cold_terms):
         return build_ai_vehicle_control_action_from_llm_intent(hass, data, {
             "type": "vehicle_control",
-            "summary_tr": "Klimayı açıp ısıt",
+            "summary_tr": "KlimayÄ± aÃ§Ä±p Ä±sÄ±t",
             "actions": [{"capability": "climate", "action": "turn_on"}],
         })
 
@@ -3478,7 +3478,7 @@ def build_contextual_vehicle_suggestion_without_llm(
     ):
         return build_ai_vehicle_control_action_from_llm_intent(hass, data, {
             "type": "vehicle_control",
-            "summary_tr": "Klimayı aç",
+            "summary_tr": "KlimayÄ± aÃ§",
             "actions": [{"capability": "climate", "action": "turn_on"}],
         })
     return None
@@ -3495,7 +3495,7 @@ async def async_build_contextual_vehicle_suggestion_with_llm(
 
     This is not used for direct commands. It only stores a suggestion when the
     user's message plus POM's answer clearly implies a possible vehicle control,
-    e.g. "çok sıcak oldu" -> climate turn_on. The output is still capability-only
+    e.g. "Ã§ok sÄ±cak oldu" -> climate turn_on. The output is still capability-only
     and verified against the whitelist before being stored.
     """
     api_key = str(data.get(CONF_OPENAI_API_KEY, "")).strip()
@@ -3515,9 +3515,9 @@ async def async_build_contextual_vehicle_suggestion_with_llm(
         "If there is a clear suggestion, return {\"type\":\"vehicle_control\",\"summary_tr\":\"...\",\"actions\":[...]}. "
         "Only create suggestions for natural follow-up offers like cooling/heating the car, turning climate on/off, or similar. "
         "Do not create a suggestion for status/info questions. Do not create a suggestion if the user gave a different explicit command. "
-        "For 'çok sıcak oldu', suggest capability climate action turn_on with summary_tr meaning cool/serinlet, never heat. "
-        "For 'çok soğuk oldu', suggest capability climate action turn_on with summary_tr meaning warm/ısıt, only if the assistant answer offers warming; otherwise no_suggestion. "
-        "For 'istersen klimayı açayım/serinleteyim/ısıtayım', create a climate suggestion. "
+        "For 'Ã§ok sÄ±cak oldu', suggest capability climate action turn_on with summary_tr meaning cool/serinlet, never heat. "
+        "For 'Ã§ok soÄŸuk oldu', suggest capability climate action turn_on with summary_tr meaning warm/Ä±sÄ±t, only if the assistant answer offers warming; otherwise no_suggestion. "
+        "For 'istersen klimayÄ± aÃ§ayÄ±m/serinleteyim/Ä±sÄ±tayÄ±m', create a climate suggestion. "
     )
     context_text = (
         "AVAILABLE_CAPABILITIES:\n" + capability_json +
@@ -3632,7 +3632,7 @@ async def async_maybe_start_ai_vehicle_control(
             )
 
     if action.get("error"):
-        msg = str(action.get("message") or "Araç kontrol komutu algılandı ama gerekli entity bulunamadı.")
+        msg = str(action.get("message") or "AraÃ§ kontrol komutu algÄ±landÄ± ama gerekli entity bulunamadÄ±.")
         await _send_or_notify(msg, "pom_tesla_report_ai_control_missing_entity")
         return True
 
@@ -3642,7 +3642,7 @@ async def async_maybe_start_ai_vehicle_control(
             result = await async_execute_ai_vehicle_control_action(hass, action)
         except Exception as err:
             _LOGGER.exception("POM AI vehicle control immediate execution failed")
-            result = f"Araç kontrol komutu çalıştırılamadı: {err}"
+            result = f"AraÃ§ kontrol komutu Ã§alÄ±ÅŸtÄ±rÄ±lamadÄ±: {err}"
         await _send_or_notify(result, "pom_tesla_report_ai_control_executed")
         return True
 
@@ -3658,8 +3658,8 @@ async def async_maybe_start_ai_vehicle_control(
             hass,
             title="POM AI Vehicle Controls",
             message=(
-                f"Araç kontrol komutu algılandı: {action.get('label')}\n"
-                "Onay için Telegram target gerekli. AI Telegram target ayarını kontrol et."
+                f"AraÃ§ kontrol komutu algÄ±landÄ±: {action.get('label')}\n"
+                "Onay iÃ§in Telegram target gerekli. AI Telegram target ayarÄ±nÄ± kontrol et."
             ),
             notification_id="pom_tesla_report_ai_control_needs_telegram",
         )
@@ -3704,10 +3704,10 @@ async def async_handle_ai_vehicle_control_text_confirmation(
             )
 
     if is_ai_vehicle_control_cancel_text(user_message):
-        action_label = str((pending_item.get("action") or {}).get("label") or "Araç kontrolü")
+        action_label = str((pending_item.get("action") or {}).get("label") or "AraÃ§ kontrolÃ¼")
         pending_controls.pop(token, None)
         _LOGGER.info("POM AI pending vehicle control canceled by text. message=%s token=%s label=%s", user_message, token, action_label)
-        await _send_result(f"❌ {action_label} komutu iptal edildi.")
+        await _send_result(f"âŒ {action_label} komutu iptal edildi.")
         return True
 
     if is_contextual_ai_vehicle_control_confirmation_text(user_message, pending_item):
@@ -3718,7 +3718,7 @@ async def async_handle_ai_vehicle_control_text_confirmation(
             await _send_result(result)
         except Exception as err:
             _LOGGER.exception("POM AI vehicle control text confirmation failed")
-            await _send_result(f"Araç kontrol komutu çalıştırılamadı: {err}")
+            await _send_result(f"AraÃ§ kontrol komutu Ã§alÄ±ÅŸtÄ±rÄ±lamadÄ±: {err}")
         return True
 
     return False
@@ -3732,9 +3732,9 @@ async def async_build_vehicle_location_answer(hass: HomeAssistant, data: dict[st
     point = get_tracker_lat_lon(hass, tracker_entity)
     if point is None:
         return (
-            "📍 Araç konumu\n\n"
-            "Araç konum koordinatını şu anda okuyamıyorum. "
-            "Vehicle Manager içinde Location tracker / map entity seçili mi kontrol et."
+            "ğŸ“ AraÃ§ konumu\n\n"
+            "AraÃ§ konum koordinatÄ±nÄ± ÅŸu anda okuyamÄ±yorum. "
+            "Vehicle Manager iÃ§inde Location tracker / map entity seÃ§ili mi kontrol et."
         )
 
     await async_update_reverse_geocode_cache(hass, data)
@@ -3744,19 +3744,19 @@ async def async_build_vehicle_location_answer(hass: HomeAssistant, data: dict[st
     parts = get_cached_reverse_geocode_parts(hass)
     maps_link = get_google_maps_link(lat, lon)
 
-    lines = ["📍 Araç konumu", ""]
+    lines = ["ğŸ“ AraÃ§ konumu", ""]
 
     if cached_address:
         lines.extend(["Adres:", cached_address])
         house_number = str(parts.get("house_number") or "").strip() if parts else ""
         if not house_number:
-            lines.append("Kapı/bina no: OpenStreetMap verisinde görünmüyor.")
+            lines.append("KapÄ±/bina no: OpenStreetMap verisinde gÃ¶rÃ¼nmÃ¼yor.")
     else:
-        lines.append("Adres: Açık adres şu anda alınamadı.")
+        lines.append("Adres: AÃ§Ä±k adres ÅŸu anda alÄ±namadÄ±.")
 
     lines.extend([
         "",
-        "Haritada aç:",
+        "Haritada aÃ§:",
         maps_link,
     ])
 
@@ -3923,7 +3923,7 @@ def build_charging_report_data_from_state(
         peak_power = 74.0
     average_power = (sum(powers) / len(powers)) if powers else ((added_kwh / (duration_minutes / 60.0)) if duration_minutes > 0 else 0.0)
 
-    finished_at = str(state.get("finished_at") or now.strftime("%d %B %Y · %H:%M"))
+    finished_at = str(state.get("finished_at") or now.strftime("%d %B %Y Â· %H:%M"))
 
     report_data = {
         "test_mode": test_mode,
@@ -3973,11 +3973,11 @@ async def render_and_send_charging_report(
 
     target = str(telegram_target or data.get(CONF_AI_TELEGRAM_TARGET) or data.get(CONF_AI_TELEGRAM_LISTENER_CHAT_ID) or data.get(CONF_TELEGRAM_TARGET) or "").strip()
     if send_telegram and target:
-        caption = "⚡ POM Şarj Raporu"
+        caption = "âš¡ POM Åarj Raporu"
         if message_prefix:
             caption = f"{message_prefix}\n{caption}"
         if test_mode:
-            caption = f"🧪 TEST · {caption}"
+            caption = f"ğŸ§ª TEST Â· {caption}"
         await hass.services.async_call(
             "telegram_bot",
             "send_photo",
@@ -4018,9 +4018,9 @@ def provider_price_for_charging_report(data: dict[str, Any], provider: str) -> t
         return "ZES", safe_float(data.get(CONF_ZES_PRICE), 0.0)
     if provider_key in {"supercharger", "tesla", "tesla supercharger", "super"}:
         return "Supercharger", safe_float(data.get(CONF_SUPERCHARGER_PRICE), 0.0)
-    if provider_key in {"astor", "astor sarj", "astor şarj"}:
+    if provider_key in {"astor", "astor sarj", "astor ÅŸarj"}:
         return "Astor", safe_float(data.get(CONF_ASTOR_PRICE), 0.0)
-    return provider.strip() or "Diğer", 0.0
+    return provider.strip() or "DiÄŸer", 0.0
 
 
 def parse_charging_money_value(message: str) -> float | None:
@@ -4032,7 +4032,7 @@ def parse_charging_money_value(message: str) -> float | None:
     raw = str(message or "").strip().lower()
     if not raw:
         return None
-    cleaned = raw.replace("₺", " ").replace(",", ".")
+    cleaned = raw.replace("â‚º", " ").replace(",", ".")
     match = re.search(r"\d+(?:\.\d+)?", cleaned)
     if not match:
         return None
@@ -4055,7 +4055,7 @@ def build_other_charging_overrides_from_pending(pending: dict[str, Any]) -> dict
     if added_kwh <= 0 or added_kwh > 300:
         return None
     return {
-        "actual_provider": str(pending.get("provider") or "Diğer"),
+        "actual_provider": str(pending.get("provider") or "DiÄŸer"),
         "actual_price_per_kwh": round(price, 4),
         "actual_total_cost": round(total, 2),
         "added_kwh": round(added_kwh, 3),
@@ -4071,10 +4071,10 @@ async def async_send_other_charging_price_prompt(hass: HomeAssistant, target: st
             "target": target,
             "parse_mode": "plain_text",
             "message": (
-                "Diğer seçtin.\n\n"
-                "Kaç TL/kWh ile şarj ettin?\n"
-                "Örnek: 12.49\n\n"
-                "Yanlış yazarsan tekrar soracağım. İstersen 'iptal' veya 'atla' yazabilirsin."
+                "DiÄŸer seÃ§tin.\n\n"
+                "KaÃ§ TL/kWh ile ÅŸarj ettin?\n"
+                "Ã–rnek: 12.49\n\n"
+                "YanlÄ±ÅŸ yazarsan tekrar soracaÄŸÄ±m. Ä°stersen 'iptal' veya 'atla' yazabilirsin."
             ),
         },
         blocking=True,
@@ -4090,10 +4090,10 @@ async def async_send_other_charging_total_prompt(hass: HomeAssistant, target: st
             "target": target,
             "parse_mode": "plain_text",
             "message": (
-                f"Birim fiyatı {price:.2f} TL/kWh olarak aldım.\n\n"
-                "Toplam kaç TL tuttu?\n"
-                "Örnek: 480\n\n"
-                "Yanlış yazarsan tekrar soracağım. İstersen 'iptal' veya 'atla' yazabilirsin."
+                f"Birim fiyatÄ± {price:.2f} TL/kWh olarak aldÄ±m.\n\n"
+                "Toplam kaÃ§ TL tuttu?\n"
+                "Ã–rnek: 480\n\n"
+                "YanlÄ±ÅŸ yazarsan tekrar soracaÄŸÄ±m. Ä°stersen 'iptal' veya 'atla' yazabilirsin."
             ),
         },
         blocking=True,
@@ -4110,7 +4110,7 @@ async def async_send_other_charging_summary_prompt(hass: HomeAssistant, pending:
             {
                 "target": target,
                 "parse_mode": "plain_text",
-                "message": "Girdiğin değerlerle hesap yapamadım. Baştan başlayalım.",
+                "message": "GirdiÄŸin deÄŸerlerle hesap yapamadÄ±m. BaÅŸtan baÅŸlayalÄ±m.",
             },
             blocking=True,
         )
@@ -4125,16 +4125,16 @@ async def async_send_other_charging_summary_prompt(hass: HomeAssistant, pending:
             "target": target,
             "parse_mode": "plain_text",
             "message": (
-                "Şunu anladım:\n\n"
+                "Åunu anladÄ±m:\n\n"
                 f"Birim fiyat: {overrides['actual_price_per_kwh']:.2f} TL/kWh\n"
-                f"Toplam ödeme: {overrides['actual_total_cost']:.2f} TL\n"
+                f"Toplam Ã¶deme: {overrides['actual_total_cost']:.2f} TL\n"
                 f"Hesaplanan enerji: {overrides['added_kwh']:.2f} kWh\n\n"
-                "Raporu bu değerlerle oluşturayım mı?"
+                "Raporu bu deÄŸerlerle oluÅŸturayÄ±m mÄ±?"
             ),
             "inline_keyboard": [
-                "✅ Onayla:/pom_charge_other_confirm, ✏️ Fiyatı düzelt:/pom_charge_other_fix_price",
-                "✏️ Toplamı düzelt:/pom_charge_other_fix_total, 🔄 Baştan başla:/pom_charge_other_restart",
-                "❌ İptal:/pom_charge_other_cancel",
+                "âœ… Onayla:/pom_charge_other_confirm, âœï¸ FiyatÄ± dÃ¼zelt:/pom_charge_other_fix_price",
+                "âœï¸ ToplamÄ± dÃ¼zelt:/pom_charge_other_fix_total, ğŸ”„ BaÅŸtan baÅŸla:/pom_charge_other_restart",
+                "âŒ Ä°ptal:/pom_charge_other_cancel",
             ],
         },
         blocking=True,
@@ -4194,7 +4194,7 @@ def build_manual_charging_prompt_state(
             if isinstance(item, dict)
         )
 
-    state["finished_at"] = str(state.get("finished_at") or now.strftime("%d %B %Y · %H:%M"))
+    state["finished_at"] = str(state.get("finished_at") or now.strftime("%d %B %Y Â· %H:%M"))
     state["active"] = False
     state["inactive_since_ts"] = now.timestamp()
     return state
@@ -4229,10 +4229,10 @@ async def async_send_charging_provider_prompt(
         {
             "target": target,
             "parse_mode": "plain_text",
-            "message": "🔋 Şarj tamamlandı.\n\nNerede şarj ettin?",
+            "message": "ğŸ”‹ Åarj tamamlandÄ±.\n\nNerede ÅŸarj ettin?",
             "inline_keyboard": [
                 "ZES:/pom_charge_provider_zes, Supercharger:/pom_charge_provider_supercharger",
-                "Astor:/pom_charge_provider_astor, Diğer:/pom_charge_provider_other",
+                "Astor:/pom_charge_provider_astor, DiÄŸer:/pom_charge_provider_other",
                 "Atla:/pom_charge_provider_skip",
             ],
         },
@@ -4247,7 +4247,7 @@ async def async_finalize_interactive_charging_report(
     pending: dict[str, Any],
     *,
     manual_overrides: dict[str, Any] | None = None,
-    message_prefix: str = "Şarj seansı tamamlandı.",
+    message_prefix: str = "Åarj seansÄ± tamamlandÄ±.",
 ) -> tuple[str, dict[str, Any]]:
     """Render and send the pending charging report, then clear the interaction state."""
     state_snapshot = pending.get("state") or get_charging_report_state(hass)
@@ -4284,7 +4284,7 @@ async def async_timeout_pending_charging_report_if_needed(hass: HomeAssistant, d
             hass,
             data,
             pending,
-            message_prefix="Cevap gelmediği için kayıtlı tarifelerle şarj raporunu oluşturdum.",
+            message_prefix="Cevap gelmediÄŸi iÃ§in kayÄ±tlÄ± tarifelerle ÅŸarj raporunu oluÅŸturdum.",
         )
     except Exception:
         _LOGGER.exception("POM interactive charging report timeout fallback failed")
@@ -4307,7 +4307,7 @@ async def update_charging_report_session(hass: HomeAssistant, data: dict[str, An
             state.update({
                 "active": True,
                 "start_ts": now_ts,
-                "started_at": now.strftime("%d %B %Y · %H:%M"),
+                "started_at": now.strftime("%d %B %Y Â· %H:%M"),
                 "samples": [],
                 "last_sample_ts": 0.0,
                 "inactive_since_ts": 0.0,
@@ -4349,7 +4349,7 @@ async def update_charging_report_session(hass: HomeAssistant, data: dict[str, An
     start_ts = safe_float(state.get("start_ts"), now_ts)
     duration_minutes = max(0.0, (now_ts - start_ts) / 60.0)
     state["duration_minutes"] = duration_minutes
-    state["finished_at"] = now.strftime("%d %B %Y · %H:%M")
+    state["finished_at"] = now.strftime("%d %B %Y Â· %H:%M")
 
     # Add a final zero-power point so the curve visibly ends.
     samples = state.setdefault("samples", [])
@@ -4370,7 +4370,7 @@ async def update_charging_report_session(hass: HomeAssistant, data: dict[str, An
                         data,
                         state=state,
                         send_telegram=True,
-                        message_prefix="Şarj seansı tamamlandı.",
+                        message_prefix="Åarj seansÄ± tamamlandÄ±.",
                     )
                     state["last_report_path"] = png_path
                     state["last_report_sent_ts"] = now_ts
@@ -4380,7 +4380,7 @@ async def update_charging_report_session(hass: HomeAssistant, data: dict[str, An
                     data,
                     state=state,
                     send_telegram=True,
-                    message_prefix="Şarj seansı tamamlandı.",
+                    message_prefix="Åarj seansÄ± tamamlandÄ±.",
                 )
                 state["last_report_path"] = png_path
                 state["last_report_sent_ts"] = now_ts
@@ -4425,7 +4425,7 @@ def live_trip_short_duration(seconds: float) -> str:
     """Return compact Turkish duration for live trip card."""
     total_min = int(round(max(0.0, seconds) / 60.0))
     if total_min <= 0:
-        return "—"
+        return "â€”"
     hours = total_min // 60
     minutes = total_min % 60
     if hours and minutes:
@@ -4470,10 +4470,10 @@ def build_live_trip_public_attributes(state: dict[str, Any]) -> dict[str, Any]:
         "finished_at": state.get("finished_at", ""),
         "trip_km": round(safe_float(state.get("trip_km"), 0.0), 2),
         "duration_seconds": round(safe_float(state.get("duration_seconds"), 0.0), 0),
-        "duration_text": state.get("duration_text", "—"),
+        "duration_text": state.get("duration_text", "â€”"),
         "traffic_seconds": round(safe_float(state.get("traffic_seconds"), 0.0), 0),
-        "traffic_text": state.get("traffic_text", "—"),
-        "moving_text": state.get("traffic_text", "—"),
+        "traffic_text": state.get("traffic_text", "â€”"),
+        "moving_text": state.get("traffic_text", "â€”"),
         "average_speed": round(safe_float(state.get("average_speed"), 0.0), 1),
         "average_moving_speed": round(safe_float(state.get("average_speed"), 0.0), 1),
         "average_overall_speed": round(safe_float(state.get("average_speed"), 0.0), 1),
@@ -4482,9 +4482,9 @@ def build_live_trip_public_attributes(state: dict[str, Any]) -> dict[str, Any]:
         "consumption_kwh_100km": round(safe_float(state.get("consumption_kwh_100km"), 0.0), 2),
         "start_battery": round(safe_float(state.get("start_battery"), 0.0), 1),
         "end_battery": round(safe_float(state.get("end_battery"), 0.0), 1),
-        "battery_text": state.get("battery_text", "—"),
+        "battery_text": state.get("battery_text", "â€”"),
         "climate_seconds": round(safe_float(state.get("climate_seconds"), 0.0), 0),
-        "climate_text": state.get("climate_text", "—"),
+        "climate_text": state.get("climate_text", "â€”"),
         "min_elevation": round(safe_float(state.get("min_elevation"), 0.0), 0),
         "max_elevation": round(safe_float(state.get("max_elevation"), 0.0), 0),
         "elevation_range": round(safe_float(state.get("elevation_range"), 0.0), 0),
@@ -4567,9 +4567,9 @@ async def run_live_trip_test_simulator(
         consumption = (used_kwh / trip_km * 100.0) if trip_km > 0 else 0.0
 
         if status == "finished":
-            trip_status = "Test sürüşü tamamlandı. Final değerler kart üzerinde gösteriliyor."
+            trip_status = "Test sÃ¼rÃ¼ÅŸÃ¼ tamamlandÄ±. Final deÄŸerler kart Ã¼zerinde gÃ¶steriliyor."
         else:
-            trip_status = "Test sürüşü devam ediyor. Canlı kart simülasyon verileriyle güncelleniyor."
+            trip_status = "Test sÃ¼rÃ¼ÅŸÃ¼ devam ediyor. CanlÄ± kart simÃ¼lasyon verileriyle gÃ¼ncelleniyor."
 
         state.update({
             "test_mode": True,
@@ -4593,7 +4593,7 @@ async def run_live_trip_test_simulator(
             "consumption_kwh_100km": round(consumption, 2),
             "start_battery": round(start_battery, 1),
             "end_battery": round(current_battery, 1),
-            "battery_text": f"%{start_battery:.1f} → %{current_battery:.1f}",
+            "battery_text": f"%{start_battery:.1f} â†’ %{current_battery:.1f}",
             "climate_seconds": round(climate_seconds, 0),
             "climate_text": live_trip_short_duration(climate_seconds),
             "min_elevation": round(min_elevation, 0),
@@ -4730,15 +4730,15 @@ async def update_live_trip_engine(hass: HomeAssistant, entry_id: str, data: dict
 
     display_status = state.get("status", "idle")
     if display_status == "finished" and trip_km < min_distance:
-        trip_status = "Sürüş tamamlandı ama minimum mesafe altında kaldı. Son değerler gösteriliyor."
+        trip_status = "SÃ¼rÃ¼ÅŸ tamamlandÄ± ama minimum mesafe altÄ±nda kaldÄ±. Son deÄŸerler gÃ¶steriliyor."
     elif display_status == "finished":
-        trip_status = "Sürüş tamamlandı. Son sürüş raporu kart üzerinde gösteriliyor."
+        trip_status = "SÃ¼rÃ¼ÅŸ tamamlandÄ±. Son sÃ¼rÃ¼ÅŸ raporu kart Ã¼zerinde gÃ¶steriliyor."
     elif display_status == "finishing":
-        trip_status = "Sürüş bitiyor gibi görünüyor. Final gecikmesi bekleniyor."
+        trip_status = "SÃ¼rÃ¼ÅŸ bitiyor gibi gÃ¶rÃ¼nÃ¼yor. Final gecikmesi bekleniyor."
     elif display_status == "active":
-        trip_status = "Sürüş devam ediyor. Canlı veriler güncelleniyor."
+        trip_status = "SÃ¼rÃ¼ÅŸ devam ediyor. CanlÄ± veriler gÃ¼ncelleniyor."
     else:
-        trip_status = "Canlı sürüş bekleniyor."
+        trip_status = "CanlÄ± sÃ¼rÃ¼ÅŸ bekleniyor."
 
     state.update({
         "last_update": now.strftime("%d.%m.%Y %H:%M:%S"),
@@ -4753,7 +4753,7 @@ async def update_live_trip_engine(hass: HomeAssistant, entry_id: str, data: dict
         "consumption_kwh_100km": round(consumption, 2),
         "start_battery": round(start_battery, 1),
         "end_battery": round(end_battery, 1),
-        "battery_text": f"%{start_battery:.1f} → %{end_battery:.1f}",
+        "battery_text": f"%{start_battery:.1f} â†’ %{end_battery:.1f}",
         "climate_seconds": round(climate_seconds, 0),
         "climate_text": live_trip_short_duration(climate_seconds),
         "elevation_range": round(elevation_range, 0),
@@ -4883,7 +4883,7 @@ def build_trip_report_data_from_json(
     path = Path(json_path)
 
     if not path.exists():
-        raise FileNotFoundError(f"Trip JSON dosyası bulunamadı: {json_path}")
+        raise FileNotFoundError(f"Trip JSON dosyasÄ± bulunamadÄ±: {json_path}")
 
     with path.open("r", encoding="utf-8") as file:
         source = json.load(file)
@@ -4994,9 +4994,9 @@ def build_manual_trip_report_data(
     climate_minutes = climate_active_seconds / 60
 
     if climate_minutes > 0:
-        climate_text = f"Klima yolculuk boyunca yaklaşık {format_duration_from_minutes(climate_minutes)} açıktı."
+        climate_text = f"Klima yolculuk boyunca yaklaÅŸÄ±k {format_duration_from_minutes(climate_minutes)} aÃ§Ä±ktÄ±."
     else:
-        climate_text = "Klima yolculuk boyunca kullanılmadı."
+        climate_text = "Klima yolculuk boyunca kullanÄ±lmadÄ±."
 
     supercharger_price = safe_float(integration_data.get(CONF_SUPERCHARGER_PRICE), 0.0)
     zes_price = safe_float(integration_data.get(CONF_ZES_PRICE), 0.0)
@@ -5120,7 +5120,7 @@ async def async_call_openai_responses_api(
             "content": [
                 {
                     "type": "input_text",
-                    "text": f"{context_text}\n\nKullanıcı mesajı:\n{user_message}",
+                    "text": f"{context_text}\n\nKullanÄ±cÄ± mesajÄ±:\n{user_message}",
                 }
             ],
         },
@@ -5147,7 +5147,7 @@ async def async_call_openai_responses_api(
             response_data = await response.json(content_type=None)
 
             if response.status >= 400:
-                error_message = "OpenAI API isteği başarısız oldu."
+                error_message = "OpenAI API isteÄŸi baÅŸarÄ±sÄ±z oldu."
                 if isinstance(response_data, dict):
                     error = response_data.get("error")
                     if isinstance(error, dict):
@@ -5155,12 +5155,12 @@ async def async_call_openai_responses_api(
                 raise ValueError(f"HTTP {response.status}: {error_message}")
 
     except ClientError as err:
-        raise ValueError(f"OpenAI API bağlantı hatası: {err}") from err
+        raise ValueError(f"OpenAI API baÄŸlantÄ± hatasÄ±: {err}") from err
 
     answer = extract_openai_response_text(response_data)
 
     if not answer:
-        raise ValueError("OpenAI API cevap verdi ama okunabilir metin dönmedi.")
+        raise ValueError("OpenAI API cevap verdi ama okunabilir metin dÃ¶nmedi.")
 
     return answer
 
@@ -5199,34 +5199,34 @@ def build_ai_personality_prompt(data: dict[str, Any]) -> str:
     answer_length = str(data.get(CONF_AI_ANSWER_LENGTH, DEFAULT_AI_ANSWER_LENGTH) or DEFAULT_AI_ANSWER_LENGTH)
 
     personality_map = {
-        AI_PERSONALITY_PROFESSIONAL: "Ciddi, teknik, profesyonel ve net konuş. Gereksiz espri yapma.",
-        AI_PERSONALITY_FRIENDLY: "Samimi, yardımcı ve doğal konuş. Abartılı samimiyet veya gereksiz övgü kullanma.",
-        AI_PERSONALITY_FUNNY: "Hafif esprili ve sıcak konuş; ama güvenlik, şarj, sürüş ve arıza konularında ciddi kal.",
-        AI_PERSONALITY_SHORT_DIRECT: "Çok kısa, doğrudan ve net cevap ver. Gereksiz açıklama yapma.",
-        AI_PERSONALITY_PREMIUM: "Premium bir Tesla asistanı gibi sakin, kendinden emin, rafine ve net konuş.",
-        AI_PERSONALITY_TURKISH_BUDDY: "Türkçe, samimi ve gündelik konuş; ama verileri ciddiyetle yorumla ve sulandırma.",
+        AI_PERSONALITY_PROFESSIONAL: "Ciddi, teknik, profesyonel ve net konuÅŸ. Gereksiz espri yapma.",
+        AI_PERSONALITY_FRIENDLY: "Samimi, yardÄ±mcÄ± ve doÄŸal konuÅŸ. AbartÄ±lÄ± samimiyet veya gereksiz Ã¶vgÃ¼ kullanma.",
+        AI_PERSONALITY_FUNNY: "Hafif esprili ve sÄ±cak konuÅŸ; ama gÃ¼venlik, ÅŸarj, sÃ¼rÃ¼ÅŸ ve arÄ±za konularÄ±nda ciddi kal.",
+        AI_PERSONALITY_SHORT_DIRECT: "Ã‡ok kÄ±sa, doÄŸrudan ve net cevap ver. Gereksiz aÃ§Ä±klama yapma.",
+        AI_PERSONALITY_PREMIUM: "Premium bir Tesla asistanÄ± gibi sakin, kendinden emin, rafine ve net konuÅŸ.",
+        AI_PERSONALITY_TURKISH_BUDDY: "TÃ¼rkÃ§e, samimi ve gÃ¼ndelik konuÅŸ; ama verileri ciddiyetle yorumla ve sulandÄ±rma.",
     }
 
     length_map = {
-        AI_ANSWER_LENGTH_SHORT: "Cevap uzunluğu: kısa. Genelde 1-3 cümle yeterli.",
-        AI_ANSWER_LENGTH_NORMAL: "Cevap uzunluğu: normal. Gerekirse birkaç madde kullanabilirsin.",
-        AI_ANSWER_LENGTH_DETAILED: "Cevap uzunluğu: detaylı. Kullanıcı analiz isterse gerekçeli açıkla.",
+        AI_ANSWER_LENGTH_SHORT: "Cevap uzunluÄŸu: kÄ±sa. Genelde 1-3 cÃ¼mle yeterli.",
+        AI_ANSWER_LENGTH_NORMAL: "Cevap uzunluÄŸu: normal. Gerekirse birkaÃ§ madde kullanabilirsin.",
+        AI_ANSWER_LENGTH_DETAILED: "Cevap uzunluÄŸu: detaylÄ±. KullanÄ±cÄ± analiz isterse gerekÃ§eli aÃ§Ä±kla.",
     }
 
     return "\n".join([
-        "Sen POM AI adında, Tesla ve Home Assistant verilerini yorumlayan araç asistanısın.",
-        "Her zaman Türkçe cevap ver.",
+        "Sen POM AI adÄ±nda, Tesla ve Home Assistant verilerini yorumlayan araÃ§ asistanÄ±sÄ±n.",
+        "Her zaman TÃ¼rkÃ§e cevap ver.",
         personality_map.get(personality, personality_map[AI_PERSONALITY_FRIENDLY]),
         length_map.get(answer_length, length_map[AI_ANSWER_LENGTH_SHORT]),
-        "Sana verilen güncel entity verilerini ve rapor özetlerini esas al.",
-        "Veri yoksa veya stale/unavailable görünüyorsa uydurma; eksik veriyi açıkça söyle.",
-        "Bir entity unavailable/unknown ise kullanıcıya bu veriyi şu anda göremediğini söyle; araç uyandığında veya hareket halindeyken okunabilir olabileceğini belirt.",
-        "Vehicle state / sleep status entity'si yoksa veya net sleep/asleep/awake/online verisi yoksa aracın uyuduğunu kesin söyleme; sadece parkta ve veri sınırlı göründüğünü söyle.",
-        "Açık adres bilgisi varsa konum sorularında koordinat yerine mümkün olduğunca bu adresi kullan; adres yoksa uydurma.",
-        "Bilgi sorularında sadece veri yorumla; servis çağrısını LLM olarak sen uydurma.",
-        "Araç kontrol komutları entegrasyonun onaylı kontrol sistemi tarafından işlenir.",
-        "Kullanıcı araç kontrolü isterse komutun onay gerektirdiğini kısa ve net söyle; onay akışını entegrasyon başlatır.",
-        "Entity isimlerini kullanıcı istemedikçe uzun uzun listeleme; doğal insan diliyle özetle.",
+        "Sana verilen gÃ¼ncel entity verilerini ve rapor Ã¶zetlerini esas al.",
+        "Veri yoksa veya stale/unavailable gÃ¶rÃ¼nÃ¼yorsa uydurma; eksik veriyi aÃ§Ä±kÃ§a sÃ¶yle.",
+        "Bir entity unavailable/unknown ise kullanÄ±cÄ±ya bu veriyi ÅŸu anda gÃ¶remediÄŸini sÃ¶yle; araÃ§ uyandÄ±ÄŸÄ±nda veya hareket halindeyken okunabilir olabileceÄŸini belirt.",
+        "Vehicle state / sleep status entity'si yoksa veya net sleep/asleep/awake/online verisi yoksa aracÄ±n uyuduÄŸunu kesin sÃ¶yleme; sadece parkta ve veri sÄ±nÄ±rlÄ± gÃ¶rÃ¼ndÃ¼ÄŸÃ¼nÃ¼ sÃ¶yle.",
+        "AÃ§Ä±k adres bilgisi varsa konum sorularÄ±nda koordinat yerine mÃ¼mkÃ¼n olduÄŸunca bu adresi kullan; adres yoksa uydurma.",
+        "Bilgi sorularÄ±nda sadece veri yorumla; servis Ã§aÄŸrÄ±sÄ±nÄ± LLM olarak sen uydurma.",
+        "AraÃ§ kontrol komutlarÄ± entegrasyonun onaylÄ± kontrol sistemi tarafÄ±ndan iÅŸlenir.",
+        "KullanÄ±cÄ± araÃ§ kontrolÃ¼ isterse komutun onay gerektirdiÄŸini kÄ±sa ve net sÃ¶yle; onay akÄ±ÅŸÄ±nÄ± entegrasyon baÅŸlatÄ±r.",
+        "Entity isimlerini kullanÄ±cÄ± istemedikÃ§e uzun uzun listeleme; doÄŸal insan diliyle Ã¶zetle.",
     ])
 
 
@@ -5236,7 +5236,7 @@ def build_final_ai_system_prompt(data: dict[str, Any]) -> str:
     custom = str(data.get(CONF_AI_SYSTEM_PROMPT, "") or "").strip()
     if not custom or custom.strip() == DEFAULT_AI_SYSTEM_PROMPT.strip():
         return generated
-    return generated + "\n\nEk özel talimatlar:\n" + custom
+    return generated + "\n\nEk Ã¶zel talimatlar:\n" + custom
 
 
 async def async_generate_pom_ai_answer(
@@ -5249,11 +5249,11 @@ async def async_generate_pom_ai_answer(
 ) -> str:
     """Generate a POM AI answer using the integration's own OpenAI API settings."""
     if not get_bool_option(data, CONF_AI_ENABLED, DEFAULT_AI_ENABLED):
-        raise ValueError("POM AI Basic kapalı. Configure > POM AI Basic bölümünden aktif etmelisin.")
+        raise ValueError("POM AI Basic kapalÄ±. Configure > POM AI Basic bÃ¶lÃ¼mÃ¼nden aktif etmelisin.")
 
     api_key = str(data.get(CONF_OPENAI_API_KEY, "")).strip()
     if not api_key:
-        raise ValueError("OpenAI API key boş. Configure > POM AI Basic bölümüne API key gir.")
+        raise ValueError("OpenAI API key boÅŸ. Configure > POM AI Basic bÃ¶lÃ¼mÃ¼ne API key gir.")
 
     model = str(data.get(CONF_OPENAI_MODEL, DEFAULT_OPENAI_MODEL)).strip() or DEFAULT_OPENAI_MODEL
     system_prompt = build_final_ai_system_prompt(data)
@@ -5263,7 +5263,7 @@ async def async_generate_pom_ai_answer(
     if include_context:
         await async_update_reverse_geocode_cache(hass, data)
 
-    context_text = build_ai_context_text(hass, data) if include_context else "Bağlam verisi bu çağrıda kapalı."
+    context_text = build_ai_context_text(hass, data) if include_context else "BaÄŸlam verisi bu Ã§aÄŸrÄ±da kapalÄ±."
     recent_memory = get_pom_ai_recent_conversation_text(hass, telegram_target) if telegram_target else ""
     if recent_memory:
         context_text = f"{context_text}\n\n{recent_memory}"
@@ -5351,11 +5351,11 @@ async def send_pom_ai_alert(
                 hass,
                 data,
                 user_message=(
-                    "Aşağıdaki olay için Telegram'a gönderilecek kısa bir proaktif Tesla uyarısı yaz. "
-                    "Araç kontrolü yapma, servis çağırma, sadece bilgi ver. "
-                    "Eğer veri unavailable/unknown ise veri uydurma. "
-                    f"Uyarı başlığı: {title}\n"
-                    f"Kural mesajı: {rule_message}\n"
+                    "AÅŸaÄŸÄ±daki olay iÃ§in Telegram'a gÃ¶nderilecek kÄ±sa bir proaktif Tesla uyarÄ±sÄ± yaz. "
+                    "AraÃ§ kontrolÃ¼ yapma, servis Ã§aÄŸÄ±rma, sadece bilgi ver. "
+                    "EÄŸer veri unavailable/unknown ise veri uydurma. "
+                    f"UyarÄ± baÅŸlÄ±ÄŸÄ±: {title}\n"
+                    f"Kural mesajÄ±: {rule_message}\n"
                     f"Detaylar: {details}"
                 ),
                 include_context=True,
@@ -5370,7 +5370,7 @@ async def send_pom_ai_alert(
         {
             "target": telegram_target,
             "parse_mode": "plain_text",
-            "message": f"🤖 POM AI Uyarı\n\n{message}",
+            "message": f"ğŸ¤– POM AI UyarÄ±\n\n{message}",
         },
         blocking=True,
     )
@@ -5440,7 +5440,7 @@ def get_user_present_entity(hass: HomeAssistant, data: dict[str, Any], candidate
     found = find_entities_by_category_or_keywords(
         hass,
         candidates,
-        category="Kullanıcı / varlık",
+        category="KullanÄ±cÄ± / varlÄ±k",
         keywords=["user present", "user_present", "presence", "occupancy", "occupied", "occupant", "driver present", "inside vehicle"],
     )
     return found[0] if found else None
@@ -5498,19 +5498,19 @@ def is_door_window_entity_for_alert(hass: HomeAssistant, entity_id: str) -> bool
     haystack = normalize_text_for_match(f"{entity_id} {friendly or ''} {state.attributes if state is not None else ''}")
     if any(k in haystack for k in ["lock", "locked", "unlocked", "sentry", "valet"]):
         return False
-    return any(k in haystack for k in ["door", "window", "trunk", "frunk", "kapı", "kapi", "cam", "bagaj", "pencere"])
+    return any(k in haystack for k in ["door", "window", "trunk", "frunk", "kapÄ±", "kapi", "cam", "bagaj", "pencere"])
 
 
 def build_low_battery_staged_message(battery_level: float, stage: int) -> str:
     """Return POM-style staged low battery alert text."""
     level_text = f"%{battery_level:.0f}"
     if stage == 1:
-        return f"Boku yedik galiba. Batarya {level_text} seviyesine indi. Umarım şu an şarj istasyonu arıyorsundur."
+        return f"Boku yedik galiba. Batarya {level_text} seviyesine indi. UmarÄ±m ÅŸu an ÅŸarj istasyonu arÄ±yorsundur."
     if stage == 5:
-        return f"Batarya {level_text}. POM hafif gerilmeye başladı. Şarj planını artık ertelemesen iyi olur."
+        return f"Batarya {level_text}. POM hafif gerilmeye baÅŸladÄ±. Åarj planÄ±nÄ± artÄ±k ertelemesen iyi olur."
     if stage == 10:
-        return f"Kaptan, batarya {level_text}. Artık 'sonra bakarım' seviyesi değil; uygun bir şarj noktası bakmak iyi olur."
-    return f"Patlamadık değil mi kanka? Batarya {level_text} seviyesine indi. Şarj planı yapmak iyi olabilir."
+        return f"Kaptan, batarya {level_text}. ArtÄ±k 'sonra bakarÄ±m' seviyesi deÄŸil; uygun bir ÅŸarj noktasÄ± bakmak iyi olur."
+    return f"PatlamadÄ±k deÄŸil mi kanka? Batarya {level_text} seviyesine indi. Åarj planÄ± yapmak iyi olabilir."
 
 
 def get_low_battery_stage_to_send(hass: HomeAssistant, battery_level: float) -> int | None:
@@ -5540,7 +5540,7 @@ def mark_low_battery_stage_sent(hass: HomeAssistant, stage: int) -> None:
 def temperature_to_c(value: float, unit: str) -> float:
     """Convert temperature value to Celsius when needed."""
     unit_l = unit.lower()
-    if "°f" in unit_l or "fahrenheit" in unit_l:
+    if "Â°f" in unit_l or "fahrenheit" in unit_l:
         return (value - 32) * 5 / 9
     return value
 
@@ -5628,32 +5628,32 @@ def build_alert_diagnostics_message(hass: HomeAssistant, data: dict[str, Any]) -
     if len(window_entities) > 30:
         window_lines.append(f"- ... {len(window_entities) - 30} window/cam entity daha var")
     if not window_lines:
-        window_lines.append("- Bulunan cam/window entity yok. Selected AI entities içine cam entity'lerini ekle.")
+        window_lines.append("- Bulunan cam/window entity yok. Selected AI entities iÃ§ine cam entity'lerini ekle.")
 
     def cooldown_line(key: str) -> str:
         allows = alert_cooldown_allows(hass, key, cooldown_minutes)
         last = safe_float(last_sent.get(key), 0.0)
         if last <= 0:
-            return f"{key}: cooldown açık değil / daha önce gönderilmemiş"
+            return f"{key}: cooldown aÃ§Ä±k deÄŸil / daha Ã¶nce gÃ¶nderilmemiÅŸ"
         minutes_ago = (datetime.now().timestamp() - last) / 60
-        return f"{key}: {'uygun' if allows else 'cooldown aktif'} · son gönderim {minutes_ago:.1f} dk önce"
+        return f"{key}: {'uygun' if allows else 'cooldown aktif'} Â· son gÃ¶nderim {minutes_ago:.1f} dk Ã¶nce"
 
     lines = [
-        "🧪 POM Alert Diagnostics",
+        "ğŸ§ª POM Alert Diagnostics",
         "",
         f"Proactive alerts: {get_bool_option(data, CONF_AI_ALERTS_ENABLED, DEFAULT_AI_ALERTS_ENABLED)}",
         f"Alert style: {data.get(CONF_AI_ALERT_STYLE, DEFAULT_AI_ALERT_STYLE)}",
-        f"Telegram target: {telegram_target or 'boş'}",
+        f"Telegram target: {telegram_target or 'boÅŸ'}",
         f"Cooldown: {cooldown_minutes:.0f} dk",
         "",
         "LOW BATTERY",
         f"Enabled: {get_bool_option(data, CONF_AI_ALERT_LOW_BATTERY_ENABLED, DEFAULT_AI_ALERT_LOW_BATTERY_ENABLED)}",
-        f"Battery entity: {battery_entity or 'seçilmemiş'}",
+        f"Battery entity: {battery_entity or 'seÃ§ilmemiÅŸ'}",
         f"Current value: {battery_state.state if battery_state else 'not_found'}",
-        f"Parsed value: {battery_value if battery_value >= 0 else 'okunamadı'}",
+        f"Parsed value: {battery_value if battery_value >= 0 else 'okunamadÄ±'}",
         "Stages: %20 / %10 / %5 / %1",
         f"Sent stages this cycle: {runtime.get('low_battery_sent_stages', [])}",
-        f"Would trigger now: {get_low_battery_stage_to_send(hass, battery_value) if battery_value >= 0 else 'okunamadı'}",
+        f"Would trigger now: {get_low_battery_stage_to_send(hass, battery_value) if battery_value >= 0 else 'okunamadÄ±'}",
     ]
     return "\n".join(lines)
 
@@ -5678,7 +5678,7 @@ async def evaluate_pom_ai_alerts(hass: HomeAssistant, data: dict[str, Any]) -> N
                 hass,
                 data,
                 key=f"low_battery_{stage}",
-                title=f"Düşük batarya %{stage}",
+                title=f"DÃ¼ÅŸÃ¼k batarya %{stage}",
                 rule_message=build_low_battery_staged_message(battery_level, stage),
                 details=f"battery_entity={battery_entity}, battery_level={battery_level}, stage={stage}",
                 force=True,
@@ -5697,8 +5697,8 @@ async def evaluate_pom_ai_alerts(hass: HomeAssistant, data: dict[str, Any]) -> N
                 hass,
                 data,
                 key="charge_finished",
-                title="Şarj bitti",
-                rule_message=f"Şarj tamamlanmış görünüyor. Batarya şu anda yaklaşık %{battery_level:.0f}.",
+                title="Åarj bitti",
+                rule_message=f"Åarj tamamlanmÄ±ÅŸ gÃ¶rÃ¼nÃ¼yor. Batarya ÅŸu anda yaklaÅŸÄ±k %{battery_level:.0f}.",
                 details=f"charging_entity={charging_entity}, battery_level={battery_level}",
                 force=True,
             )
@@ -5709,8 +5709,8 @@ async def evaluate_pom_ai_alerts(hass: HomeAssistant, data: dict[str, Any]) -> N
                     hass,
                     data,
                     key="charging_stopped_empty_vehicle",
-                    title="Şarj beklenmedik şekilde durdu",
-                    rule_message=f"Şarj durmuş görünüyor ve araç içinde kullanıcı algılanmıyor. Batarya yaklaşık %{battery_level:.0f}; kabloyu veya istasyonu kontrol etmek iyi olabilir.",
+                    title="Åarj beklenmedik ÅŸekilde durdu",
+                    rule_message=f"Åarj durmuÅŸ gÃ¶rÃ¼nÃ¼yor ve araÃ§ iÃ§inde kullanÄ±cÄ± algÄ±lanmÄ±yor. Batarya yaklaÅŸÄ±k %{battery_level:.0f}; kabloyu veya istasyonu kontrol etmek iyi olabilir.",
                     details=f"charging_entity={charging_entity}, battery_level={battery_level}, user_absent={user_absent}",
                     force=True,
                 )
@@ -5733,8 +5733,8 @@ async def evaluate_pom_ai_alerts(hass: HomeAssistant, data: dict[str, Any]) -> N
             + find_entities_by_category_or_keywords(
                 hass,
                 candidate_entities,
-                category="Lastik / basınç",
-                keywords=["tire pressure", "tyre pressure", "lastik basinc", "lastik basınç", "tpms"],
+                category="Lastik / basÄ±nÃ§",
+                keywords=["tire pressure", "tyre pressure", "lastik basinc", "lastik basÄ±nÃ§", "tpms"],
             )
         )
         threshold_psi = normalize_tire_threshold_to_psi(data.get(CONF_AI_ALERT_TIRE_PRESSURE_THRESHOLD_BAR))
@@ -5751,11 +5751,11 @@ async def evaluate_pom_ai_alerts(hass: HomeAssistant, data: dict[str, Any]) -> N
                 hass,
                 data,
                 key="tire_pressure_low",
-                title="Lastik basıncı düşük",
+                title="Lastik basÄ±ncÄ± dÃ¼ÅŸÃ¼k",
                 rule_message=(
-                    "Lastik basıncı düşük görünüyor: " + ", ".join(low_tires) + "\n\n"
-                    f"Uyarı eşiğin: {threshold_psi:.0f} PSI ve altı. Tesla'da doğru soğuk lastik basıncı model, jant ve lastik ölçüsüne göre değişir; "
-                    "en güvenilir değer sürücü kapısı içindeki lastik basıncı etiketidir. Ölçümü lastikler soğukken yapmak, sıcak lastikte görülen yüksek değeri referans almamak ve dört lastiği de etiketteki öneriye göre eşitlemek daha doğru olur."
+                    "Lastik basÄ±ncÄ± dÃ¼ÅŸÃ¼k gÃ¶rÃ¼nÃ¼yor: " + ", ".join(low_tires) + "\n\n"
+                    f"UyarÄ± eÅŸiÄŸin: {threshold_psi:.0f} PSI ve altÄ±. Tesla'da doÄŸru soÄŸuk lastik basÄ±ncÄ± model, jant ve lastik Ã¶lÃ§Ã¼sÃ¼ne gÃ¶re deÄŸiÅŸir; "
+                    "en gÃ¼venilir deÄŸer sÃ¼rÃ¼cÃ¼ kapÄ±sÄ± iÃ§indeki lastik basÄ±ncÄ± etiketidir. Ã–lÃ§Ã¼mÃ¼ lastikler soÄŸukken yapmak, sÄ±cak lastikte gÃ¶rÃ¼len yÃ¼ksek deÄŸeri referans almamak ve dÃ¶rt lastiÄŸi de etiketteki Ã¶neriye gÃ¶re eÅŸitlemek daha doÄŸru olur."
                 ),
                 details=f"threshold_psi={threshold_psi}; " + "; ".join(low_tires),
             )
@@ -5775,14 +5775,14 @@ async def evaluate_pom_ai_alerts(hass: HomeAssistant, data: dict[str, Any]) -> N
                 continue
             c_value = temperature_to_c(value, unit)
             if c_value >= threshold_c:
-                high_values.append(f"{friendly} ({entity_id}) {c_value:.1f} °C")
+                high_values.append(f"{friendly} ({entity_id}) {c_value:.1f} Â°C")
         if high_values:
             await send_pom_ai_alert(
                 hass,
                 data,
                 key="battery_temperature_high",
-                title="Batarya sıcaklığı yüksek",
-                rule_message="Batarya sıcaklığı yüksek görünüyor: " + ", ".join(high_values),
+                title="Batarya sÄ±caklÄ±ÄŸÄ± yÃ¼ksek",
+                rule_message="Batarya sÄ±caklÄ±ÄŸÄ± yÃ¼ksek gÃ¶rÃ¼nÃ¼yor: " + ", ".join(high_values),
                 details="; ".join(high_values),
             )
 
@@ -5806,8 +5806,8 @@ async def evaluate_pom_ai_alerts(hass: HomeAssistant, data: dict[str, Any]) -> N
                     hass,
                     data,
                     key=key,
-                    title="Araç kilitsiz kaldı",
-                    rule_message=f"Araç {int(delay/60)} dakikadır kilitsiz görünüyor ve içeride kullanıcı algılanmıyor: " + ", ".join(unlocked),
+                    title="AraÃ§ kilitsiz kaldÄ±",
+                    rule_message=f"AraÃ§ {int(delay/60)} dakikadÄ±r kilitsiz gÃ¶rÃ¼nÃ¼yor ve iÃ§eride kullanÄ±cÄ± algÄ±lanmÄ±yor: " + ", ".join(unlocked),
                     details="; ".join(unlocked) + f"; user_absent={user_absent}",
                 )
         else:
@@ -5819,7 +5819,7 @@ async def evaluate_pom_ai_alerts(hass: HomeAssistant, data: dict[str, Any]) -> N
         keyword_open_entities = find_entities_by_category_or_keywords(
             hass,
             candidate_entities,
-            keywords=["door", "window", "trunk", "frunk", "kapı", "kapi", "cam", "bagaj", "pencere"],
+            keywords=["door", "window", "trunk", "frunk", "kapÄ±", "kapi", "cam", "bagaj", "pencere"],
         )
         open_entities = [entity_id for entity_id in dedupe_entities(role_open_entities + keyword_open_entities) if is_door_window_entity_for_alert(hass, entity_id)]
         opened = []
@@ -5839,8 +5839,8 @@ async def evaluate_pom_ai_alerts(hass: HomeAssistant, data: dict[str, Any]) -> N
                     hass,
                     data,
                     key=key,
-                    title="Kilitliyken kapı/cam açık kaldı",
-                    rule_message="Araç kilitli ve içeride kullanıcı algılanmıyor; buna rağmen açık görünen kapı/cam var: " + ", ".join(opened),
+                    title="Kilitliyken kapÄ±/cam aÃ§Ä±k kaldÄ±",
+                    rule_message="AraÃ§ kilitli ve iÃ§eride kullanÄ±cÄ± algÄ±lanmÄ±yor; buna raÄŸmen aÃ§Ä±k gÃ¶rÃ¼nen kapÄ±/cam var: " + ", ".join(opened),
                     details="; ".join(opened) + f"; user_absent={user_absent}; vehicle_locked={vehicle_locked}",
                 )
         else:
@@ -5905,8 +5905,8 @@ async def async_setup(hass: HomeAssistant, config: dict[str, Any]) -> bool:
 
         if trip_state.get("active") and not force:
             message = (
-                "Zaten aktif bir POM Tesla Report sürüş kaydı var.\n\n"
-                "Yeni kayıt başlatmak için önce mevcut kaydı bitirmelisin."
+                "Zaten aktif bir POM Tesla Report sÃ¼rÃ¼ÅŸ kaydÄ± var.\n\n"
+                "Yeni kayÄ±t baÅŸlatmak iÃ§in Ã¶nce mevcut kaydÄ± bitirmelisin."
             )
 
             await async_create_persistent_notification(
@@ -5935,15 +5935,15 @@ async def async_setup(hass: HomeAssistant, config: dict[str, Any]) -> bool:
 
         if send_notification:
             message = (
-                "POM Tesla Report sürüş takibi başlatıldı.\n\n"
+                "POM Tesla Report sÃ¼rÃ¼ÅŸ takibi baÅŸlatÄ±ldÄ±.\n\n"
                 f"- Kaynak: `{source}`\n"
-                f"- Başlangıç zamanı: `{start_state['started_at']}`\n"
+                f"- BaÅŸlangÄ±Ã§ zamanÄ±: `{start_state['started_at']}`\n"
                 f"- Odometer: `{start_state['start_odometer']}`\n"
                 f"- Kalan enerji: `{start_state['start_energy_kwh']}` kWh\n"
                 f"- Batarya: `%{start_state['start_battery']}`\n"
-                f"- Rakım: `{start_state['start_elevation']}` m\n"
+                f"- RakÄ±m: `{start_state['start_elevation']}` m\n"
                 f"- Shift state: `{start_state['start_shift_state']}`\n"
-                f"- Hız: `{start_state['start_speed']}` km/sa\n"
+                f"- HÄ±z: `{start_state['start_speed']}` km/sa\n"
                 f"- Klima state: `{start_state['start_climate_state']}`"
             )
 
@@ -5973,7 +5973,7 @@ async def async_setup(hass: HomeAssistant, config: dict[str, Any]) -> bool:
         trip_state = get_named_state(hass, state_key)
 
         if not trip_state.get("active"):
-            message = "Aktif POM Tesla Report sürüş kaydı yok."
+            message = "Aktif POM Tesla Report sÃ¼rÃ¼ÅŸ kaydÄ± yok."
 
             await async_create_persistent_notification(
                 hass,
@@ -6050,12 +6050,12 @@ async def async_setup(hass: HomeAssistant, config: dict[str, Any]) -> bool:
         hass.data[DOMAIN][state_key] = trip_state
 
         message = (
-            "POM Tesla Report sürüş raporu üretildi.\n\n"
+            "POM Tesla Report sÃ¼rÃ¼ÅŸ raporu Ã¼retildi.\n\n"
             f"- Kaynak: `{source}`\n"
             f"- PNG: `{png_path}`\n\n"
             f"Mesafe: `{report_data.get('trip_km')}` km\n"
             f"Enerji: `{report_data.get('used_kwh')}` kWh\n"
-            f"Tüketim: `{report_data.get('consumption_kwh_100km')}` kWh/100 km"
+            f"TÃ¼ketim: `{report_data.get('consumption_kwh_100km')}` kWh/100 km"
         )
 
         await async_create_persistent_notification(
@@ -6174,7 +6174,7 @@ async def async_setup(hass: HomeAssistant, config: dict[str, Any]) -> bool:
             MANUAL_TRACKING_STATE_KEY,
             integration_data,
             send_telegram=True,
-            caption="🚗 POM Tesla Report - Manuel Takip Raporu",
+            caption="ğŸš— POM Tesla Report - Manuel Takip Raporu",
             output_path=DEFAULT_MANUAL_TRACKING_IMAGE_OUTPUT_PATH,
             test_mode=False,
             overrides={},
@@ -6254,7 +6254,7 @@ async def async_setup(hass: HomeAssistant, config: dict[str, Any]) -> bool:
             await async_finish_trip_core(
                 integration_data,
                 send_telegram=True,
-                caption="🚗 POM Tesla Report - Otomatik Sürüş Raporu",
+                caption="ğŸš— POM Tesla Report - Otomatik SÃ¼rÃ¼ÅŸ Raporu",
                 output_path=DEFAULT_AUTO_TRIP_IMAGE_OUTPUT_PATH,
                 test_mode=False,
                 overrides={},
@@ -6271,8 +6271,8 @@ async def async_setup(hass: HomeAssistant, config: dict[str, Any]) -> bool:
 
         if not entries:
             message = (
-                "POM Tesla Report için kayıtlı config entry bulunamadı.\n\n"
-                "Önce Ayarlar > Cihazlar ve Servisler üzerinden "
+                "POM Tesla Report iÃ§in kayÄ±tlÄ± config entry bulunamadÄ±.\n\n"
+                "Ã–nce Ayarlar > Cihazlar ve Servisler Ã¼zerinden "
                 "POM Tesla Report entegrasyonunu eklemelisin."
             )
 
@@ -6287,9 +6287,9 @@ async def async_setup(hass: HomeAssistant, config: dict[str, Any]) -> bool:
             return
 
         lines = [
-            "POM Tesla Report kayıtlı ayarları:",
+            "POM Tesla Report kayÄ±tlÄ± ayarlarÄ±:",
             "",
-            f"Toplam kayıt sayısı: {len(entries)}",
+            f"Toplam kayÄ±t sayÄ±sÄ±: {len(entries)}",
             "",
         ]
 
@@ -6301,7 +6301,7 @@ async def async_setup(hass: HomeAssistant, config: dict[str, Any]) -> bool:
             if telegram_target is None:
                 telegram_target = data.get(CONF_TELEGRAM_TARGET)
 
-            lines.append(f"## Kayıt {index}")
+            lines.append(f"## KayÄ±t {index}")
             lines.append(f"- title: `{entry.title}`")
             lines.append(f"- entry_id: `{entry.entry_id}`")
             lines.append("")
@@ -6314,7 +6314,7 @@ async def async_setup(hass: HomeAssistant, config: dict[str, Any]) -> bool:
 
         message = "\n".join(lines)
 
-        _LOGGER.warning("POM Tesla Report debug config çalıştı:\n%s", message)
+        _LOGGER.warning("POM Tesla Report debug config Ã§alÄ±ÅŸtÄ±:\n%s", message)
 
         await async_create_persistent_notification(
             hass,
@@ -6345,7 +6345,7 @@ async def async_setup(hass: HomeAssistant, config: dict[str, Any]) -> bool:
             await async_create_persistent_notification(
                 hass,
                 title="POM AI Context Debug",
-                message="POM Tesla Report için kayıtlı config entry bulunamadı.",
+                message="POM Tesla Report iÃ§in kayÄ±tlÄ± config entry bulunamadÄ±.",
                 notification_id="pom_tesla_report_ai_context_debug",
             )
             return
@@ -6396,7 +6396,7 @@ async def async_setup(hass: HomeAssistant, config: dict[str, Any]) -> bool:
             await async_create_persistent_notification(
                 hass,
                 title="POM Alert Diagnostics",
-                message="POM Tesla Report için kayıtlı config entry bulunamadı.",
+                message="POM Tesla Report iÃ§in kayÄ±tlÄ± config entry bulunamadÄ±.",
                 notification_id="pom_tesla_report_alert_diagnostics",
             )
             return
@@ -6433,17 +6433,17 @@ async def async_setup(hass: HomeAssistant, config: dict[str, Any]) -> bool:
             await async_create_persistent_notification(
                 hass,
                 title="POM AI Alert Test",
-                message="POM Tesla Report için kayıtlı config entry bulunamadı.",
+                message="POM Tesla Report iÃ§in kayÄ±tlÄ± config entry bulunamadÄ±.",
                 notification_id="pom_tesla_report_alert_test",
             )
             return
 
         alert_type = str(call.data["alert_type"])
         mapping = {
-            "low_battery": ("low_battery_test", "Düşük batarya test", "Bu bir testtir. Batarya düşük uyarı hattı çalışıyor."),
-            "tire_pressure": ("tire_pressure_test", "Lastik basıncı test", "Bu bir testtir. Lastik basıncı uyarı hattı çalışıyor."),
-            "battery_temperature": ("battery_temperature_test", "Batarya sıcaklığı test", "Bu bir testtir. Batarya sıcaklığı uyarı hattı çalışıyor."),
-            "charging_stopped": ("charging_stopped_test", "Şarj durdu test", "Bu bir testtir. Şarj durdu uyarı hattı çalışıyor."),
+            "low_battery": ("low_battery_test", "DÃ¼ÅŸÃ¼k batarya test", "Bu bir testtir. Batarya dÃ¼ÅŸÃ¼k uyarÄ± hattÄ± Ã§alÄ±ÅŸÄ±yor."),
+            "tire_pressure": ("tire_pressure_test", "Lastik basÄ±ncÄ± test", "Bu bir testtir. Lastik basÄ±ncÄ± uyarÄ± hattÄ± Ã§alÄ±ÅŸÄ±yor."),
+            "battery_temperature": ("battery_temperature_test", "Batarya sÄ±caklÄ±ÄŸÄ± test", "Bu bir testtir. Batarya sÄ±caklÄ±ÄŸÄ± uyarÄ± hattÄ± Ã§alÄ±ÅŸÄ±yor."),
+            "charging_stopped": ("charging_stopped_test", "Åarj durdu test", "Bu bir testtir. Åarj durdu uyarÄ± hattÄ± Ã§alÄ±ÅŸÄ±yor."),
         }
         key, title, rule_message = mapping[alert_type]
 
@@ -6468,7 +6468,7 @@ async def async_setup(hass: HomeAssistant, config: dict[str, Any]) -> bool:
         await async_create_persistent_notification(
             hass,
             title="POM AI Alert Test",
-            message=f"Test alert gönderildi: {alert_type}",
+            message=f"Test alert gÃ¶nderildi: {alert_type}",
             notification_id="pom_tesla_report_alert_test",
         )
 
@@ -6478,7 +6478,7 @@ async def async_setup(hass: HomeAssistant, config: dict[str, Any]) -> bool:
         data = get_first_entry_config(hass)
 
         if data is None:
-            message = "POM Tesla Report için kayıtlı config entry bulunamadı. Önce entegrasyonu kurmalısın."
+            message = "POM Tesla Report iÃ§in kayÄ±tlÄ± config entry bulunamadÄ±. Ã–nce entegrasyonu kurmalÄ±sÄ±n."
             await async_create_persistent_notification(
                 hass,
                 title="POM AI Basic",
@@ -6488,7 +6488,7 @@ async def async_setup(hass: HomeAssistant, config: dict[str, Any]) -> bool:
             return
 
         if not get_bool_option(data, CONF_AI_ENABLED, DEFAULT_AI_ENABLED):
-            message = "POM AI Basic kapalı. Configure > POM AI Basic bölümünden aktif etmelisin."
+            message = "POM AI Basic kapalÄ±. Configure > POM AI Basic bÃ¶lÃ¼mÃ¼nden aktif etmelisin."
             await async_create_persistent_notification(
                 hass,
                 title="POM AI Basic",
@@ -6497,45 +6497,9 @@ async def async_setup(hass: HomeAssistant, config: dict[str, Any]) -> bool:
             )
             return
 
-        user_message = str(call.data["message"]).strip()
-        include_context = bool(call.data.get("include_context", True))
-        send_telegram = bool(call.data.get("send_telegram", True))
-        telegram_target = str(call.data.get("telegram_target") or data.get(CONF_AI_TELEGRAM_TARGET) or data.get(CONF_TELEGRAM_TARGET) or "").strip()
-
-        if await async_handle_ai_vehicle_control_text_confirmation(
-            hass,
-            data,
-            user_message=user_message,
-            telegram_target=telegram_target,
-            send_telegram=send_telegram,
-        ):
-            return
-
-        if await async_handle_ai_vehicle_suggestion_text(
-            hass,
-            data,
-            user_message=user_message,
-            telegram_target=telegram_target,
-            send_telegram=send_telegram,
-        ):
-            return
-
-        # Direct vehicle controls are handled before normal chat.
-        # Indirect comfort complaints such as "çok sıcak" must NOT execute immediately;
-        # they go to chat and store a single pending_suggestion for follow-up replies.
-        if not is_indirect_vehicle_suggestion_statement(user_message):
-            if await async_maybe_start_ai_vehicle_control(
-                hass,
-                data,
-                user_message=user_message,
-                telegram_target=telegram_target,
-                send_telegram=send_telegram,
-            ):
-                return
-
         api_key = str(data.get(CONF_OPENAI_API_KEY, "")).strip()
         if not api_key:
-            message = "OpenAI API key boş. Configure > POM AI Basic bölümüne API key gir."
+            message = "OpenAI API key boÅŸ. Configure > POM AI Basic bÃ¶lÃ¼mÃ¼ne API key gir."
             await async_create_persistent_notification(
                 hass,
                 title="POM AI Basic",
@@ -6544,33 +6508,14 @@ async def async_setup(hass: HomeAssistant, config: dict[str, Any]) -> bool:
             )
             return
 
+        user_message = str(call.data["message"]).strip()
+        include_context = bool(call.data.get("include_context", True))
         model = str(data.get(CONF_OPENAI_MODEL, DEFAULT_OPENAI_MODEL)).strip() or DEFAULT_OPENAI_MODEL
         system_prompt = build_final_ai_system_prompt(data)
         max_output_tokens = int(safe_float(data.get(CONF_AI_MAX_OUTPUT_TOKENS), DEFAULT_AI_MAX_OUTPUT_TOKENS))
         max_output_tokens = max(100, min(max_output_tokens, 4000))
 
-        context_text = build_ai_context_text(hass, data) if include_context else "Bağlam verisi bu çağrıda kapalı."
-        recent_memory = get_pom_ai_recent_conversation_text(hass, telegram_target)
-        if recent_memory:
-            context_text = f"{context_text}\n\n{recent_memory}"
-
-        # Build an explicit pending suggestion candidate before chat generation.
-        # This prevents POM from making a natural offer like "klimayı açayım mı"
-        # without a real follow-up action behind it. The answer may still be
-        # generated naturally, but the single-slot action is already known.
-        pre_suggestion_action = build_contextual_vehicle_suggestion_without_llm(
-            hass,
-            data,
-            user_message=user_message,
-            assistant_answer="",
-        )
-        if pre_suggestion_action and not pre_suggestion_action.get("error"):
-            context_text = (
-                f"{context_text}\n\n"
-                "PENDING_SUGGESTION_HINT:\n"
-                f"The user's message can safely map to this follow-up action: {pre_suggestion_action.get('label')}. "
-                "If you offer to do it, keep the wording clear because the system will remember this as the next pending suggestion."
-            )
+        context_text = build_ai_context_text(hass, data) if include_context else "BaÄŸlam verisi bu Ã§aÄŸrÄ±da kapalÄ±."
 
         try:
             answer = await async_call_openai_responses_api(
@@ -6583,7 +6528,7 @@ async def async_setup(hass: HomeAssistant, config: dict[str, Any]) -> bool:
                 max_output_tokens=max_output_tokens,
             )
         except Exception as err:
-            message = f"POM AI Basic cevap üretemedi: {err}"
+            message = f"POM AI Basic cevap Ã¼retemedi: {err}"
             _LOGGER.exception(message)
             await async_create_persistent_notification(
                 hass,
@@ -6600,29 +6545,8 @@ async def async_setup(hass: HomeAssistant, config: dict[str, Any]) -> bool:
             "last_at": datetime.now().strftime("%d.%m.%Y %H:%M:%S"),
         }
 
-        if pre_suggestion_action and not pre_suggestion_action.get("error"):
-            pending = get_pending_ai_vehicle_suggestion_state(hass)
-            pending.clear()
-            pending.update({
-                "created_ts": datetime.now().timestamp(),
-                "target": telegram_target,
-                "source_message": user_message,
-                "assistant_answer": answer,
-                "action": copy.deepcopy(pre_suggestion_action),
-            })
-        else:
-            await async_store_contextual_vehicle_suggestion_if_any(
-                hass,
-                data,
-                user_message=user_message,
-                assistant_answer=answer,
-                telegram_target=telegram_target,
-            )
-
-        remember_pom_ai_conversation_turn(hass, telegram_target, user_message, answer)
-
         notification_message = (
-            "POM AI Basic cevap üretti.\n\n"
+            "POM AI Basic cevap Ã¼retti.\n\n"
             f"Soru: `{user_message}`\n\n"
             f"Cevap:\n{answer}"
         )
@@ -6634,6 +6558,9 @@ async def async_setup(hass: HomeAssistant, config: dict[str, Any]) -> bool:
             notification_id="pom_tesla_report_ai_last_answer",
         )
 
+        send_telegram = bool(call.data.get("send_telegram", True))
+        telegram_target = str(call.data.get("telegram_target") or data.get(CONF_AI_TELEGRAM_TARGET) or data.get(CONF_TELEGRAM_TARGET) or "").strip()
+
         if send_telegram and telegram_target:
             await hass.services.async_call(
                 "telegram_bot",
@@ -6641,7 +6568,7 @@ async def async_setup(hass: HomeAssistant, config: dict[str, Any]) -> bool:
                 {
                     "target": telegram_target,
                     "parse_mode": "plain_text",
-                    "message": f"🤖 POM AI\n\n{answer}",
+                    "message": f"ğŸ¤– POM AI\n\n{answer}",
                 },
                 blocking=True,
             )
@@ -6652,8 +6579,8 @@ async def async_setup(hass: HomeAssistant, config: dict[str, Any]) -> bool:
 
         if data is None:
             message = (
-                "POM Tesla Report için kayıtlı config entry bulunamadı. "
-                "Önce entegrasyonu kurmalısın."
+                "POM Tesla Report iÃ§in kayÄ±tlÄ± config entry bulunamadÄ±. "
+                "Ã–nce entegrasyonu kurmalÄ±sÄ±n."
             )
             await async_create_persistent_notification(
                 hass,
@@ -6703,8 +6630,8 @@ async def async_setup(hass: HomeAssistant, config: dict[str, Any]) -> bool:
             _LOGGER.exception("POM charging report generation failed: %s", err)
             await async_create_persistent_notification(
                 hass,
-                title="POM Tesla Report - Şarj Raporu Hatası",
-                message=f"Şarj raporu PNG üretilemedi: {err}",
+                title="POM Tesla Report - Åarj Raporu HatasÄ±",
+                message=f"Åarj raporu PNG Ã¼retilemedi: {err}",
                 notification_id="pom_tesla_report_charge_report_error",
             )
             return
@@ -6712,18 +6639,18 @@ async def async_setup(hass: HomeAssistant, config: dict[str, Any]) -> bool:
         added_kwh = safe_float(report_data.get("added_kwh"), 0.0)
         duration_text = format_duration_from_minutes(safe_float(report_data.get("duration_minutes"), 0.0))
         message = (
-            "POM Tesla Report şarj PNG raporu üretildi.\n\n"
+            "POM Tesla Report ÅŸarj PNG raporu Ã¼retildi.\n\n"
             f"PNG: `{png_path}`\n"
             f"Eklenen enerji: `{added_kwh:.2f} kWh`\n"
-            f"Süre: `{duration_text}`\n"
-            f"Örnek sayısı: `{len(report_data.get('power_samples') or [])}`"
+            f"SÃ¼re: `{duration_text}`\n"
+            f"Ã–rnek sayÄ±sÄ±: `{len(report_data.get('power_samples') or [])}`"
         )
         if send_telegram and not telegram_target:
-            message += "\n\nTelegram target boş olduğu için görsel sadece dosyaya üretildi."
+            message += "\n\nTelegram target boÅŸ olduÄŸu iÃ§in gÃ¶rsel sadece dosyaya Ã¼retildi."
 
         await async_create_persistent_notification(
             hass,
-            title="POM Tesla Report - Şarj Raporu",
+            title="POM Tesla Report - Åarj Raporu",
             message=message,
             notification_id="pom_tesla_report_charge_report",
         )
@@ -6736,7 +6663,7 @@ async def async_setup(hass: HomeAssistant, config: dict[str, Any]) -> bool:
             await async_create_persistent_notification(
                 hass,
                 title="POM Tesla Report",
-                message="POM Tesla Report için kayıtlı config entry bulunamadı. Önce entegrasyonu kurmalısın.",
+                message="POM Tesla Report iÃ§in kayÄ±tlÄ± config entry bulunamadÄ±. Ã–nce entegrasyonu kurmalÄ±sÄ±n.",
                 notification_id="pom_tesla_report_charge_prompt_error",
             )
             return
@@ -6762,8 +6689,8 @@ async def async_setup(hass: HomeAssistant, config: dict[str, Any]) -> bool:
             _LOGGER.exception("POM interactive charge report prompt failed: %s", err)
             await async_create_persistent_notification(
                 hass,
-                title="POM Tesla Report - Şarj Sorusu Hatası",
-                message=f"Şarj raporu soru akışı başlatılamadı: {err}",
+                title="POM Tesla Report - Åarj Sorusu HatasÄ±",
+                message=f"Åarj raporu soru akÄ±ÅŸÄ± baÅŸlatÄ±lamadÄ±: {err}",
                 notification_id="pom_tesla_report_charge_prompt_error",
             )
             return
@@ -6771,16 +6698,16 @@ async def async_setup(hass: HomeAssistant, config: dict[str, Any]) -> bool:
         if not prompted:
             await async_create_persistent_notification(
                 hass,
-                title="POM Tesla Report - Şarj Sorusu",
-                message="Telegram target boş olduğu için şarj raporu soru akışı başlatılamadı.",
+                title="POM Tesla Report - Åarj Sorusu",
+                message="Telegram target boÅŸ olduÄŸu iÃ§in ÅŸarj raporu soru akÄ±ÅŸÄ± baÅŸlatÄ±lamadÄ±.",
                 notification_id="pom_tesla_report_charge_prompt_error",
             )
             return
 
         await async_create_persistent_notification(
             hass,
-            title="POM Tesla Report - Şarj Sorusu",
-            message="Telegram'a 'Nerede şarj ettin?' sorusu gönderildi.",
+            title="POM Tesla Report - Åarj Sorusu",
+            message="Telegram'a 'Nerede ÅŸarj ettin?' sorusu gÃ¶nderildi.",
             notification_id="pom_tesla_report_charge_prompt",
         )
 
@@ -6791,7 +6718,7 @@ async def async_setup(hass: HomeAssistant, config: dict[str, Any]) -> bool:
             await async_create_persistent_notification(
                 hass,
                 title="POM Live Trip Test",
-                message="POM Tesla Report için kayıtlı config entry bulunamadı.",
+                message="POM Tesla Report iÃ§in kayÄ±tlÄ± config entry bulunamadÄ±.",
                 notification_id="pom_tesla_report_live_trip_test",
             )
             return
@@ -6806,7 +6733,7 @@ async def async_setup(hass: HomeAssistant, config: dict[str, Any]) -> bool:
             "test_mode": True,
             "status": "active",
             "active": True,
-            "trip_status": "Test sürüşü başlatılıyor.",
+            "trip_status": "Test sÃ¼rÃ¼ÅŸÃ¼ baÅŸlatÄ±lÄ±yor.",
             "source": "POM live trip test simulator",
         })
         notify_live_trip_sensor(hass, entry_obj.entry_id)
@@ -6820,8 +6747,8 @@ async def async_setup(hass: HomeAssistant, config: dict[str, Any]) -> bool:
             hass,
             title="POM Live Trip Test",
             message=(
-                "Test sürüşü başlatıldı. `sensor.pom_live_trip` canlı simülasyon verileriyle güncellenecek.\n\n"
-                f"Süre: `{safe_float(call.data.get('duration_minutes'), 18.0):.1f} dk`\n"
+                "Test sÃ¼rÃ¼ÅŸÃ¼ baÅŸlatÄ±ldÄ±. `sensor.pom_live_trip` canlÄ± simÃ¼lasyon verileriyle gÃ¼ncellenecek.\n\n"
+                f"SÃ¼re: `{safe_float(call.data.get('duration_minutes'), 18.0):.1f} dk`\n"
                 f"Mesafe: `{safe_float(call.data.get('distance_km'), 3.39):.2f} km`\n"
                 f"Enerji: `{safe_float(call.data.get('used_kwh'), 0.62):.2f} kWh`"
             ),
@@ -6844,14 +6771,14 @@ async def async_setup(hass: HomeAssistant, config: dict[str, Any]) -> bool:
             state["test_progress"] = 1.0
             state["finished_at"] = now_dt.strftime("%d.%m.%Y %H:%M:%S")
             state["last_update"] = now_dt.strftime("%d.%m.%Y %H:%M:%S")
-            state["trip_status"] = "Test sürüşü manuel olarak tamamlandı."
+            state["trip_status"] = "Test sÃ¼rÃ¼ÅŸÃ¼ manuel olarak tamamlandÄ±."
             state["source"] = "POM live trip test simulator"
             notify_live_trip_sensor(hass, entry_obj.entry_id)
 
         await async_create_persistent_notification(
             hass,
             title="POM Live Trip Test",
-            message="Test sürüşü final moda alındı.",
+            message="Test sÃ¼rÃ¼ÅŸÃ¼ final moda alÄ±ndÄ±.",
             notification_id="pom_tesla_report_live_trip_test",
         )
 
@@ -6870,7 +6797,7 @@ async def async_setup(hass: HomeAssistant, config: dict[str, Any]) -> bool:
             "test_mode": False,
             "test_progress": 0.0,
             "last_update": datetime.now().strftime("%d.%m.%Y %H:%M:%S"),
-            "trip_status": "Canlı sürüş bekleniyor.",
+            "trip_status": "CanlÄ± sÃ¼rÃ¼ÅŸ bekleniyor.",
             "source": "POM live trip calculation engine",
         })
         notify_live_trip_sensor(hass, entry_obj.entry_id)
@@ -6878,7 +6805,7 @@ async def async_setup(hass: HomeAssistant, config: dict[str, Any]) -> bool:
         await async_create_persistent_notification(
             hass,
             title="POM Live Trip Test",
-            message="Test sürüşü sıfırlandı.",
+            message="Test sÃ¼rÃ¼ÅŸÃ¼ sÄ±fÄ±rlandÄ±.",
             notification_id="pom_tesla_report_live_trip_test",
         )
 
@@ -6888,8 +6815,8 @@ async def async_setup(hass: HomeAssistant, config: dict[str, Any]) -> bool:
 
         if data is None:
             message = (
-                "POM Tesla Report için kayıtlı config entry bulunamadı. "
-                "Önce entegrasyonu kurmalısın."
+                "POM Tesla Report iÃ§in kayÄ±tlÄ± config entry bulunamadÄ±. "
+                "Ã–nce entegrasyonu kurmalÄ±sÄ±n."
             )
 
             await async_create_persistent_notification(
@@ -6938,9 +6865,9 @@ async def async_setup(hass: HomeAssistant, config: dict[str, Any]) -> bool:
         )
 
         message = (
-            "Test sürüş raporu PNG üretildi.\n\n"
+            "Test sÃ¼rÃ¼ÅŸ raporu PNG Ã¼retildi.\n\n"
             f"Dosya yolu: `{png_path}`\n\n"
-            "Tarayıcıdan kontrol:\n"
+            "TarayÄ±cÄ±dan kontrol:\n"
             "/local/pom_tesla_report/test_trip_report.png"
         )
 
@@ -6958,7 +6885,7 @@ async def async_setup(hass: HomeAssistant, config: dict[str, Any]) -> bool:
                 {
                     "target": telegram_target,
                     "file": png_path,
-                    "caption": "🧪 POM Tesla Report - Test Sürüş Görseli",
+                    "caption": "ğŸ§ª POM Tesla Report - Test SÃ¼rÃ¼ÅŸ GÃ¶rseli",
                 },
                 blocking=True,
             )
@@ -6969,8 +6896,8 @@ async def async_setup(hass: HomeAssistant, config: dict[str, Any]) -> bool:
 
         if data is None:
             message = (
-                "POM Tesla Report için kayıtlı config entry bulunamadı. "
-                "Önce entegrasyonu kurmalısın."
+                "POM Tesla Report iÃ§in kayÄ±tlÄ± config entry bulunamadÄ±. "
+                "Ã–nce entegrasyonu kurmalÄ±sÄ±n."
             )
 
             await async_create_persistent_notification(
@@ -6994,23 +6921,23 @@ async def async_setup(hass: HomeAssistant, config: dict[str, Any]) -> bool:
                 data,
             )
         except Exception as err:
-            message = f"JSON'dan PNG üretilemedi: {err}"
+            message = f"JSON'dan PNG Ã¼retilemedi: {err}"
 
             _LOGGER.exception(message)
 
             await async_create_persistent_notification(
                 hass,
-                title="POM Tesla Report - JSON PNG Hatası",
+                title="POM Tesla Report - JSON PNG HatasÄ±",
                 message=message,
                 notification_id="pom_tesla_report_json_trip_image_error",
             )
             return
 
         message = (
-            "JSON'dan sürüş raporu PNG üretildi.\n\n"
+            "JSON'dan sÃ¼rÃ¼ÅŸ raporu PNG Ã¼retildi.\n\n"
             f"JSON: `{json_path}`\n"
             f"PNG: `{png_path}`\n\n"
-            "Tarayıcıdan kontrol:\n"
+            "TarayÄ±cÄ±dan kontrol:\n"
             "/local/pom_tesla_report/final_trip_report.png"
         )
 
@@ -7040,7 +6967,7 @@ async def async_setup(hass: HomeAssistant, config: dict[str, Any]) -> bool:
         data = get_first_entry_config(hass)
 
         if data is None:
-            message = "POM Tesla Report için kayıtlı config entry bulunamadı. Önce entegrasyonu kurmalısın."
+            message = "POM Tesla Report iÃ§in kayÄ±tlÄ± config entry bulunamadÄ±. Ã–nce entegrasyonu kurmalÄ±sÄ±n."
             await async_create_persistent_notification(
                 hass,
                 title="POM Tesla Report - Start Trip",
@@ -7061,7 +6988,7 @@ async def async_setup(hass: HomeAssistant, config: dict[str, Any]) -> bool:
         data = get_first_entry_config(hass)
 
         if data is None:
-            message = "POM Tesla Report için kayıtlı config entry bulunamadı. Önce entegrasyonu kurmalısın."
+            message = "POM Tesla Report iÃ§in kayÄ±tlÄ± config entry bulunamadÄ±. Ã–nce entegrasyonu kurmalÄ±sÄ±n."
             await async_create_persistent_notification(
                 hass,
                 title="POM Tesla Report - Finish Trip",
@@ -7099,10 +7026,10 @@ async def async_setup(hass: HomeAssistant, config: dict[str, Any]) -> bool:
         lines = ["POM Tesla Report trip state:", ""]
 
         if not normal_state:
-            lines.append("## Normal / otomatik sürüş state")
-            lines.append("Kayıt yok.")
+            lines.append("## Normal / otomatik sÃ¼rÃ¼ÅŸ state")
+            lines.append("KayÄ±t yok.")
         else:
-            lines.append("## Normal / otomatik sürüş state")
+            lines.append("## Normal / otomatik sÃ¼rÃ¼ÅŸ state")
             for key, value in normal_state.items():
                 lines.append(f"- `{key}`: `{value}`")
 
@@ -7110,7 +7037,7 @@ async def async_setup(hass: HomeAssistant, config: dict[str, Any]) -> bool:
 
         if not manual_state:
             lines.append("## Boolean / manuel takip state")
-            lines.append("Kayıt yok.")
+            lines.append("KayÄ±t yok.")
         else:
             lines.append("## Boolean / manuel takip state")
             for key, value in manual_state.items():
@@ -7133,7 +7060,7 @@ async def async_setup(hass: HomeAssistant, config: dict[str, Any]) -> bool:
         await async_create_persistent_notification(
             hass,
             title="POM Tesla Report - Reset Trip",
-            message="POM Tesla Report normal ve manuel takip state'i sıfırlandı.",
+            message="POM Tesla Report normal ve manuel takip state'i sÄ±fÄ±rlandÄ±.",
             notification_id="pom_tesla_report_reset_trip",
         )
 
@@ -7455,7 +7382,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                         hass,
                         current_data,
                         key=f"low_battery_{stage}",
-                        title=f"Düşük batarya %{stage}",
+                        title=f"DÃ¼ÅŸÃ¼k batarya %{stage}",
                         rule_message=build_low_battery_staged_message(value, stage),
                         details=f"battery_entity={battery_alert_entity}, battery_level={value}, stage={stage}",
                         force=True,
@@ -7529,7 +7456,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                     await hass.services.async_call(
                         "telegram_bot",
                         "send_message",
-                        {"target": target, "parse_mode": "plain_text", "message": "Alias öğrenme kaldırıldı. Kontroller capability manifest üzerinden çalışıyor."},
+                        {"target": target, "parse_mode": "plain_text", "message": "Alias Ã¶ÄŸrenme kaldÄ±rÄ±ldÄ±. Kontroller capability manifest Ã¼zerinden Ã§alÄ±ÅŸÄ±yor."},
                         blocking=True,
                     )
                 return
@@ -7593,12 +7520,12 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                         )
 
                 if not pending_item:
-                    await _edit_or_send_result("Bu araç kontrol onayı artık aktif değil.")
+                    await _edit_or_send_result("Bu araÃ§ kontrol onayÄ± artÄ±k aktif deÄŸil.")
                     return
                 if decision == "cancel":
-                    action_label = str((pending_item.get("action") or {}).get("label") or "Araç kontrolü")
+                    action_label = str((pending_item.get("action") or {}).get("label") or "AraÃ§ kontrolÃ¼")
                     pending_controls.pop(token, None)
-                    await _edit_or_send_result(f"❌ {action_label} komutu iptal edildi.")
+                    await _edit_or_send_result(f"âŒ {action_label} komutu iptal edildi.")
                     return
                 if decision == "confirm":
                     try:
@@ -7607,7 +7534,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                         await _edit_or_send_result(result)
                     except Exception as err:
                         _LOGGER.exception("POM AI vehicle control failed")
-                        await _edit_or_send_result(f"Araç kontrol komutu çalıştırılamadı: {err}")
+                        await _edit_or_send_result(f"AraÃ§ kontrol komutu Ã§alÄ±ÅŸtÄ±rÄ±lamadÄ±: {err}")
                     return
                 return
 
@@ -7622,7 +7549,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                     {
                         "target": chat_id or get_charging_report_telegram_target(current_data),
                         "parse_mode": "plain_text",
-                        "message": "Bu şarj raporu seçimi artık aktif değil.",
+                        "message": "Bu ÅŸarj raporu seÃ§imi artÄ±k aktif deÄŸil.",
                     },
                     blocking=True,
                 )
@@ -7644,14 +7571,14 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                             current_data,
                             pending,
                             manual_overrides=manual_overrides,
-                            message_prefix="Şarj raporu onayladığın gerçek maliyetle oluşturuldu.",
+                            message_prefix="Åarj raporu onayladÄ±ÄŸÄ±n gerÃ§ek maliyetle oluÅŸturuldu.",
                         )
                     except Exception as err:
                         _LOGGER.exception("POM charge report other confirm failed")
                         await hass.services.async_call(
                             "telegram_bot",
                             "send_message",
-                            {"target": target, "parse_mode": "plain_text", "message": f"Şarj raporu oluşturulamadı: {err}"},
+                            {"target": target, "parse_mode": "plain_text", "message": f"Åarj raporu oluÅŸturulamadÄ±: {err}"},
                             blocking=True,
                         )
                     return
@@ -7679,7 +7606,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                     await hass.services.async_call(
                         "telegram_bot",
                         "send_message",
-                        {"target": target, "parse_mode": "plain_text", "message": "Şarj raporu oluşturma iptal edildi."},
+                        {"target": target, "parse_mode": "plain_text", "message": "Åarj raporu oluÅŸturma iptal edildi."},
                         blocking=True,
                     )
                     return
@@ -7688,7 +7615,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
             if selected == "other":
                 pending["step"] = "other_price"
-                pending["provider"] = "Diğer"
+                pending["provider"] = "DiÄŸer"
                 pending.pop("actual_price_per_kwh", None)
                 pending.pop("actual_total_cost", None)
                 await async_send_other_charging_price_prompt(hass, target)
@@ -7700,14 +7627,14 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                         hass,
                         current_data,
                         pending,
-                        message_prefix="Şarj raporu kayıtlı tarifelerle oluşturuldu.",
+                        message_prefix="Åarj raporu kayÄ±tlÄ± tarifelerle oluÅŸturuldu.",
                     )
                 except Exception as err:
                     _LOGGER.exception("POM charge report skip callback failed")
                     await hass.services.async_call(
                         "telegram_bot",
                         "send_message",
-                        {"target": target, "parse_mode": "plain_text", "message": f"Şarj raporu oluşturulamadı: {err}"},
+                        {"target": target, "parse_mode": "plain_text", "message": f"Åarj raporu oluÅŸturulamadÄ±: {err}"},
                         blocking=True,
                     )
                 return
@@ -7726,14 +7653,14 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                     current_data,
                     pending,
                     manual_overrides=manual_overrides,
-                    message_prefix=f"Şarj raporu {provider_label} tarifesiyle oluşturuldu.",
+                    message_prefix=f"Åarj raporu {provider_label} tarifesiyle oluÅŸturuldu.",
                 )
             except Exception as err:
                 _LOGGER.exception("POM charge report provider callback failed")
                 await hass.services.async_call(
                     "telegram_bot",
                     "send_message",
-                    {"target": target, "parse_mode": "plain_text", "message": f"Şarj raporu oluşturulamadı: {err}"},
+                    {"target": target, "parse_mode": "plain_text", "message": f"Åarj raporu oluÅŸturulamadÄ±: {err}"},
                     blocking=True,
                 )
 
@@ -7760,30 +7687,30 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                 if (not pending_chat_id) or chat_id == pending_chat_id:
                     lowered = normalize_text_for_match(raw_message)
                     target = str(pending_charge.get("target") or chat_id or get_charging_report_telegram_target(current_data)).strip()
-                    if lowered in {"iptal", "cancel", "vazgec", "vazgeç"}:
+                    if lowered in {"iptal", "cancel", "vazgec", "vazgeÃ§"}:
                         pending_charge.clear()
                         await hass.services.async_call(
                             "telegram_bot",
                             "send_message",
-                            {"target": target, "parse_mode": "plain_text", "message": "Şarj raporu oluşturma iptal edildi."},
+                            {"target": target, "parse_mode": "plain_text", "message": "Åarj raporu oluÅŸturma iptal edildi."},
                             blocking=True,
                         )
                         return
 
-                    if lowered in {"atla", "skip", "gec", "geç"}:
+                    if lowered in {"atla", "skip", "gec", "geÃ§"}:
                         try:
                             await async_finalize_interactive_charging_report(
                                 hass,
                                 current_data,
                                 pending_charge,
-                                message_prefix="Şarj raporu kayıtlı tarifelerle oluşturuldu.",
+                                message_prefix="Åarj raporu kayÄ±tlÄ± tarifelerle oluÅŸturuldu.",
                             )
                         except Exception as err:
                             _LOGGER.exception("POM charge report custom flow skip failed")
                             await hass.services.async_call(
                                 "telegram_bot",
                                 "send_message",
-                                {"target": target, "parse_mode": "plain_text", "message": f"Şarj raporu oluşturulamadı: {err}"},
+                                {"target": target, "parse_mode": "plain_text", "message": f"Åarj raporu oluÅŸturulamadÄ±: {err}"},
                                 blocking=True,
                             )
                         return
@@ -7797,7 +7724,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                                 {
                                     "target": target,
                                     "parse_mode": "plain_text",
-                                    "message": "Bunu TL/kWh olarak anlayamadım. Lütfen sadece birim fiyat yaz. Örnek: 12.49",
+                                    "message": "Bunu TL/kWh olarak anlayamadÄ±m. LÃ¼tfen sadece birim fiyat yaz. Ã–rnek: 12.49",
                                 },
                                 blocking=True,
                             )
@@ -7815,7 +7742,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                                 {
                                     "target": target,
                                     "parse_mode": "plain_text",
-                                    "message": "Bunu toplam TL tutarı olarak anlayamadım. Lütfen toplam ödediğin tutarı yaz. Örnek: 480",
+                                    "message": "Bunu toplam TL tutarÄ± olarak anlayamadÄ±m. LÃ¼tfen toplam Ã¶dediÄŸin tutarÄ± yaz. Ã–rnek: 480",
                                 },
                                 blocking=True,
                             )
@@ -7834,8 +7761,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                                     "target": target,
                                     "parse_mode": "plain_text",
                                     "message": (
-                                        f"Bu değerlerle hesaplanan enerji {calculated_kwh:.1f} kWh çıkıyor. "
-                                        "Bu mantıklı görünmedi. Toplam tutarı tekrar yaz. Örnek: 480"
+                                        f"Bu deÄŸerlerle hesaplanan enerji {calculated_kwh:.1f} kWh Ã§Ä±kÄ±yor. "
+                                        "Bu mantÄ±klÄ± gÃ¶rÃ¼nmedi. Toplam tutarÄ± tekrar yaz. Ã–rnek: 480"
                                     ),
                                 },
                                 blocking=True,
@@ -7859,7 +7786,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                         hass,
                         chat_id,
                         debug_message,
-                        title="📊 POM AI Veri Erişimi",
+                        title="ğŸ“Š POM AI Veri EriÅŸimi",
                         limit=3000,
                     )
                 except Exception as err:  # pragma: no cover - defensive runtime guard
@@ -7871,7 +7798,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                             {
                                 "target": chat_id,
                                 "parse_mode": "plain_text",
-                                "message": f"POM AI veri listesi hazırlanırken hata oluştu: {err}",
+                                "message": f"POM AI veri listesi hazÄ±rlanÄ±rken hata oluÅŸtu: {err}",
                             },
                             blocking=True,
                         )
@@ -7901,7 +7828,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                             {
                                 "target": chat_id,
                                 "parse_mode": "plain_text",
-                                "message": f"Araç konumu hazırlanırken hata oluştu: {err}",
+                                "message": f"AraÃ§ konumu hazÄ±rlanÄ±rken hata oluÅŸtu: {err}",
                             },
                             blocking=True,
                         )
@@ -7936,7 +7863,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                     {
                         "target": chat_id,
                         "parse_mode": "plain_text",
-                        "message": "Bekleyen bir araç kontrol onayı yok. Önce hangi işlemi yapmamı istediğini yazmalısın.",
+                        "message": "Bekleyen bir araÃ§ kontrol onayÄ± yok. Ã–nce hangi iÅŸlemi yapmamÄ± istediÄŸini yazmalÄ±sÄ±n.",
                     },
                     blocking=True,
                 )
@@ -7947,7 +7874,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                 await hass.services.async_call(
                     "telegram_bot",
                     "send_message",
-                    {"target": chat_id, "parse_mode": "plain_text", "message": f"🤖 POM AI\n\n{direct_status_answer}"},
+                    {"target": chat_id, "parse_mode": "plain_text", "message": f"ğŸ¤– POM AI\n\n{direct_status_answer}"},
                     blocking=True,
                 )
                 return
@@ -7972,14 +7899,14 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                     await hass.services.async_call(
                         "telegram_bot",
                         "send_message",
-                        {"target": chat_id, "parse_mode": "plain_text", "message": "Henüz gönderilebilecek kayıtlı bir son sürüş haritası yok."},
+                        {"target": chat_id, "parse_mode": "plain_text", "message": "HenÃ¼z gÃ¶nderilebilecek kayÄ±tlÄ± bir son sÃ¼rÃ¼ÅŸ haritasÄ± yok."},
                         blocking=True,
                     )
                     return
                 await hass.services.async_call(
                     "telegram_bot",
                     "send_photo",
-                    {"target": chat_id, "file": map_path, "caption": "🗺️ POM Tesla Report - Son Sürüş Haritası"},
+                    {"target": chat_id, "file": map_path, "caption": "ğŸ—ºï¸ POM Tesla Report - Son SÃ¼rÃ¼ÅŸ HaritasÄ±"},
                     blocking=True,
                 )
                 return
@@ -7990,14 +7917,14 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                     await hass.services.async_call(
                         "telegram_bot",
                         "send_message",
-                        {"target": chat_id, "parse_mode": "plain_text", "message": "Henüz gönderilebilecek kayıtlı bir son sürüş PNG raporu yok."},
+                        {"target": chat_id, "parse_mode": "plain_text", "message": "HenÃ¼z gÃ¶nderilebilecek kayÄ±tlÄ± bir son sÃ¼rÃ¼ÅŸ PNG raporu yok."},
                         blocking=True,
                     )
                     return
                 await hass.services.async_call(
                     "telegram_bot",
                     "send_photo",
-                    {"target": chat_id, "file": report_info["path"], "caption": report_info.get("caption", "🚗 POM Tesla Report - Son Sürüş Raporu")},
+                    {"target": chat_id, "file": report_info["path"], "caption": report_info.get("caption", "ğŸš— POM Tesla Report - Son SÃ¼rÃ¼ÅŸ Raporu")},
                     blocking=True,
                 )
                 return
@@ -8011,7 +7938,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                     telegram_target=chat_id,
                 )
             except Exception as err:
-                error_message = f"POM AI cevap üretemedi: {err}"
+                error_message = f"POM AI cevap Ã¼retemedi: {err}"
                 _LOGGER.exception(error_message)
                 await async_create_persistent_notification(
                     hass,
@@ -8057,7 +7984,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                 {
                     "target": chat_id,
                     "parse_mode": "plain_text",
-                    "message": f"🤖 POM AI\n\n{answer}",
+                    "message": f"ğŸ¤– POM AI\n\n{answer}",
                 },
                 blocking=True,
             )
