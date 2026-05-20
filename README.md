@@ -5,7 +5,7 @@ Version: 2.1.1-beta.1 | Last updated: 2026-05-18
 <!-- AUTO:BADGES_END -->
 
 <p align="center">
-  <img src="docs/images/tesla1.png" alt="POM Tesla AI logo" width="220">
+  <img src="docs/images/tesla1.png" alt="POM Tesla AI logo" width="140">
 </p>
 
 Turn your Tesla into an AI-powered assistant. Through Home Assistant and Telegram, you get a companion that can chat with you, explain vehicle details, and provide access to driving-related controls. It is more than chat: it can also send trip and charging reports to Telegram manually or automatically. The integration also includes a live driving card so you can monitor key trip data during a drive. Instead of handing over your Tesla account directly, you can authorize specific users for driving workflows through Tesla AI.
@@ -159,7 +159,7 @@ Typical report inputs:
 
 Example output image:
 
-![Trip Report](docs/images/trip-report.jpg)
+<img src="docs/images/trip-report.jpg" alt="Trip Report" width="420">
 
 ## Trip Maps
 
@@ -177,7 +177,7 @@ If `Send separate trip map PNG` is disabled, POM will not send the map as a seco
 
 Example output image:
 
-![Trip Map](docs/images/map-report.jpg)
+<img src="docs/images/map-report.jpg" alt="Trip Map" width="420">
 
 ## Charging Reports
 
@@ -191,7 +191,7 @@ Charging reports can summarize sessions with:
 
 Example output image:
 
-![Charging Report](docs/images/charger-report.jpg)
+<img src="docs/images/charger-report.jpg" alt="Charging Report" width="420">
 
 ## AI Alerts
 
