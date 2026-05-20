@@ -2,14 +2,19 @@
 
 from __future__ import annotations
 
+import json
+
 from typing import Any
 
 import voluptuous as vol
+
+from aiohttp import ClientError
 
 from homeassistant import config_entries
 from homeassistant.core import callback
 from homeassistant.helpers import selector
 from homeassistant.helpers import entity_registry as er
+from homeassistant.helpers.aiohttp_client import async_get_clientsession
 
 
 from .const import (
@@ -275,6 +280,7 @@ UI_REPORT_CHARGE_ENERGY_ADDED_ENTITY = "Vehicle report - Charge energy added"
 UI_REPORT_LOCATION_TRACKER_ENTITY = "Vehicle report - Location tracker / map"
 UI_REPORT_VEHICLE_STATE_ENTITY = "Vehicle report - Vehicle state / sleep status"
 UI_VEHICLE_AI_ENTITIES = "AI entities / extra vehicle data"
+UI_VEHICLE_AI_ENTITIES_NOTE = "AI entities help"
 UI_VEHICLE_EXCLUDED_ENTITIES = "Exclude entities from AI / auto discovery"
 UI_VEHICLE_REPORT_SECTION_NOTE = "Vehicle report section"
 UI_VEHICLE_AI_SECTION_NOTE = "AI / Auto discovery section"
@@ -452,56 +458,139 @@ def normalize_vehicle_entity_map(value: Any) -> list[dict[str, Any]]:
     return result
 
 
-def infer_vehicle_role(entity_id: str, friendly_name: str = "") -> str:
+def infer_vehicle_role(entity_id: str, friendly_name: str = "", metadata_text: str = "") -> str:
     """Infer a vehicle role from an entity id and friendly name."""
-    text = f"{entity_id} {friendly_name}".lower()
-    if any(k in text for k in ["user present", "user_present", "presence", "occupancy", "occupied", "occupant", "inside vehicle", "driver present", "passenger present", "iceride", "iceride"]):
+    text = f"{entity_id} {friendly_name} {metadata_text}".lower()
+    text = text.replace("-", "_").replace(".", "_").replace(" ", "_")
+    if any(k in text for k in ["user_present", "presence", "occupancy", "occupied", "occupant", "inside_vehicle", "driver_present", "passenger_present", "iceride"]):
         return VEHICLE_ROLE_USER_PRESENT
-    if "device_tracker." in entity_id or any(k in text for k in ["location", "gps", "latitude", "longitude"]):
+    if "device_tracker." in entity_id or any(k in text for k in ["location", "gps", "latitude", "longitude", "drive_state_latitude", "drive_state_longitude"]):
         return VEHICLE_ROLE_LOCATION_TRACKER
-    if any(k in text for k in ["battery module temperature", "battery temp", "battery_temperature", "pack temperature"]):
+    if any(k in text for k in ["battery_module_temperature", "battery_temp", "battery_temperature", "pack_temperature", "pack_temp", "battery_heater"]):
         return VEHICLE_ROLE_BATTERY_TEMPERATURE
-    if any(k in text for k in ["outside temperature", "ambient temperature", "outside_temp", "exterior temperature", "external temperature"]):
+    if any(k in text for k in ["outside_temperature", "ambient_temperature", "outside_temp", "exterior_temperature", "external_temperature", "climate_state_outside_temp", "dis_sicaklik"]):
         return VEHICLE_ROLE_OUTSIDE_TEMPERATURE
-    if any(k in text for k in ["inside temperature", "cabin temperature", "interior temperature", "inside_temp"]):
+    if any(k in text for k in ["inside_temperature", "cabin_temperature", "interior_temperature", "inside_temp", "climate_state_inside_temp", "ic_sicaklik"]):
         return VEHICLE_ROLE_INSIDE_TEMPERATURE
-    if any(k in text for k in ["front left", "fl", "on sol"]) and any(k in text for k in ["tire", "tyre", "pressure", "tpms", "lastik"]):
+    if any(k in text for k in ["front_left", "fl", "on_sol"]) and any(k in text for k in ["tire", "tyre", "pressure", "tpms", "lastik"]):
         return VEHICLE_ROLE_TIRE_PRESSURE_FRONT_LEFT
-    if any(k in text for k in ["front right", "fr", "on sag", "on sag"]) and any(k in text for k in ["tire", "tyre", "pressure", "tpms", "lastik"]):
+    if any(k in text for k in ["front_right", "fr", "on_sag"]) and any(k in text for k in ["tire", "tyre", "pressure", "tpms", "lastik"]):
         return VEHICLE_ROLE_TIRE_PRESSURE_FRONT_RIGHT
-    if any(k in text for k in ["rear left", "rl", "arka sol"]) and any(k in text for k in ["tire", "tyre", "pressure", "tpms", "lastik"]):
+    if any(k in text for k in ["rear_left", "rl", "arka_sol"]) and any(k in text for k in ["tire", "tyre", "pressure", "tpms", "lastik"]):
         return VEHICLE_ROLE_TIRE_PRESSURE_REAR_LEFT
-    if any(k in text for k in ["rear right", "rr", "arka sag", "arka sag"]) and any(k in text for k in ["tire", "tyre", "pressure", "tpms", "lastik"]):
+    if any(k in text for k in ["rear_right", "rr", "arka_sag"]) and any(k in text for k in ["tire", "tyre", "pressure", "tpms", "lastik"]):
         return VEHICLE_ROLE_TIRE_PRESSURE_REAR_RIGHT
     if any(k in text for k in ["tire", "tyre", "pressure", "tpms", "lastik"]):
         return VEHICLE_ROLE_OTHER
-    if any(k in text for k in ["battery level", "battery_level", "state of charge", "soc"]):
+    if any(k in text for k in ["battery_level", "state_of_charge", "soc", "usable_battery_level", "charge_state_battery_level"]):
         return VEHICLE_ROLE_BATTERY_LEVEL
-    if any(k in text for k in ["battery range", "range", "menzil"]):
+    if any(k in text for k in ["battery_range", "rated_range", "ideal_range", "est_battery_range", "range", "menzil"]):
         return VEHICLE_ROLE_BATTERY_RANGE
-    if any(k in text for k in ["energy remaining", "remaining energy", "kwh remaining", "usable"]):
+    if any(k in text for k in ["energy_remaining", "remaining_energy", "kwh_remaining", "usable_energy", "energy_at_arrival", "varista_sarj"]):
         return VEHICLE_ROLE_ENERGY_REMAINING
-    if any(k in text for k in ["charge energy added", "energy added"]):
+    if any(k in text for k in ["charge_energy_added", "energy_added", "charge_state_charge_energy_added"]):
         return VEHICLE_ROLE_CHARGE_ENERGY_ADDED
-    if any(k in text for k in ["charger power", "charging power"]):
+    if any(k in text for k in ["charger_power", "charging_power", "charge_state_charger_power", "charge_state_charge_rate"]):
         return VEHICLE_ROLE_CHARGER_POWER
-    if any(k in text for k in ["charging", "charge cable", "plugged"]):
+    if any(k in text for k in ["charging_state", "charge_state_charging_state", "charge_cable", "plugged", "charge_state_conn_charge_cable", "sarj_kablosu"]):
         return VEHICLE_ROLE_CHARGING_STATE
-    if "speed" in text or "hiz" in text or "hiz" in text:
+    if "speed" in text or "drive_state_speed" in text or "hiz" in text or "hiz" in text:
         return VEHICLE_ROLE_SPEED
-    if any(k in text for k in ["shift", "gear", "vites"]):
+    if any(k in text for k in ["shift", "shift_state", "drive_state_shift_state", "gear", "vites", "kaydirma_durumu"]):
         return VEHICLE_ROLE_SHIFT_STATE
-    if "odometer" in text or "kilometre" in text:
+    if "odometer" in text or "vehicle_state_odometer" in text or "kilometre" in text:
         return VEHICLE_ROLE_ODOMETER
-    if "elevation" in text or "rakim" in text or "rakim" in text:
+    if "elevation" in text or "drive_state_elevation" in text or "rakim" in text or "rakim" in text:
         return VEHICLE_ROLE_ELEVATION
-    if "climate." in entity_id or any(k in text for k in ["climate", "hvac", "klima"]):
+    if "climate." in entity_id or any(k in text for k in ["climate", "hvac", "klima", "iklimlendirme", "climate_state"]):
         return VEHICLE_ROLE_CLIMATE
     if any(k in text for k in ["window", "door", "trunk", "frunk", "cam", "kapi", "kapi"]):
         return VEHICLE_ROLE_DOOR_WINDOW
-    if "lock." in entity_id or "lock" in text or "kilit" in text:
+    if "lock." in entity_id or "lock" in text or "vehicle_state_locked" in text or "kilit" in text:
         return VEHICLE_ROLE_LOCK_STATE
+    if any(k in text for k in ["vehicle_state_state", "drive_state_active_route", "car_state", "online", "asleep", "durum"]):
+        return VEHICLE_ROLE_VEHICLE_STATE
     return VEHICLE_ROLE_OTHER
+
+
+def _extract_openai_response_text(response_data: dict[str, Any]) -> str:
+    """Extract assistant text from an OpenAI Responses API payload."""
+    output = response_data.get("output")
+    if isinstance(output, list):
+        parts: list[str] = []
+        for item in output:
+            if not isinstance(item, dict):
+                continue
+            content = item.get("content")
+            if not isinstance(content, list):
+                continue
+            for part in content:
+                if not isinstance(part, dict):
+                    continue
+                text = part.get("text")
+                if isinstance(text, str) and text.strip():
+                    parts.append(text.strip())
+        if parts:
+            return "\n".join(parts).strip()
+    return str(response_data.get("output_text") or "").strip()
+
+
+def _parse_json_object_from_text(text: str) -> dict[str, Any]:
+    """Parse a JSON object from model text, tolerating fenced output."""
+    raw = str(text or "").strip()
+    if not raw:
+        return {}
+    if raw.startswith("```"):
+        raw = raw.strip("`").strip()
+        if raw.lower().startswith("json"):
+            raw = raw[4:].strip()
+    start = raw.find("{")
+    end = raw.rfind("}")
+    if start >= 0 and end > start:
+        raw = raw[start : end + 1]
+    try:
+        parsed = json.loads(raw)
+    except (TypeError, ValueError):
+        return {}
+    return parsed if isinstance(parsed, dict) else {}
+
+
+async def _async_call_openai_for_config_flow(
+    hass,
+    *,
+    api_key: str,
+    model: str,
+    system_prompt: str,
+    user_message: str,
+    max_output_tokens: int = 1200,
+) -> str:
+    """Call OpenAI from Options flow for setup assistance."""
+    session = async_get_clientsession(hass)
+    headers = {
+        "Authorization": f"Bearer {api_key}",
+        "Content-Type": "application/json",
+    }
+    payload = {
+        "model": model,
+        "input": [
+            {"role": "system", "content": [{"type": "input_text", "text": system_prompt}]},
+            {"role": "user", "content": [{"type": "input_text", "text": user_message}]},
+        ],
+        "max_output_tokens": max_output_tokens,
+    }
+    try:
+        async with session.post(
+            "https://api.openai.com/v1/responses",
+            headers=headers,
+            json=payload,
+            timeout=60,
+        ) as response:
+            response_data = await response.json(content_type=None)
+            if response.status >= 400:
+                return ""
+    except ClientError:
+        return ""
+    return _extract_openai_response_text(response_data)
 
 
 def build_vehicle_entity_summary(entries: list[dict[str, Any]]) -> str:
@@ -1766,6 +1855,16 @@ def build_ai_entity_manager_schema(current: dict[str, Any]) -> vol.Schema:
             ): _any_entity_selector(),
 
             vol.Optional(
+                UI_VEHICLE_AI_ENTITIES_NOTE,
+                default=(
+                    "These are the entities Tesla AI may use for context, alerts, and vehicle-control understanding. "
+                    "Automatic discovery first reads technical metadata such as unique_id, translation_key, platform, unit, and device class. "
+                    "If OpenAI is configured, it also reviews the same-device entity list and adds likely Tesla entities even when names are localized. "
+                    "After discovery, remove anything wrong with X, add missing entities manually, then save."
+                ),
+            ): _multiline_text_selector(),
+
+            vol.Optional(
                 UI_VEHICLE_AI_ENTITIES,
                 default=current.get(
                     CONF_AI_EXTRA_CONTEXT_ENTITIES,
@@ -2133,6 +2232,161 @@ class PomTeslaReportOptionsFlow(config_entries.OptionsFlow):
             errors=errors,
         )
 
+    def _registry_metadata_text(self, reg_entry: Any | None, entity_id: str) -> str:
+        """Return language-independent registry/state metadata for role detection."""
+        parts: list[str] = [entity_id]
+        if reg_entry is not None:
+            for attr in (
+                "unique_id",
+                "translation_key",
+                "platform",
+                "device_class",
+                "original_device_class",
+                "original_name",
+                "name",
+            ):
+                value = getattr(reg_entry, attr, None)
+                if value:
+                    parts.append(str(value))
+
+        state = self.hass.states.get(entity_id)
+        if state is not None:
+            attrs = state.attributes
+            for key in (
+                "device_class",
+                "unit_of_measurement",
+                "state_class",
+                "attribution",
+                "friendly_name",
+            ):
+                value = attrs.get(key)
+                if value:
+                    parts.append(str(value))
+
+        return " ".join(parts)
+
+    def _same_device_registry_entries(self, main_entity: str) -> list[Any]:
+        """Return registry entries from the same HA device as the selected entity."""
+        main_entity = str(main_entity or "").strip()
+        if not main_entity:
+            return []
+
+        registry = er.async_get(self.hass)
+        main_reg_entry = registry.async_get(main_entity)
+        device_id = getattr(main_reg_entry, "device_id", None) if main_reg_entry else None
+        if not device_id:
+            return []
+
+        entries = []
+        for reg_entry in registry.entities.values():
+            if getattr(reg_entry, "device_id", None) != device_id:
+                continue
+            if getattr(reg_entry, "disabled_by", None):
+                continue
+            entity_id = str(getattr(reg_entry, "entity_id", "") or "").strip()
+            if entity_id:
+                entries.append(reg_entry)
+        return entries
+
+    def _candidate_payload_for_ai_discovery(self, reg_entries: list[Any]) -> list[dict[str, Any]]:
+        """Build a compact candidate list for AI-assisted entity discovery."""
+        candidates: list[dict[str, Any]] = []
+        for reg_entry in reg_entries[:160]:
+            entity_id = str(getattr(reg_entry, "entity_id", "") or "").strip()
+            if not entity_id:
+                continue
+            state = self.hass.states.get(entity_id)
+            attrs = state.attributes if state is not None else {}
+            candidates.append(
+                {
+                    "entity_id": entity_id,
+                    "state": str(state.state)[:80] if state is not None else "",
+                    "name": str(getattr(reg_entry, "name", "") or ""),
+                    "original_name": str(getattr(reg_entry, "original_name", "") or ""),
+                    "unique_id": str(getattr(reg_entry, "unique_id", "") or ""),
+                    "translation_key": str(getattr(reg_entry, "translation_key", "") or ""),
+                    "platform": str(getattr(reg_entry, "platform", "") or ""),
+                    "device_class": str(attrs.get("device_class") or getattr(reg_entry, "device_class", "") or ""),
+                    "unit": str(attrs.get("unit_of_measurement") or ""),
+                }
+            )
+        return candidates
+
+    async def _ai_assisted_discovered_vehicle_entries(
+        self,
+        current: dict[str, Any],
+        deterministic_entries: list[dict[str, Any]],
+    ) -> list[dict[str, Any]]:
+        """Ask OpenAI to classify same-device entities when localized names hide roles."""
+        api_key = str(current.get(CONF_OPENAI_API_KEY) or "").strip()
+        if not api_key:
+            return []
+
+        main_entity = str(current.get(CONF_AI_MAIN_TESLA_ENTITY) or "").strip()
+        reg_entries = self._same_device_registry_entries(main_entity)
+        if not reg_entries:
+            return []
+
+        candidates = self._candidate_payload_for_ai_discovery(reg_entries)
+        if not candidates:
+            return []
+
+        already_found = {
+            str(item.get("entity_id") or "").strip()
+            for item in deterministic_entries
+            if str(item.get("entity_id") or "").strip()
+        }
+
+        role_values = [role for role in VEHICLE_ENTITY_ROLES if role != VEHICLE_ROLE_OTHER]
+        system_prompt = (
+            "You classify Home Assistant Tesla vehicle entities for setup. "
+            "Entity names may be localized in Turkish, German, Japanese, or any other language, "
+            "but unique_id and translation_key often contain canonical Tesla/Tessie/TeslaMate field names. "
+            "Prefer unique_id, translation_key, platform, domain, unit, and device_class over display name. "
+            "Return strict JSON only. Do not invent entity IDs."
+        )
+        user_message = (
+            "From this same-device entity list, select only entities that are useful for Tesla AI context, "
+            "vehicle-control understanding, status answers, alerts, or location. "
+            "For each selected entity choose one role from this exact list:\n"
+            f"{json.dumps(role_values)}\n\n"
+            "Return JSON in this exact shape:\n"
+            '{"entities":[{"entity_id":"sensor.example","role":"speed","reason":"short reason"}]}\n\n'
+            "Rules:\n"
+            "- Use only entity_id values that exist in candidates.\n"
+            "- Skip diagnostic noise unless it clearly describes vehicle state, battery, charging, climate, lock, doors, windows, tires, location, user presence, speed, shift, odometer, or temperature.\n"
+            "- If unsure, skip it.\n\n"
+            f"Already found by deterministic scan: {json.dumps(sorted(already_found))}\n\n"
+            f"Candidates:\n{json.dumps(candidates, ensure_ascii=False)}"
+        )
+        model = str(current.get(CONF_OPENAI_MODEL) or DEFAULT_OPENAI_MODEL)
+        response_text = await _async_call_openai_for_config_flow(
+            self.hass,
+            api_key=api_key,
+            model=model,
+            system_prompt=system_prompt,
+            user_message=user_message,
+            max_output_tokens=1600,
+        )
+        parsed = _parse_json_object_from_text(response_text)
+        raw_entities = parsed.get("entities")
+        if not isinstance(raw_entities, list):
+            return []
+
+        valid_entity_ids = {item["entity_id"] for item in candidates}
+        discovered: list[dict[str, Any]] = []
+        for item in raw_entities:
+            if not isinstance(item, dict):
+                continue
+            entity_id = str(item.get("entity_id") or "").strip()
+            role = str(item.get("role") or "").strip()
+            if entity_id not in valid_entity_ids or role not in role_values:
+                continue
+            entry = self._vehicle_entry_from_entity(entity_id, source="ai_assisted_ai", role=role)
+            if entry:
+                discovered.append(entry)
+        return discovered
+
     def _vehicle_entry_from_entity(
         self,
         entity_id: str,
@@ -2150,6 +2404,7 @@ class PomTeslaReportOptionsFlow(config_entries.OptionsFlow):
         if state is not None:
             friendly = str(state.attributes.get("friendly_name") or "")
 
+        reg_entry = None
         if not friendly:
             try:
                 registry = er.async_get(self.hass)
@@ -2158,8 +2413,14 @@ class PomTeslaReportOptionsFlow(config_entries.OptionsFlow):
                     friendly = str(reg_entry.name or reg_entry.original_name or "")
             except Exception:
                 friendly = ""
+        elif reg_entry is None:
+            try:
+                registry = er.async_get(self.hass)
+                reg_entry = registry.async_get(entity_id)
+            except Exception:
+                reg_entry = None
 
-        role_value = role or infer_vehicle_role(entity_id, friendly)
+        role_value = role or infer_vehicle_role(entity_id, friendly, self._registry_metadata_text(reg_entry, entity_id))
         if role_value not in VEHICLE_ENTITY_ROLES:
             role_value = VEHICLE_ROLE_OTHER
 
@@ -2255,21 +2516,18 @@ class PomTeslaReportOptionsFlow(config_entries.OptionsFlow):
             main_entity = str(current.get(CONF_BATTERY_LEVEL_ENTITY) or DEFAULT_BATTERY_LEVEL_ENTITY).strip()
 
         discovered: list[dict[str, Any]] = []
-        registry = er.async_get(self.hass)
-        main_reg_entry = registry.async_get(main_entity)
-        device_id = getattr(main_reg_entry, "device_id", None) if main_reg_entry else None
+        reg_entries = self._same_device_registry_entries(main_entity)
 
-        if device_id:
-            for reg_entry in registry.entities.values():
-                if getattr(reg_entry, "device_id", None) != device_id:
-                    continue
+        if reg_entries:
+            for reg_entry in reg_entries:
                 entity_id = getattr(reg_entry, "entity_id", "")
                 friendly = str(reg_entry.name or reg_entry.original_name or "")
-                role = infer_vehicle_role(entity_id, friendly)
+                metadata_text = self._registry_metadata_text(reg_entry, entity_id)
+                role = infer_vehicle_role(entity_id, friendly, metadata_text)
                 if role == VEHICLE_ROLE_OTHER:
                     # Keep useful unknowns visible for AI, but don't flood with every diagnostic entity.
-                    text = f"{entity_id} {friendly}".lower()
-                    if not any(k in text for k in ["tesla", "pom", "tessie", "battery", "charge", "tire", "tyre", "pressure", "temperature", "window", "door", "lock", "range", "speed", "odometer", "climate", "gps", "location"]):
+                    text = f"{entity_id} {friendly} {metadata_text}".lower()
+                    if not any(k in text for k in ["tesla", "pom", "tessie", "teslamate", "teslafleet", "battery", "charge", "tire", "tyre", "pressure", "temperature", "window", "door", "lock", "range", "speed", "odometer", "climate", "gps", "location", "drive_state", "vehicle_state", "charge_state", "climate_state"]):
                         continue
                 entry = self._vehicle_entry_from_entity(entity_id, source="smart_import", role=role)
                 if entry:
@@ -2437,11 +2695,21 @@ class PomTeslaReportOptionsFlow(config_entries.OptionsFlow):
                     discovered = self._smart_discovered_vehicle_entries(temp_current)
                 except Exception:
                     discovered = []
+                try:
+                    ai_discovered = await self._ai_assisted_discovered_vehicle_entries(temp_current, discovered)
+                    discovered = self._merge_vehicle_entries([], discovered + ai_discovered)
+                except Exception:
+                    pass
 
                 selected_raw = user_input.get(UI_VEHICLE_AI_ENTITIES) or []
                 if isinstance(selected_raw, str):
                     selected_raw = [selected_raw]
 
+                discovered_by_id = {
+                    str(item.get("entity_id") or "").strip(): item
+                    for item in discovered
+                    if str(item.get("entity_id") or "").strip()
+                }
                 combined_ai_entities = []
                 for entity_id in list(selected_raw) + [
                     str(item.get("entity_id") or "").strip()
@@ -2454,7 +2722,13 @@ class PomTeslaReportOptionsFlow(config_entries.OptionsFlow):
 
                 ai_entries = []
                 for entity_id in combined_ai_entities:
-                    entry = self._vehicle_entry_from_entity(entity_id, source="auto_selected_ai")
+                    discovered_item = discovered_by_id.get(entity_id, {})
+                    source = "ai_assisted_ai" if discovered_item.get("source") == "ai_assisted_ai" else "auto_selected_ai"
+                    entry = self._vehicle_entry_from_entity(
+                        entity_id,
+                        source=source,
+                        role=discovered_item.get("role"),
+                    )
                     if entry:
                         entry["use_report"] = False
                         entry["use_ai"] = True
@@ -2478,7 +2752,7 @@ class PomTeslaReportOptionsFlow(config_entries.OptionsFlow):
                     item for item in existing_entries
                     if (
                         item.get("use_report")
-                        or item.get("source") not in {"auto_selected_ai", "manual_ai"}
+                        or item.get("source") not in {"auto_selected_ai", "manual_ai", "ai_assisted_ai"}
                     )
                 ]
 
@@ -2499,7 +2773,7 @@ class PomTeslaReportOptionsFlow(config_entries.OptionsFlow):
                 item for item in existing_entries
                 if (
                     item.get("use_report")
-                    or item.get("source") not in {"auto_selected_ai", "manual_ai"}
+                    or item.get("source") not in {"auto_selected_ai", "manual_ai", "ai_assisted_ai"}
                 )
             ]
 
