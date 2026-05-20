@@ -76,7 +76,6 @@ from .const import (
     CONF_OPENAI_API_KEY,
     CONF_OPENAI_MODEL,
     CONF_AI_TELEGRAM_TARGET,
-    CONF_AI_NAME,
     CONF_AI_SYSTEM_PROMPT,
     CONF_AI_MAX_OUTPUT_TOKENS,
     CONF_AI_TELEGRAM_LISTENER_ENABLED,
@@ -86,7 +85,6 @@ from .const import (
     CONF_AI_CONFIRM_OPTIONAL_CONTROLS,
     DEFAULT_AI_ENABLED,
     DEFAULT_OPENAI_MODEL,
-    DEFAULT_AI_NAME,
     DEFAULT_AI_SYSTEM_PROMPT,
     DEFAULT_AI_MAX_OUTPUT_TOKENS,
     DEFAULT_AI_TELEGRAM_LISTENER_ENABLED,
@@ -346,7 +344,6 @@ UI_AI_ENABLED = "Enable POM AI Basic"
 UI_AI_PERSONALITY = "AI personality"
 UI_AI_ANSWER_LENGTH = "AI answer length"
 UI_AI_CONTEXT_MODE = "AI context mode"
-UI_AI_NAME = "AI name"
 UI_AI_MAIN_TESLA_ENTITY = "Sample Tesla entity for AI auto-discovery"
 UI_AI_AUTO_DISCOVER_DEVICE_ENTITIES = "Auto discover entities from same Tesla device"
 UI_AI_INCLUDE_UNAVAILABLE = "Include unavailable/unknown entities"
@@ -359,6 +356,7 @@ UI_REVERSE_GEOCODING_USE_IN_AI = "Use address in AI context"
 UI_OPENAI_API_KEY = "OpenAI API key (leave blank to keep saved)"
 UI_OPENAI_MODEL = "OpenAI model"
 UI_AI_TELEGRAM_TARGET = "AI Telegram target"
+UI_AI_SYSTEM_PROMPT = "System prompt"
 UI_AI_MAX_OUTPUT_TOKENS = "Max output tokens"
 UI_AI_TELEGRAM_LISTENER_ENABLED = "Enable Telegram AI group listener"
 UI_AI_TELEGRAM_LISTENER_CHAT_ID = "Group ID for listening"
@@ -657,24 +655,12 @@ def _ai_personality_selector() -> selector.SelectSelector:
                 {"value": AI_PERSONALITY_FRIENDLY, "label": "Friendly"},
                 {"value": AI_PERSONALITY_FUNNY, "label": "Funny"},
                 {"value": AI_PERSONALITY_SHORT_DIRECT, "label": "Short and direct"},
+                {"value": AI_PERSONALITY_PREMIUM, "label": "Premium Tesla assistant"},
+                {"value": AI_PERSONALITY_TURKISH_BUDDY, "label": "Turkish buddy / samimi"},
             ],
             mode=selector.SelectSelectorMode.DROPDOWN,
         )
     )
-
-
-def _normalized_supported_ai_personality(value: Any) -> str:
-    """Normalize removed legacy personality values to a supported current option."""
-    supported = {
-        AI_PERSONALITY_PROFESSIONAL,
-        AI_PERSONALITY_FRIENDLY,
-        AI_PERSONALITY_FUNNY,
-        AI_PERSONALITY_SHORT_DIRECT,
-    }
-    value = str(value or "").strip()
-    if value in supported:
-        return value
-    return DEFAULT_AI_PERSONALITY
 
 
 def _ai_answer_length_selector() -> selector.SelectSelector:
@@ -1455,7 +1441,7 @@ def build_ai_basic_schema(current: dict[str, Any]) -> vol.Schema:
 
             vol.Required(
                 UI_AI_PERSONALITY,
-                default=_normalized_supported_ai_personality(current.get(CONF_AI_PERSONALITY, DEFAULT_AI_PERSONALITY)),
+                default=current.get(CONF_AI_PERSONALITY, DEFAULT_AI_PERSONALITY),
             ): _ai_personality_selector(),
 
             vol.Required(
@@ -1467,11 +1453,6 @@ def build_ai_basic_schema(current: dict[str, Any]) -> vol.Schema:
                 UI_AI_CONTEXT_MODE,
                 default=current.get(CONF_AI_CONTEXT_MODE, DEFAULT_AI_CONTEXT_MODE),
             ): _ai_context_mode_selector(),
-
-            vol.Required(
-                UI_AI_NAME,
-                default=current.get(CONF_AI_NAME, DEFAULT_AI_NAME),
-            ): str,
 
 
             vol.Required(
@@ -1513,6 +1494,11 @@ def build_ai_basic_schema(current: dict[str, Any]) -> vol.Schema:
                 UI_REVERSE_GEOCODING_USE_IN_AI,
                 default=current.get(CONF_REVERSE_GEOCODING_USE_IN_AI, DEFAULT_REVERSE_GEOCODING_USE_IN_AI),
             ): selector.BooleanSelector(),
+
+            vol.Required(
+                UI_AI_SYSTEM_PROMPT,
+                default=current.get(CONF_AI_SYSTEM_PROMPT, DEFAULT_AI_SYSTEM_PROMPT),
+            ): _multiline_text_selector(),
 
             vol.Required(
                 UI_AI_MAX_OUTPUT_TOKENS,
@@ -3040,7 +3026,6 @@ class PomTeslaReportOptionsFlow(config_entries.OptionsFlow):
                     UI_AI_PERSONALITY: CONF_AI_PERSONALITY,
                     UI_AI_ANSWER_LENGTH: CONF_AI_ANSWER_LENGTH,
                     UI_AI_CONTEXT_MODE: CONF_AI_CONTEXT_MODE,
-                    UI_AI_NAME: CONF_AI_NAME,
                     UI_AI_AUTO_DISCOVER_DEVICE_ENTITIES: CONF_AI_AUTO_DISCOVER_DEVICE_ENTITIES,
                     UI_AI_INCLUDE_UNAVAILABLE: CONF_AI_INCLUDE_UNAVAILABLE,
                     UI_AI_MAX_CONTEXT_ENTITIES: CONF_AI_MAX_CONTEXT_ENTITIES,
@@ -3048,6 +3033,7 @@ class PomTeslaReportOptionsFlow(config_entries.OptionsFlow):
                     UI_REVERSE_GEOCODING_CACHE_MINUTES: CONF_REVERSE_GEOCODING_CACHE_MINUTES,
                     UI_REVERSE_GEOCODING_USE_IN_AI: CONF_REVERSE_GEOCODING_USE_IN_AI,
                     UI_OPENAI_MODEL: CONF_OPENAI_MODEL,
+                    UI_AI_SYSTEM_PROMPT: CONF_AI_SYSTEM_PROMPT,
                     UI_AI_MAX_OUTPUT_TOKENS: CONF_AI_MAX_OUTPUT_TOKENS,
                     UI_AI_TELEGRAM_INCLUDE_CONTEXT: CONF_AI_TELEGRAM_INCLUDE_CONTEXT,
                     UI_AI_CONFIRM_OPTIONAL_CONTROLS: CONF_AI_CONFIRM_OPTIONAL_CONTROLS,

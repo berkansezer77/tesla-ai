@@ -980,116 +980,9 @@ def detect_message_language(message: str) -> str:
     english_score = sum(1 for marker in english_markers if f" {marker} " in f" {n} ")
     turkish_score = sum(1 for marker in turkish_markers if f" {marker} " in f" {n} ")
 
-    if english_score > turkish_score and english_score > 0:
+    if english_score > turkish_score:
         return "en"
-    if turkish_score > 0:
-        return "tr"
-    return "other"
-
-
-def build_current_message_language_instruction(message: str) -> str:
-    """Return a strong per-message language rule for deterministic and LLM paths."""
-    lang = detect_message_language(message)
-    if lang == "en":
-        return (
-            "CURRENT MESSAGE LANGUAGE RULE: The user's current message is in English. "
-            "Reply fully in English. Do not default back to Turkish because earlier conversation was Turkish."
-        )
-    if lang == "other":
-        return (
-            "CURRENT MESSAGE LANGUAGE RULE: The user's current message is in a non-Turkish, non-English language. "
-            "Reply fully in that same language. Do not translate it into Turkish or English unless the user asks."
-        )
-    return (
-        "CURRENT MESSAGE LANGUAGE RULE: The user's current message is in Turkish. "
-        "Reply fully in Turkish. Do not switch to English unless the user switches language."
-    )
-
-
-async def async_translate_ready_answer_if_needed(
-    hass: HomeAssistant,
-    data: dict[str, Any],
-    *,
-    user_message: str,
-    ready_answer: str,
-) -> str:
-    """Translate a deterministic ready-made answer into the user's language when needed."""
-    lang = detect_message_language(user_message)
-    if lang in {"tr", "en"}:
-        return ready_answer
-
-    api_key = str(data.get(CONF_OPENAI_API_KEY, "")).strip()
-    if not api_key:
-        return ready_answer
-
-    model = str(data.get(CONF_OPENAI_MODEL, DEFAULT_OPENAI_MODEL)).strip() or DEFAULT_OPENAI_MODEL
-    system_prompt = (
-        "You are a strict translation assistant. "
-        "Translate the provided READY_ANSWER into the same language as USER_MESSAGE. "
-        "Preserve meaning exactly. Preserve numbers, temperatures, URLs, coordinates, street names, and formatting. "
-        "Do not add explanations. Do not summarize. Return only the translated answer text."
-    )
-    context_text = (
-        f"USER_MESSAGE:\n{user_message}\n\n"
-        f"READY_ANSWER:\n{ready_answer}\n\n"
-        "Translate READY_ANSWER into the language of USER_MESSAGE."
-    )
-    try:
-        translated = await async_call_openai_responses_api(
-            hass,
-            api_key=api_key,
-            model=model,
-            system_prompt=system_prompt,
-            user_message="Translate the ready answer into the same language as the user message.",
-            context_text=context_text,
-            max_output_tokens=min(max(200, len(ready_answer) * 3), 1200),
-        )
-        return str(translated or ready_answer).strip() or ready_answer
-    except Exception:
-        return ready_answer
-
-
-async def async_translate_runtime_message_if_needed(
-    hass: HomeAssistant,
-    data: dict[str, Any],
-    *,
-    user_message: str,
-    message_text: str,
-) -> str:
-    """Translate runtime command/result messages into the user's current language."""
-    lang = detect_message_language(user_message)
-    if lang == "tr":
-        return message_text
-
-    api_key = str(data.get(CONF_OPENAI_API_KEY, "")).strip()
-    if not api_key:
-        return message_text
-
-    model = str(data.get(CONF_OPENAI_MODEL, DEFAULT_OPENAI_MODEL)).strip() or DEFAULT_OPENAI_MODEL
-    system_prompt = (
-        "You are a strict translation assistant. "
-        "Translate the provided MESSAGE_TEXT into the same language as USER_MESSAGE. "
-        "Preserve meaning exactly. Preserve command names, temperatures, URLs, coordinates, street names, and formatting. "
-        "Do not add explanations. Return only the translated message text."
-    )
-    context_text = (
-        f"USER_MESSAGE:\n{user_message}\n\n"
-        f"MESSAGE_TEXT:\n{message_text}\n\n"
-        "Translate MESSAGE_TEXT into the language of USER_MESSAGE."
-    )
-    try:
-        translated = await async_call_openai_responses_api(
-            hass,
-            api_key=api_key,
-            model=model,
-            system_prompt=system_prompt,
-            user_message="Translate the message text into the same language as the user message.",
-            context_text=context_text,
-            max_output_tokens=min(max(160, len(message_text) * 3), 1200),
-        )
-        return str(translated or message_text).strip() or message_text
-    except Exception:
-        return message_text
+    return "tr"
 
 
 def _get_vehicle_state_text(hass: HomeAssistant, data: dict[str, Any], *, lang: str = "tr") -> str:
@@ -1142,8 +1035,6 @@ def build_direct_vehicle_status_answer(hass: HomeAssistant, data: dict[str, Any]
     if not n or not is_vehicle_status_question(message):
         return None
     lang = detect_message_language(message)
-    if lang == "other":
-        lang = "tr"
 
     # Awake / online / sleep status.
     if _has_any_phrase(n, ["uyanik", "uyuyor", "online", "cevrimici", "sleep", "asleep", "awake"]):
@@ -1245,19 +1136,6 @@ def build_direct_vehicle_status_answer(hass: HomeAssistant, data: dict[str, Any]
         return f"Lock status is unclear: {st.state}." if lang == "en" else f"Kilit durumu belirsiz görünüyor: {st.state}."
 
     return None
-
-
-async def async_build_direct_vehicle_status_answer(hass: HomeAssistant, data: dict[str, Any], message: str) -> str | None:
-    """Build a deterministic direct status answer and localize it when needed."""
-    answer = build_direct_vehicle_status_answer(hass, data, message)
-    if not answer:
-        return None
-    return await async_translate_ready_answer_if_needed(
-        hass,
-        data,
-        user_message=message,
-        ready_answer=answer,
-    )
 
 
 def should_send_last_trip_png(user_message: str) -> bool:
@@ -2270,15 +2148,6 @@ def should_send_vehicle_location_answer(message: str) -> bool:
         "arabanin konumu",
         "maps link",
         "google maps",
-        "where is my car",
-        "where is the car",
-        "where are you",
-        "car location",
-        "location of my car",
-        "send location",
-        "send the location",
-        "exact location",
-        "give me exact location",
     ]
 
     if any(phrase in normalized for phrase in location_phrases):
@@ -3244,39 +3113,19 @@ async def async_send_ai_vehicle_control_confirmation(
         entity_id = str(item.get("entity_id") or (item.get("service_data") or {}).get("entity_id") or "-")
         action_detail = f"İstenen işlem: {item.get('label') or action.get('label')}\nEntity: {entity_id}"
 
-    message_text = (
-        "POM araç kontrol onayı\n\n"
-        f"{action_detail}\n\n"
-        "Bu işlem araca komut gönderecek. Onaylıyor musun?"
-    )
-    localized_message = await async_translate_runtime_message_if_needed(
-        hass,
-        get_first_entry_config(hass) or {},
-        user_message=user_message,
-        message_text=message_text,
-    )
-    confirm_label = await async_translate_runtime_message_if_needed(
-        hass,
-        get_first_entry_config(hass) or {},
-        user_message=user_message,
-        message_text="Onayla",
-    )
-    cancel_label = await async_translate_runtime_message_if_needed(
-        hass,
-        get_first_entry_config(hass) or {},
-        user_message=user_message,
-        message_text="İptal",
-    )
-
     await hass.services.async_call(
         "telegram_bot",
         "send_message",
         {
             "target": target,
             "parse_mode": "plain_text",
-            "message": localized_message,
+            "message": (
+                "POM arac kontrol onayi\n\n"
+                f"{action_detail}\n\n"
+                "Bu işlem araca komut gönderecek. Onaylıyor musun?"
+            ),
             "inline_keyboard": [
-                f"{confirm_label}:/pom_ai_control_confirm_{token}, {cancel_label}:/pom_ai_control_cancel_{token}",
+                f"Onayla:/pom_ai_control_confirm_{token}, Iptal:/pom_ai_control_cancel_{token}",
             ],
         },
         blocking=True,
@@ -3908,12 +3757,6 @@ async def async_maybe_start_ai_vehicle_control(
 
     if action.get("error"):
         msg = str(action.get("message") or "Araç kontrol komutu algılandı ama gerekli entity bulunamadı.")
-        msg = await async_translate_runtime_message_if_needed(
-            hass,
-            data,
-            user_message=user_message,
-            message_text=msg,
-        )
         await _send_or_notify(msg, "pom_tesla_report_ai_control_missing_entity")
         return True
 
@@ -3924,12 +3767,6 @@ async def async_maybe_start_ai_vehicle_control(
         except Exception as err:
             _LOGGER.exception("POM AI vehicle control immediate execution failed")
             result = f"Araç kontrol komutu çalıştırılamadı: {err}"
-        result = await async_translate_runtime_message_if_needed(
-            hass,
-            data,
-            user_message=user_message,
-            message_text=result,
-        )
         await _send_or_notify(result, "pom_tesla_report_ai_control_executed")
         return True
 
@@ -3944,14 +3781,9 @@ async def async_maybe_start_ai_vehicle_control(
         await async_create_persistent_notification(
             hass,
             title="POM AI Vehicle Controls",
-            message=await async_translate_runtime_message_if_needed(
-                hass,
-                data,
-                user_message=user_message,
-                message_text=(
+            message=(
                 f"Araç kontrol komutu algılandı: {action.get('label')}\n"
                 "Onay için Telegram target gerekli. AI Telegram target ayarını kontrol et."
-                ),
             ),
             notification_id="pom_tesla_report_ai_control_needs_telegram",
         )
@@ -3985,15 +3817,8 @@ async def async_handle_ai_vehicle_control_text_confirmation(
     _created, token, pending_item = candidates[0]
 
     target = str(telegram_target or pending_item.get("target") or data.get(CONF_AI_TELEGRAM_TARGET) or data.get(CONF_TELEGRAM_TARGET) or "").strip()
-    source_message = str(pending_item.get("user_message") or user_message or "")
 
     async def _send_result(msg: str) -> None:
-        msg = await async_translate_runtime_message_if_needed(
-            hass,
-            data,
-            user_message=source_message,
-            message_text=msg,
-        )
         if send_telegram and target:
             await hass.services.async_call(
                 "telegram_bot",
@@ -4025,26 +3850,23 @@ async def async_handle_ai_vehicle_control_text_confirmation(
 async def async_build_vehicle_location_answer(hass: HomeAssistant, data: dict[str, Any], message: str = "") -> str:
     """Build deterministic vehicle location answer with address and Google Maps link."""
     lang = detect_message_language(message)
-    base_lang = lang if lang in {"tr", "en"} else "tr"
     tracker_entity = get_vehicle_role_entity(data, VEHICLE_ROLE_LOCATION_TRACKER) or str(
         data.get(CONF_TRIP_MAP_TRACKER_ENTITY, DEFAULT_TRIP_MAP_TRACKER_ENTITY) or ""
     ).strip()
 
     point = get_tracker_lat_lon(hass, tracker_entity)
     if point is None:
-        if base_lang == "en":
-            answer = (
+        if lang == "en":
+            return (
                 "📍 Vehicle location\n\n"
                 "I can't read the vehicle coordinates right now. "
                 "Please check whether a Location tracker / map entity is selected in Vehicle Manager."
             )
-        else:
-            answer = (
+        return (
             "📍 Araç konumu\n\n"
             "Araç konum koordinatını şu anda okuyamıyorum. "
             "Vehicle Manager içinde Location tracker / map entity seçili mi kontrol et."
         )
-        return await async_translate_ready_answer_if_needed(hass, data, user_message=message, ready_answer=answer)
 
     await async_update_reverse_geocode_cache(hass, data)
 
@@ -4053,24 +3875,23 @@ async def async_build_vehicle_location_answer(hass: HomeAssistant, data: dict[st
     parts = get_cached_reverse_geocode_parts(hass)
     maps_link = get_google_maps_link(lat, lon)
 
-    lines = ["📍 Vehicle location", ""] if base_lang == "en" else ["📍 Araç konumu", ""]
+    lines = ["📍 Vehicle location", ""] if lang == "en" else ["📍 Araç konumu", ""]
 
     if cached_address:
-        lines.extend(["Address:", cached_address] if base_lang == "en" else ["Adres:", cached_address])
+        lines.extend(["Address:", cached_address] if lang == "en" else ["Adres:", cached_address])
         house_number = str(parts.get("house_number") or "").strip() if parts else ""
         if not house_number:
-            lines.append("House/building number is not available in OpenStreetMap data." if base_lang == "en" else "Kapı/bina no: OpenStreetMap verisinde görünmüyor.")
+            lines.append("House/building number is not available in OpenStreetMap data." if lang == "en" else "Kapı/bina no: OpenStreetMap verisinde görünmüyor.")
     else:
-        lines.append("Address: A full address is not available right now." if base_lang == "en" else "Adres: Açık adres şu anda alınamadı.")
+        lines.append("Address: A full address is not available right now." if lang == "en" else "Adres: Açık adres şu anda alınamadı.")
 
     lines.extend([
         "",
-        "Open in Maps:" if base_lang == "en" else "Haritada aç:",
+        "Open in Maps:" if lang == "en" else "Haritada aç:",
         maps_link,
     ])
 
-    answer = "\n".join(lines)
-    return await async_translate_ready_answer_if_needed(hass, data, user_message=message, ready_answer=answer)
+    return "\n".join(lines)
 
 
 def get_report_visibility_options(data: dict[str, Any]) -> dict[str, bool]:
@@ -5585,7 +5406,6 @@ async def async_generate_pom_ai_answer(
     recent_memory = get_pom_ai_recent_conversation_text(hass, telegram_target) if telegram_target else ""
     if recent_memory:
         context_text = f"{context_text}\n\n{recent_memory}"
-    context_text = f"{context_text}\n\n{build_current_message_language_instruction(user_message)}"
 
     return await async_call_openai_responses_api(
         hass,
@@ -6885,7 +6705,6 @@ async def async_setup(hass: HomeAssistant, config: dict[str, Any]) -> bool:
         recent_memory = get_pom_ai_recent_conversation_text(hass, telegram_target)
         if recent_memory:
             context_text = f"{context_text}\n\n{recent_memory}"
-        context_text = f"{context_text}\n\n{build_current_message_language_instruction(user_message)}"
 
         # Build an explicit pending suggestion candidate before chat generation.
         # This prevents POM from making a natural offer like "klimayı açayım mı"
@@ -7872,7 +7691,6 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                 pending_controls = get_pending_ai_vehicle_control_state(hass)
                 pending_item = pending_controls.get(token)
                 target = chat_id or str((pending_item or {}).get("target") or current_data.get(CONF_AI_TELEGRAM_TARGET) or current_data.get(CONF_TELEGRAM_TARGET) or "").strip()
-                source_message = str((pending_item or {}).get("user_message") or "")
 
                 def _callback_message_id() -> int | None:
                     msg = event_data.get("message") or {}
@@ -7885,12 +7703,6 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                         return None
 
                 async def _edit_or_send_result(result_message: str) -> None:
-                    localized_result = await async_translate_runtime_message_if_needed(
-                        hass,
-                        current_data,
-                        user_message=source_message or result_message,
-                        message_text=result_message,
-                    )
                     message_id = _callback_message_id()
                     # Prefer deleting the inline-keyboard confirmation so the old approval box disappears.
                     if target and message_id:
@@ -7911,9 +7723,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                                     "telegram_bot",
                                     "edit_message",
                                     {
-                                    "chat_id": target,
-                                    "message_id": message_id,
-                                        "message": localized_result,
+                                        "chat_id": target,
+                                        "message_id": message_id,
+                                        "message": result_message,
                                         "inline_keyboard": [],
                                     },
                                     blocking=True,
@@ -7925,7 +7737,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                         await hass.services.async_call(
                             "telegram_bot",
                             "send_message",
-                            {"target": target, "parse_mode": "plain_text", "message": localized_result},
+                            {"target": target, "parse_mode": "plain_text", "message": result_message},
                             blocking=True,
                         )
 
@@ -8279,7 +8091,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                 )
                 return
 
-            direct_status_answer = await async_build_direct_vehicle_status_answer(hass, current_data, user_message)
+            direct_status_answer = build_direct_vehicle_status_answer(hass, current_data, user_message)
             if direct_status_answer:
                 await hass.services.async_call(
                     "telegram_bot",

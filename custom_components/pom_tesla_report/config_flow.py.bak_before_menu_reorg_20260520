@@ -60,7 +60,6 @@ from .const import (
     CONF_SHOW_COST,
     CONF_SHOW_CLIMATE,
     CONF_SHOW_ELEVATION,
-    CONF_SHOW_TRIP_MAP,
     DEFAULT_SHOW_DISTANCE,
     DEFAULT_SHOW_DURATION,
     DEFAULT_SHOW_TRAFFIC,
@@ -71,12 +70,10 @@ from .const import (
     DEFAULT_SHOW_COST,
     DEFAULT_SHOW_CLIMATE,
     DEFAULT_SHOW_ELEVATION,
-    DEFAULT_SHOW_TRIP_MAP,
     CONF_AI_ENABLED,
     CONF_OPENAI_API_KEY,
     CONF_OPENAI_MODEL,
     CONF_AI_TELEGRAM_TARGET,
-    CONF_AI_NAME,
     CONF_AI_SYSTEM_PROMPT,
     CONF_AI_MAX_OUTPUT_TOKENS,
     CONF_AI_TELEGRAM_LISTENER_ENABLED,
@@ -86,7 +83,6 @@ from .const import (
     CONF_AI_CONFIRM_OPTIONAL_CONTROLS,
     DEFAULT_AI_ENABLED,
     DEFAULT_OPENAI_MODEL,
-    DEFAULT_AI_NAME,
     DEFAULT_AI_SYSTEM_PROMPT,
     DEFAULT_AI_MAX_OUTPUT_TOKENS,
     DEFAULT_AI_TELEGRAM_LISTENER_ENABLED,
@@ -238,7 +234,6 @@ SECTION_AI_ENTITY_MANAGER = "ai_entity_manager"
 SECTION_REPORTS_ENTITY_MANAGER = "reports_entity_manager"
 SECTION_AUTOMATION_TELEGRAM = "automation_telegram"
 SECTION_PRICES_REPORT = "prices_report"
-SECTION_CHARGING_REPORTS = "charging_reports"
 SECTION_LIVE_TRIP = "live_trip_calculation"
 SECTION_AI_BASIC = "ai_basic"
 SECTION_AI_ALERTS = "ai_alerts"
@@ -262,7 +257,7 @@ UI_REMOVE_VEHICLE_ENTITY = "Entity to remove"
 UI_VEHICLE_ENTITY_SUMMARY = "Current vehicle entity map"
 UI_VEHICLE_AUTO_SELECT = "Auto select entities from selected Tesla device"
 UI_VEHICLE_AUTO_DISCOVERED_SUMMARY = "Auto discovered entities preview"
-UI_REPORT_MAIN_TESLA_ENTITY = "Sample Tesla entity for report auto-discovery"
+UI_REPORT_MAIN_TESLA_ENTITY = "Main Tesla entity for report auto-fill"
 UI_REPORT_BATTERY_LEVEL_ENTITY = "Vehicle report - Battery level"
 UI_REPORT_ENERGY_REMAINING_ENTITY = "Vehicle report - Energy remaining"
 UI_REPORT_SPEED_ENTITY = "Vehicle report - Speed"
@@ -280,11 +275,6 @@ UI_VEHICLE_REPORT_SECTION_NOTE = "Vehicle report section"
 UI_VEHICLE_AI_SECTION_NOTE = "AI / Auto discovery section"
 UI_REPORTS_ENTITY_MANAGER_NOTE = "Reports entity manager help"
 UI_AI_ENTITY_MANAGER_NOTE = "AI entity manager help"
-UI_TELEGRAM_SETTINGS_NOTE = "Telegram settings help"
-UI_AI_SETTINGS_NOTE = "AI settings help"
-UI_TRIP_REPORTS_NOTE = "Trip reports help"
-UI_CHARGING_REPORTS_NOTE = "Charging reports help"
-UI_AUTOMATIONS_NOTE = "Automations and notifications help"
 
 ACTION_RETURN_TO_MENU = "return_to_menu"
 ACTION_SAVE_AND_CLOSE = "save_and_close"
@@ -309,13 +299,12 @@ UI_CHARGE_ENERGY_ADDED_ENTITY = "Charge energy added sensor"
 
 UI_AUTO_TRIP_TRACKING = "Enable automatic trip tracking"
 UI_AUTO_START_SPEED_THRESHOLD = "Start speed threshold"
-UI_TELEGRAM_REPLIES_ENABLED = "Enable replies"
-UI_TELEGRAM_TARGET = "Telegram group ID"
+UI_TELEGRAM_TARGET = "Telegram target"
 UI_TRIP_MAP_ENABLED = "Enable trip map collection"
 UI_TRIP_MAP_TRACKER_ENTITY = "Trip map tracker entity"
 UI_TRIP_MAP_SAMPLE_INTERVAL_SECONDS = "Map sample interval seconds"
 UI_TRIP_MAP_MIN_MOVEMENT_METERS = "Minimum movement meters"
-UI_TRIP_MAP_SEND_SEPARATE_PNG = "Enable map PNG as separate image"
+UI_TRIP_MAP_SEND_SEPARATE_PNG = "Send separate trip map PNG"
 
 UI_SUPERCHARGER_PRICE = "Supercharger price"
 UI_ZES_PRICE = "ZES price"
@@ -332,7 +321,6 @@ UI_SHOW_BATTERY = "Show battery section"
 UI_SHOW_COST = "Show cost section"
 UI_SHOW_CLIMATE = "Show climate info"
 UI_SHOW_ELEVATION = "Show elevation info"
-UI_SHOW_TRIP_MAP = "Show trip map"
 
 UI_LIVE_TRIP_ENTITY_SUMMARY = "Live trip calculation entities"
 UI_LIVE_TRIP_ENABLED = "Enable live trip calculation engine"
@@ -346,8 +334,7 @@ UI_AI_ENABLED = "Enable POM AI Basic"
 UI_AI_PERSONALITY = "AI personality"
 UI_AI_ANSWER_LENGTH = "AI answer length"
 UI_AI_CONTEXT_MODE = "AI context mode"
-UI_AI_NAME = "AI name"
-UI_AI_MAIN_TESLA_ENTITY = "Sample Tesla entity for AI auto-discovery"
+UI_AI_MAIN_TESLA_ENTITY = "Main Tesla entity for smart AI discovery"
 UI_AI_AUTO_DISCOVER_DEVICE_ENTITIES = "Auto discover entities from same Tesla device"
 UI_AI_INCLUDE_UNAVAILABLE = "Include unavailable/unknown entities"
 UI_AI_MAX_CONTEXT_ENTITIES = "Max context entities"
@@ -359,9 +346,10 @@ UI_REVERSE_GEOCODING_USE_IN_AI = "Use address in AI context"
 UI_OPENAI_API_KEY = "OpenAI API key (leave blank to keep saved)"
 UI_OPENAI_MODEL = "OpenAI model"
 UI_AI_TELEGRAM_TARGET = "AI Telegram target"
+UI_AI_SYSTEM_PROMPT = "System prompt"
 UI_AI_MAX_OUTPUT_TOKENS = "Max output tokens"
 UI_AI_TELEGRAM_LISTENER_ENABLED = "Enable Telegram AI group listener"
-UI_AI_TELEGRAM_LISTENER_CHAT_ID = "Group ID for listening"
+UI_AI_TELEGRAM_LISTENER_CHAT_ID = "Telegram group chat ID for listener"
 UI_AI_TELEGRAM_ALLOWED_USER_ID = "Allowed Telegram user ID (optional; blank = everyone)"
 UI_AI_TELEGRAM_INCLUDE_CONTEXT = "Include Tesla context for group messages"
 UI_AI_CONFIRM_OPTIONAL_CONTROLS = "Ask confirmation for optional vehicle controls"
@@ -657,24 +645,12 @@ def _ai_personality_selector() -> selector.SelectSelector:
                 {"value": AI_PERSONALITY_FRIENDLY, "label": "Friendly"},
                 {"value": AI_PERSONALITY_FUNNY, "label": "Funny"},
                 {"value": AI_PERSONALITY_SHORT_DIRECT, "label": "Short and direct"},
+                {"value": AI_PERSONALITY_PREMIUM, "label": "Premium Tesla assistant"},
+                {"value": AI_PERSONALITY_TURKISH_BUDDY, "label": "Turkish buddy / samimi"},
             ],
             mode=selector.SelectSelectorMode.DROPDOWN,
         )
     )
-
-
-def _normalized_supported_ai_personality(value: Any) -> str:
-    """Normalize removed legacy personality values to a supported current option."""
-    supported = {
-        AI_PERSONALITY_PROFESSIONAL,
-        AI_PERSONALITY_FRIENDLY,
-        AI_PERSONALITY_FUNNY,
-        AI_PERSONALITY_SHORT_DIRECT,
-    }
-    value = str(value or "").strip()
-    if value in supported:
-        return value
-    return DEFAULT_AI_PERSONALITY
 
 
 def _ai_answer_length_selector() -> selector.SelectSelector:
@@ -830,12 +806,11 @@ def _section_selector() -> selector.SelectSelector:
             options=[
                 {"value": SECTION_AI_ENTITY_MANAGER, "label": "01 - AI Entity Manager"},
                 {"value": SECTION_REPORTS_ENTITY_MANAGER, "label": "02 - Reports Entity Manager"},
-                {"value": SECTION_AUTOMATION_TELEGRAM, "label": "03 - Telegram Settings"},
-                {"value": SECTION_AI_BASIC, "label": "04 - AI Settings"},
-                {"value": SECTION_PRICES_REPORT, "label": "05 - Trip Reports"},
-                {"value": SECTION_CHARGING_REPORTS, "label": "06 - Charging Reports"},
-                {"value": SECTION_LIVE_TRIP, "label": "07 - Live Trip Settings"},
-                {"value": SECTION_AI_ALERTS, "label": "08 - Automations and notifications"},
+                {"value": SECTION_AUTOMATION_TELEGRAM, "label": "03 - Automation & Telegram"},
+                {"value": SECTION_PRICES_REPORT, "label": "04 - Prices & report layout"},
+                {"value": SECTION_LIVE_TRIP, "label": "05 - Live Trip Calculation"},
+                {"value": SECTION_AI_BASIC, "label": "06 - POM AI Basic"},
+                {"value": SECTION_AI_ALERTS, "label": "07 - AI Alerts & Watchers"},
                 {"value": SECTION_FINISH, "label": "Save and close"},
             ],
             mode=selector.SelectSelectorMode.DROPDOWN,
@@ -1184,7 +1159,7 @@ def build_live_trip_entity_summary(current: dict[str, Any]) -> str:
         return "-"
 
     lines = [
-        "This section does not select entities again. Live trip calculation uses the selections from Reports Entity Manager.",
+        "This section does not select entities again. Live trip calculation uses the selections from Vehicle Entity Manager / Report.",
         "",
         f"Speed: {role_entity(VEHICLE_ROLE_SPEED, CONF_SPEED_ENTITY)}",
         f"Shift state: {role_entity(VEHICLE_ROLE_SHIFT_STATE, CONF_SHIFT_STATE_ENTITY)}",
@@ -1194,7 +1169,7 @@ def build_live_trip_entity_summary(current: dict[str, Any]) -> str:
         f"Climate: {role_entity(VEHICLE_ROLE_CLIMATE, CONF_CLIMATE_ENTITY)}",
         f"Elevation: {role_entity(VEHICLE_ROLE_ELEVATION, CONF_ELEVATION_ENTITY)}",
         "",
-        "If an entity is missing or incorrect, fix it from Reports Entity Manager.",
+        "If an entity is missing or incorrect, fix it from Vehicle Entity Manager.",
     ]
     return "\n".join(lines)
 
@@ -1243,58 +1218,9 @@ def build_live_trip_schema(current: dict[str, Any]) -> vol.Schema:
 
 
 def build_automation_telegram_schema(current: dict[str, Any]) -> vol.Schema:
-    """Build Telegram settings schema."""
-    group_id = current.get(
-        CONF_AI_TELEGRAM_LISTENER_CHAT_ID,
-        current.get(CONF_AI_TELEGRAM_TARGET, current.get(CONF_TELEGRAM_TARGET, DEFAULT_TELEGRAM_TARGET)),
-    )
+    """Build combined automation and Telegram options schema."""
     return vol.Schema(
         {
-            vol.Optional(
-                UI_TELEGRAM_SETTINGS_NOTE,
-                default=(
-                    "Use one shared Telegram group for replies and group listening. "
-                    "If replies are enabled, AI answers and report messages use the same group ID below."
-                ),
-            ): _multiline_text_selector(),
-
-            vol.Required(
-                UI_TELEGRAM_REPLIES_ENABLED,
-                default=bool(
-                    str(current.get(CONF_TELEGRAM_TARGET) or current.get(CONF_AI_TELEGRAM_TARGET) or "").strip()
-                ),
-            ): selector.BooleanSelector(),
-
-            vol.Optional(
-                UI_TELEGRAM_TARGET,
-                default=group_id,
-            ): str,
-
-            vol.Required(
-                UI_AI_TELEGRAM_LISTENER_ENABLED,
-                default=current.get(CONF_AI_TELEGRAM_LISTENER_ENABLED, DEFAULT_AI_TELEGRAM_LISTENER_ENABLED),
-            ): selector.BooleanSelector(),
-
-            vol.Required(
-                UI_AFTER_SAVING,
-                default=ACTION_RETURN_TO_MENU,
-            ): _after_saving_selector(),
-        }
-    )
-
-
-def build_trip_reports_schema(current: dict[str, Any]) -> vol.Schema:
-    """Build trip reports and map options schema."""
-    return vol.Schema(
-        {
-            vol.Optional(
-                UI_TRIP_REPORTS_NOTE,
-                default=(
-                    "This section controls automatic trip tracking, trip map collection, report layout, "
-                    "and charging prices used inside trip cost cards."
-                ),
-            ): _multiline_text_selector(),
-
             vol.Required(
                 UI_AUTO_TRIP_TRACKING,
                 default=current.get(CONF_AUTO_TRIP_TRACKING, DEFAULT_AUTO_TRIP_TRACKING),
@@ -1307,6 +1233,11 @@ def build_trip_reports_schema(current: dict[str, Any]) -> vol.Schema:
                     DEFAULT_AUTO_START_SPEED_THRESHOLD,
                 ),
             ): _speed_threshold_selector(),
+
+            vol.Required(
+                UI_TELEGRAM_TARGET,
+                default=current.get(CONF_TELEGRAM_TARGET, DEFAULT_TELEGRAM_TARGET),
+            ): str,
 
             vol.Required(
                 UI_TRIP_MAP_ENABLED,
@@ -1334,6 +1265,18 @@ def build_trip_reports_schema(current: dict[str, Any]) -> vol.Schema:
             ): selector.BooleanSelector(),
 
             vol.Required(
+                UI_AFTER_SAVING,
+                default=ACTION_RETURN_TO_MENU,
+            ): _after_saving_selector(),
+        }
+    )
+
+
+def build_prices_report_schema(current: dict[str, Any]) -> vol.Schema:
+    """Build combined charging price and report layout options schema."""
+    return vol.Schema(
+        {
+            vol.Required(
                 UI_SUPERCHARGER_PRICE,
                 default=current.get(CONF_SUPERCHARGER_PRICE, DEFAULT_SUPERCHARGER_PRICE),
             ): _price_selector(),
@@ -1347,6 +1290,11 @@ def build_trip_reports_schema(current: dict[str, Any]) -> vol.Schema:
                 UI_ASTOR_PRICE,
                 default=current.get(CONF_ASTOR_PRICE, DEFAULT_ASTOR_PRICE),
             ): _price_selector(),
+
+            vol.Required(
+                UI_CHARGING_REPORT_MODE,
+                default=current.get(CONF_CHARGING_REPORT_MODE, DEFAULT_CHARGING_REPORT_MODE),
+            ): _charging_report_mode_selector(),
 
             vol.Required(
                 UI_SHOW_DISTANCE,
@@ -1399,35 +1347,6 @@ def build_trip_reports_schema(current: dict[str, Any]) -> vol.Schema:
             ): selector.BooleanSelector(),
 
             vol.Required(
-                UI_SHOW_TRIP_MAP,
-                default=current.get(CONF_SHOW_TRIP_MAP, DEFAULT_SHOW_TRIP_MAP),
-            ): selector.BooleanSelector(),
-
-            vol.Required(
-                UI_AFTER_SAVING,
-                default=ACTION_RETURN_TO_MENU,
-            ): _after_saving_selector(),
-        }
-    )
-
-
-def build_charging_reports_schema(current: dict[str, Any]) -> vol.Schema:
-    """Build charging report delivery schema."""
-    return vol.Schema(
-        {
-            vol.Optional(
-                UI_CHARGING_REPORTS_NOTE,
-                default=(
-                    "This section controls how charging reports are sent after a charging session finishes."
-                ),
-            ): _multiline_text_selector(),
-
-            vol.Required(
-                UI_CHARGING_REPORT_MODE,
-                default=current.get(CONF_CHARGING_REPORT_MODE, DEFAULT_CHARGING_REPORT_MODE),
-            ): _charging_report_mode_selector(),
-
-            vol.Required(
                 UI_AFTER_SAVING,
                 default=ACTION_RETURN_TO_MENU,
             ): _after_saving_selector(),
@@ -1437,17 +1356,9 @@ def build_charging_reports_schema(current: dict[str, Any]) -> vol.Schema:
 
 
 def build_ai_basic_schema(current: dict[str, Any]) -> vol.Schema:
-    """Build AI settings schema."""
+    """Build POM AI Basic options schema."""
     return vol.Schema(
         {
-            vol.Optional(
-                UI_AI_SETTINGS_NOTE,
-                default=(
-                    "This section controls AI behavior, OpenAI connection, address understanding, "
-                    "and how AI responds in Telegram groups."
-                ),
-            ): _multiline_text_selector(),
-
             vol.Required(
                 UI_AI_ENABLED,
                 default=current.get(CONF_AI_ENABLED, DEFAULT_AI_ENABLED),
@@ -1455,7 +1366,7 @@ def build_ai_basic_schema(current: dict[str, Any]) -> vol.Schema:
 
             vol.Required(
                 UI_AI_PERSONALITY,
-                default=_normalized_supported_ai_personality(current.get(CONF_AI_PERSONALITY, DEFAULT_AI_PERSONALITY)),
+                default=current.get(CONF_AI_PERSONALITY, DEFAULT_AI_PERSONALITY),
             ): _ai_personality_selector(),
 
             vol.Required(
@@ -1467,11 +1378,6 @@ def build_ai_basic_schema(current: dict[str, Any]) -> vol.Schema:
                 UI_AI_CONTEXT_MODE,
                 default=current.get(CONF_AI_CONTEXT_MODE, DEFAULT_AI_CONTEXT_MODE),
             ): _ai_context_mode_selector(),
-
-            vol.Required(
-                UI_AI_NAME,
-                default=current.get(CONF_AI_NAME, DEFAULT_AI_NAME),
-            ): str,
 
 
             vol.Required(
@@ -1499,25 +1405,38 @@ def build_ai_basic_schema(current: dict[str, Any]) -> vol.Schema:
                 default=current.get(CONF_OPENAI_MODEL, DEFAULT_OPENAI_MODEL),
             ): str,
 
-            vol.Required(
-                UI_REVERSE_GEOCODING_ENABLED,
-                default=current.get(CONF_REVERSE_GEOCODING_ENABLED, DEFAULT_REVERSE_GEOCODING_ENABLED),
-            ): selector.BooleanSelector(),
+            vol.Optional(
+                UI_AI_TELEGRAM_TARGET,
+                default=current.get(CONF_AI_TELEGRAM_TARGET, current.get(CONF_TELEGRAM_TARGET, DEFAULT_TELEGRAM_TARGET)),
+            ): str,
 
             vol.Required(
-                UI_REVERSE_GEOCODING_CACHE_MINUTES,
-                default=current.get(CONF_REVERSE_GEOCODING_CACHE_MINUTES, DEFAULT_REVERSE_GEOCODING_CACHE_MINUTES),
-            ): _minutes_selector(5, 1440),
-
-            vol.Required(
-                UI_REVERSE_GEOCODING_USE_IN_AI,
-                default=current.get(CONF_REVERSE_GEOCODING_USE_IN_AI, DEFAULT_REVERSE_GEOCODING_USE_IN_AI),
-            ): selector.BooleanSelector(),
+                UI_AI_SYSTEM_PROMPT,
+                default=current.get(CONF_AI_SYSTEM_PROMPT, DEFAULT_AI_SYSTEM_PROMPT),
+            ): _multiline_text_selector(),
 
             vol.Required(
                 UI_AI_MAX_OUTPUT_TOKENS,
                 default=current.get(CONF_AI_MAX_OUTPUT_TOKENS, DEFAULT_AI_MAX_OUTPUT_TOKENS),
             ): _max_output_tokens_selector(),
+
+            vol.Required(
+                UI_AI_TELEGRAM_LISTENER_ENABLED,
+                default=current.get(CONF_AI_TELEGRAM_LISTENER_ENABLED, DEFAULT_AI_TELEGRAM_LISTENER_ENABLED),
+            ): selector.BooleanSelector(),
+
+            vol.Optional(
+                UI_AI_TELEGRAM_LISTENER_CHAT_ID,
+                default=current.get(
+                    CONF_AI_TELEGRAM_LISTENER_CHAT_ID,
+                    current.get(CONF_AI_TELEGRAM_TARGET, current.get(CONF_TELEGRAM_TARGET, DEFAULT_TELEGRAM_TARGET)),
+                ),
+            ): str,
+
+            vol.Optional(
+                UI_AI_TELEGRAM_ALLOWED_USER_ID,
+                default=current.get(CONF_AI_TELEGRAM_ALLOWED_USER_ID, DEFAULT_AI_TELEGRAM_ALLOWED_USER_ID),
+            ): str,
 
             vol.Required(
                 UI_AI_TELEGRAM_INCLUDE_CONTEXT,
@@ -1541,13 +1460,6 @@ def build_ai_alerts_schema(current: dict[str, Any]) -> vol.Schema:
     """Build AI proactive alert options schema."""
     return vol.Schema(
         {
-            vol.Optional(
-                UI_AUTOMATIONS_NOTE,
-                default=(
-                    "These switches control proactive AI alerts and vehicle notifications sent by the integration."
-                ),
-            ): _multiline_text_selector(),
-
             vol.Required(
                 UI_AI_ALERTS_ENABLED,
                 default=current.get(CONF_AI_ALERTS_ENABLED, DEFAULT_AI_ALERTS_ENABLED),
@@ -1765,6 +1677,21 @@ def build_ai_entity_manager_schema(current: dict[str, Any]) -> vol.Schema:
                 ),
             ): _any_entity_selector(),
 
+            vol.Required(
+                UI_REVERSE_GEOCODING_ENABLED,
+                default=current.get(CONF_REVERSE_GEOCODING_ENABLED, DEFAULT_REVERSE_GEOCODING_ENABLED),
+            ): selector.BooleanSelector(),
+
+            vol.Required(
+                UI_REVERSE_GEOCODING_CACHE_MINUTES,
+                default=current.get(CONF_REVERSE_GEOCODING_CACHE_MINUTES, DEFAULT_REVERSE_GEOCODING_CACHE_MINUTES),
+            ): _minutes_selector(5, 1440),
+
+            vol.Required(
+                UI_REVERSE_GEOCODING_USE_IN_AI,
+                default=current.get(CONF_REVERSE_GEOCODING_USE_IN_AI, DEFAULT_REVERSE_GEOCODING_USE_IN_AI),
+            ): selector.BooleanSelector(),
+
             vol.Optional(
                 UI_VEHICLE_AI_ENTITIES,
                 default=current.get(
@@ -1775,6 +1702,11 @@ def build_ai_entity_manager_schema(current: dict[str, Any]) -> vol.Schema:
                         if item.get("use_ai") and not item.get("use_report") and item.get("entity_id")
                     ],
                 ),
+            ): _multi_entity_selector(),
+
+            vol.Optional(
+                UI_VEHICLE_EXCLUDED_ENTITIES,
+                default=current.get(CONF_AI_EXCLUDED_CONTEXT_ENTITIES, DEFAULT_AI_EXCLUDED_CONTEXT_ENTITIES),
             ): _multi_entity_selector(),
 
             vol.Required(UI_VEHICLE_MANAGER_ACTION, default=ACTION_VEHICLE_SAVE_REVIEW): _ai_entity_manager_action_selector(),
@@ -1984,6 +1916,19 @@ def build_vehicle_entity_review_schema(current: dict[str, Any]) -> vol.Schema:
         for item in other_ai_items[:80]:
             lines.append(_line_for_item(item))
 
+    excluded = current.get(CONF_AI_EXCLUDED_CONTEXT_ENTITIES, DEFAULT_AI_EXCLUDED_CONTEXT_ENTITIES) or []
+    if isinstance(excluded, str):
+        excluded = [excluded]
+
+    lines.extend([
+        "",
+        "EXCLUDED ENTITIES",
+    ])
+    if excluded:
+        lines.extend([f"[X] {str(x)}" for x in excluded])
+    else:
+        lines.append("-")
+
     lines.extend([
         "",
         "COUNTS",
@@ -1991,6 +1936,8 @@ def build_vehicle_entity_review_schema(current: dict[str, Any]) -> vol.Schema:
         f"AI: {len(ai_entities)}",
         f"Alerts: {len(alert_entities)}",
         f"Map: {len(map_entities)}",
+        "",
+        "Note: Entities removed from Selected AI entities are not read by AI. The exclude list prevents Auto Find from adding them again.",
     ])
 
     return vol.Schema(
@@ -2109,9 +2056,6 @@ class PomTeslaReportOptionsFlow(config_entries.OptionsFlow):
 
             if section == SECTION_PRICES_REPORT:
                 return await self.async_step_prices_report()
-
-            if section == SECTION_CHARGING_REPORTS:
-                return await self.async_step_charging_reports()
 
             if section == SECTION_LIVE_TRIP:
                 return await self.async_step_live_trip()
@@ -2429,6 +2373,13 @@ class PomTeslaReportOptionsFlow(config_entries.OptionsFlow):
         if user_input is not None:
             action = user_input.get(UI_VEHICLE_MANAGER_ACTION, ACTION_VEHICLE_SAVE_REVIEW)
 
+            excluded_raw = user_input.get(UI_VEHICLE_EXCLUDED_ENTITIES) or []
+            if isinstance(excluded_raw, str):
+                excluded_entities = [excluded_raw] if excluded_raw else []
+            else:
+                excluded_entities = [str(x).strip() for x in excluded_raw if str(x).strip()]
+            excluded_set = set(excluded_entities)
+
             temp_current = dict(current)
             temp_current[CONF_AI_MAIN_TESLA_ENTITY] = user_input.get(UI_AI_MAIN_TESLA_ENTITY) or current.get(CONF_AI_MAIN_TESLA_ENTITY, DEFAULT_AI_MAIN_TESLA_ENTITY)
 
@@ -2449,7 +2400,7 @@ class PomTeslaReportOptionsFlow(config_entries.OptionsFlow):
                     if str(item.get("entity_id") or "").strip()
                 ]:
                     entity_id = str(entity_id or "").strip()
-                    if entity_id and entity_id not in combined_ai_entities:
+                    if entity_id and entity_id not in excluded_set and entity_id not in combined_ai_entities:
                         combined_ai_entities.append(entity_id)
 
                 ai_entries = []
@@ -2480,6 +2431,7 @@ class PomTeslaReportOptionsFlow(config_entries.OptionsFlow):
                         item.get("use_report")
                         or item.get("source") not in {"auto_selected_ai", "manual_ai"}
                     )
+                    and str(item.get("entity_id") or "").strip() not in excluded_set
                 ]
 
                 merged = self._merge_vehicle_entries([], preserved_entries + ai_entries)
@@ -2487,11 +2439,17 @@ class PomTeslaReportOptionsFlow(config_entries.OptionsFlow):
                     CONF_VEHICLE_ENTITY_MAP: normalize_vehicle_entity_map(merged),
                     CONF_AI_EXTRA_CONTEXT_ENTITIES: combined_ai_entities,
                     CONF_AI_MAIN_TESLA_ENTITY: temp_current.get(CONF_AI_MAIN_TESLA_ENTITY),
-                    CONF_AI_EXCLUDED_CONTEXT_ENTITIES: [],
+                    CONF_AI_EXCLUDED_CONTEXT_ENTITIES: excluded_entities,
+                    CONF_REVERSE_GEOCODING_ENABLED: user_input.get(UI_REVERSE_GEOCODING_ENABLED),
+                    CONF_REVERSE_GEOCODING_CACHE_MINUTES: user_input.get(UI_REVERSE_GEOCODING_CACHE_MINUTES),
+                    CONF_REVERSE_GEOCODING_USE_IN_AI: user_input.get(UI_REVERSE_GEOCODING_USE_IN_AI),
                 })
                 return await self.async_step_ai_entity_manager()
 
-            selected_ai_entries = self._vehicle_manager_ai_entries_from_input(user_input)
+            selected_ai_entries = [
+                item for item in self._vehicle_manager_ai_entries_from_input(user_input)
+                if str(item.get("entity_id") or "").strip() not in excluded_set
+            ]
             selected_ai_entities = [item.get("entity_id") for item in selected_ai_entries if item.get("entity_id")]
 
             existing_entries = normalize_vehicle_entity_map(current.get(CONF_VEHICLE_ENTITY_MAP, DEFAULT_VEHICLE_ENTITY_MAP))
@@ -2501,6 +2459,7 @@ class PomTeslaReportOptionsFlow(config_entries.OptionsFlow):
                     item.get("use_report")
                     or item.get("source") not in {"auto_selected_ai", "manual_ai"}
                 )
+                and str(item.get("entity_id") or "").strip() not in excluded_set
             ]
 
             merged = self._merge_vehicle_entries([], preserved_entries + selected_ai_entries)
@@ -2508,7 +2467,10 @@ class PomTeslaReportOptionsFlow(config_entries.OptionsFlow):
                 CONF_VEHICLE_ENTITY_MAP: normalize_vehicle_entity_map(merged),
                 CONF_AI_EXTRA_CONTEXT_ENTITIES: selected_ai_entities,
                 CONF_AI_MAIN_TESLA_ENTITY: temp_current.get(CONF_AI_MAIN_TESLA_ENTITY),
-                CONF_AI_EXCLUDED_CONTEXT_ENTITIES: [],
+                CONF_AI_EXCLUDED_CONTEXT_ENTITIES: excluded_entities,
+                CONF_REVERSE_GEOCODING_ENABLED: user_input.get(UI_REVERSE_GEOCODING_ENABLED),
+                CONF_REVERSE_GEOCODING_CACHE_MINUTES: user_input.get(UI_REVERSE_GEOCODING_CACHE_MINUTES),
+                CONF_REVERSE_GEOCODING_USE_IN_AI: user_input.get(UI_REVERSE_GEOCODING_USE_IN_AI),
             })
 
             if action == ACTION_SAVE_AND_CLOSE:
@@ -2910,19 +2872,24 @@ class PomTeslaReportOptionsFlow(config_entries.OptionsFlow):
         self,
         user_input: dict[str, Any] | None = None,
     ):
-        """Manage Telegram settings."""
+        """Manage automation and Telegram options."""
         errors: dict[str, str] = {}
 
         if user_input is not None:
             action = user_input.get(UI_AFTER_SAVING, ACTION_RETURN_TO_MENU)
-            group_id = str(user_input.get(UI_TELEGRAM_TARGET) or "").strip()
-            replies_enabled = bool(user_input.get(UI_TELEGRAM_REPLIES_ENABLED, False))
-            updates = {
-                CONF_TELEGRAM_TARGET: group_id if replies_enabled else "",
-                CONF_AI_TELEGRAM_TARGET: group_id if replies_enabled else "",
-                CONF_AI_TELEGRAM_LISTENER_ENABLED: bool(user_input.get(UI_AI_TELEGRAM_LISTENER_ENABLED, False)),
-                CONF_AI_TELEGRAM_LISTENER_CHAT_ID: group_id,
-            }
+            updates = _map_ui_input(
+                user_input,
+                {
+                    UI_AUTO_TRIP_TRACKING: CONF_AUTO_TRIP_TRACKING,
+                    UI_AUTO_START_SPEED_THRESHOLD: CONF_AUTO_START_SPEED_THRESHOLD,
+                    UI_TELEGRAM_TARGET: CONF_TELEGRAM_TARGET,
+                    UI_TRIP_MAP_ENABLED: CONF_TRIP_MAP_ENABLED,
+                    UI_TRIP_MAP_TRACKER_ENTITY: CONF_TRIP_MAP_TRACKER_ENTITY,
+                    UI_TRIP_MAP_SAMPLE_INTERVAL_SECONDS: CONF_TRIP_MAP_SAMPLE_INTERVAL_SECONDS,
+                    UI_TRIP_MAP_MIN_MOVEMENT_METERS: CONF_TRIP_MAP_MIN_MOVEMENT_METERS,
+                    UI_TRIP_MAP_SEND_SEPARATE_PNG: CONF_TRIP_MAP_SEND_SEPARATE_PNG,
+                },
+            )
             return await self._save_or_return(updates, action)
 
         return self.async_show_form(
@@ -2935,7 +2902,7 @@ class PomTeslaReportOptionsFlow(config_entries.OptionsFlow):
         self,
         user_input: dict[str, Any] | None = None,
     ):
-        """Manage trip report and map options."""
+        """Manage charging prices and report layout options."""
         errors: dict[str, str] = {}
 
         if user_input is not None:
@@ -2943,16 +2910,10 @@ class PomTeslaReportOptionsFlow(config_entries.OptionsFlow):
             updates = _map_ui_input(
                 user_input,
                 {
-                    UI_AUTO_TRIP_TRACKING: CONF_AUTO_TRIP_TRACKING,
-                    UI_AUTO_START_SPEED_THRESHOLD: CONF_AUTO_START_SPEED_THRESHOLD,
-                    UI_TRIP_MAP_ENABLED: CONF_TRIP_MAP_ENABLED,
-                    UI_TRIP_MAP_TRACKER_ENTITY: CONF_TRIP_MAP_TRACKER_ENTITY,
-                    UI_TRIP_MAP_SAMPLE_INTERVAL_SECONDS: CONF_TRIP_MAP_SAMPLE_INTERVAL_SECONDS,
-                    UI_TRIP_MAP_MIN_MOVEMENT_METERS: CONF_TRIP_MAP_MIN_MOVEMENT_METERS,
-                    UI_TRIP_MAP_SEND_SEPARATE_PNG: CONF_TRIP_MAP_SEND_SEPARATE_PNG,
                     UI_SUPERCHARGER_PRICE: CONF_SUPERCHARGER_PRICE,
                     UI_ZES_PRICE: CONF_ZES_PRICE,
                     UI_ASTOR_PRICE: CONF_ASTOR_PRICE,
+                    UI_CHARGING_REPORT_MODE: CONF_CHARGING_REPORT_MODE,
                     UI_SHOW_DISTANCE: CONF_SHOW_DISTANCE,
                     UI_SHOW_DURATION: CONF_SHOW_DURATION,
                     UI_SHOW_TRAFFIC: CONF_SHOW_TRAFFIC,
@@ -2963,37 +2924,13 @@ class PomTeslaReportOptionsFlow(config_entries.OptionsFlow):
                     UI_SHOW_COST: CONF_SHOW_COST,
                     UI_SHOW_CLIMATE: CONF_SHOW_CLIMATE,
                     UI_SHOW_ELEVATION: CONF_SHOW_ELEVATION,
-                    UI_SHOW_TRIP_MAP: CONF_SHOW_TRIP_MAP,
                 },
             )
             return await self._save_or_return(updates, action)
 
         return self.async_show_form(
             step_id="prices_report",
-            data_schema=build_trip_reports_schema(self._current()),
-            errors=errors,
-        )
-
-    async def async_step_charging_reports(
-        self,
-        user_input: dict[str, Any] | None = None,
-    ):
-        """Manage charging report options."""
-        errors: dict[str, str] = {}
-
-        if user_input is not None:
-            action = user_input.get(UI_AFTER_SAVING, ACTION_RETURN_TO_MENU)
-            updates = _map_ui_input(
-                user_input,
-                {
-                    UI_CHARGING_REPORT_MODE: CONF_CHARGING_REPORT_MODE,
-                },
-            )
-            return await self._save_or_return(updates, action)
-
-        return self.async_show_form(
-            step_id="charging_reports",
-            data_schema=build_charging_reports_schema(self._current()),
+            data_schema=build_prices_report_schema(self._current()),
             errors=errors,
         )
 
@@ -3028,7 +2965,7 @@ class PomTeslaReportOptionsFlow(config_entries.OptionsFlow):
         self,
         user_input: dict[str, Any] | None = None,
     ):
-        """Manage AI settings."""
+        """Manage POM AI Basic options."""
         errors: dict[str, str] = {}
 
         if user_input is not None:
@@ -3040,15 +2977,18 @@ class PomTeslaReportOptionsFlow(config_entries.OptionsFlow):
                     UI_AI_PERSONALITY: CONF_AI_PERSONALITY,
                     UI_AI_ANSWER_LENGTH: CONF_AI_ANSWER_LENGTH,
                     UI_AI_CONTEXT_MODE: CONF_AI_CONTEXT_MODE,
-                    UI_AI_NAME: CONF_AI_NAME,
                     UI_AI_AUTO_DISCOVER_DEVICE_ENTITIES: CONF_AI_AUTO_DISCOVER_DEVICE_ENTITIES,
                     UI_AI_INCLUDE_UNAVAILABLE: CONF_AI_INCLUDE_UNAVAILABLE,
                     UI_AI_MAX_CONTEXT_ENTITIES: CONF_AI_MAX_CONTEXT_ENTITIES,
-                    UI_REVERSE_GEOCODING_ENABLED: CONF_REVERSE_GEOCODING_ENABLED,
-                    UI_REVERSE_GEOCODING_CACHE_MINUTES: CONF_REVERSE_GEOCODING_CACHE_MINUTES,
-                    UI_REVERSE_GEOCODING_USE_IN_AI: CONF_REVERSE_GEOCODING_USE_IN_AI,
+                    UI_AI_EXTRA_CONTEXT_ENTITIES: CONF_AI_EXTRA_CONTEXT_ENTITIES,
+                    UI_AI_EXCLUDED_CONTEXT_ENTITIES: CONF_AI_EXCLUDED_CONTEXT_ENTITIES,
                     UI_OPENAI_MODEL: CONF_OPENAI_MODEL,
+                    UI_AI_TELEGRAM_TARGET: CONF_AI_TELEGRAM_TARGET,
+                    UI_AI_SYSTEM_PROMPT: CONF_AI_SYSTEM_PROMPT,
                     UI_AI_MAX_OUTPUT_TOKENS: CONF_AI_MAX_OUTPUT_TOKENS,
+                    UI_AI_TELEGRAM_LISTENER_ENABLED: CONF_AI_TELEGRAM_LISTENER_ENABLED,
+                    UI_AI_TELEGRAM_LISTENER_CHAT_ID: CONF_AI_TELEGRAM_LISTENER_CHAT_ID,
+                    UI_AI_TELEGRAM_ALLOWED_USER_ID: CONF_AI_TELEGRAM_ALLOWED_USER_ID,
                     UI_AI_TELEGRAM_INCLUDE_CONTEXT: CONF_AI_TELEGRAM_INCLUDE_CONTEXT,
                     UI_AI_CONFIRM_OPTIONAL_CONTROLS: CONF_AI_CONFIRM_OPTIONAL_CONTROLS,
                 },

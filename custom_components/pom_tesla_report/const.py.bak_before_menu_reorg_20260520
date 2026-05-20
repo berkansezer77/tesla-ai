@@ -1,7 +1,7 @@
-"""Constants for Tesla AI."""
+"""Constants for POM Tesla Report."""
 
 DOMAIN = "pom_tesla_report"
-DEFAULT_NAME = "Tesla AI"
+DEFAULT_NAME = "POM Tesla Report"
 
 TRIP_STATE_KEY = "trip_state"
 MANUAL_TRACKING_STATE_KEY = "manual_tracking_state"
@@ -65,7 +65,6 @@ CONF_SHOW_BATTERY = "show_battery"
 CONF_SHOW_COST = "show_cost"
 CONF_SHOW_CLIMATE = "show_climate"
 CONF_SHOW_ELEVATION = "show_elevation"
-CONF_SHOW_TRIP_MAP = "show_trip_map"
 
 DEFAULT_SHOW_DISTANCE = True
 DEFAULT_SHOW_DURATION = True
@@ -77,20 +76,17 @@ DEFAULT_SHOW_BATTERY = True
 DEFAULT_SHOW_COST = True
 DEFAULT_SHOW_CLIMATE = True
 DEFAULT_SHOW_ELEVATION = True
-DEFAULT_SHOW_TRIP_MAP = True
 
 
 CONF_AI_ENABLED = "ai_enabled"
 CONF_OPENAI_API_KEY = "openai_api_key"
 CONF_OPENAI_MODEL = "openai_model"
 CONF_AI_TELEGRAM_TARGET = "ai_telegram_target"
-CONF_AI_NAME = "ai_name"
 CONF_AI_SYSTEM_PROMPT = "ai_system_prompt"
 CONF_AI_MAX_OUTPUT_TOKENS = "ai_max_output_tokens"
 
 DEFAULT_AI_ENABLED = False
 DEFAULT_OPENAI_MODEL = "gpt-4.1-mini"
-DEFAULT_AI_NAME = "Tesla AI"
 DEFAULT_AI_MAX_OUTPUT_TOKENS = 700
 DEFAULT_AI_SYSTEM_PROMPT = """Sen POM AI adında, Berkan'ın Tesla ve Home Assistant rapor asistanısın.
 Her zaman Türkçe cevap ver.

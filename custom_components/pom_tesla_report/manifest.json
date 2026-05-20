@@ -1,6 +1,6 @@
 {
   "domain": "pom_tesla_report",
-  "name": "POM Tesla Report",
+  "name": "Tesla AI",
   "codeowners": [
     "@berkansezer"
   ],
@@ -11,5 +11,5 @@
   "requirements": [
     "Pillow==12.2.0"
   ],
-  "version": "2.1.1-beta.2"
+  "version": "2.1.1-beta.1"
 }
