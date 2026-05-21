@@ -1,0 +1,15 @@
+{
+  "domain": "pom_tesla_report",
+  "name": "Tesla AI",
+  "codeowners": [
+    "@berkansezer"
+  ],
+  "config_flow": true,
+  "documentation": "https://github.com/berkansezer/pom_tesla_report",
+  "integration_type": "hub",
+  "iot_class": "local_push",
+  "requirements": [
+    "Pillow==12.2.0"
+  ],
+  "version": "2.1.1-beta.1"
+}
