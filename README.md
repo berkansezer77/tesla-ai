@@ -9,22 +9,30 @@ It brings together a Tesla-style dashboard, a dedicated in-car Drive Dashboard, 
 ---
 ## Key Features
 
-- Tesla-style Home Assistant dashboard
-- Dedicated Drive Dashboard for Tesla browser use
-- Live Trip tracking with distance, speed, traffic, energy, climate and elevation data
-- Live Trip AI comments with configurable 1 km / 5 km / 10 km intervals
-- Large AI comment reader popup for easier viewing when safe
-- Visual Telegram trip reports
-- Visual charge reports with charging curve and cost comparison
-- Trip Records and Charge Records
-- Monthly trip summaries
-- Route map reports
-- Built-in Telegram bot support
-- Optional OpenAI-powered driving comments and AI trip stories
-- Entity mapping and Auto Find tools
-- Dashboard rebuild tools
-- Debug center and support report tools
-
+Turn Your Tesla Into an AI-Powered Companion
+Transform your vehicle into an AI assistant that talks to you through Telegram, reacts to your messages, and even makes jokes.
+Ask your car questions, find out where it is, and receive its location directly on a map.
+View your latest drives, latest charging sessions, totals, costs, and usage summaries.
+After every trip, Tesla AI automatically sends you a detailed driving analysis through Telegram.
+Is a final report not enough? Tesla AI can also comment on your drive while you are on the road, every 1 km, 5 km, or 10 km.
+Want to let someone else use your car? Simply invite them to a private Telegram group and give them limited access.
+Use your Tesla without needing the official Tesla app for basic actions and information.
+Access a beautiful in-car dashboard directly from your vehicle. See your live speed, elevation, average speed, power consumption, and how much money you have spent during the current drive.
+Need more data? Switch to the Drive screen with a single button and view even more detailed driving information.
+Did you give the car to someone else? Track every movement of the vehicle in real time from a tablet at home.
+See the places you visited in the last 24 hours and mark your family members on the map.
+Access all driving and charging records from the last month, including full details and costs, through Telegram or the control panel.
+While driving, see the full address of your current location.
+All your trips are recorded automatically. You do not need to do anything. In addition, you can manually start a special tracking mode with a button if you want to combine multiple drives. As long as you do not stop manual tracking, everything continues to be recorded. This is especially useful for long journeys.
+Control your smart home directly from the dashboard.
+Create your own charging station price presets.
+After leaving a charging station, automatically receive detailed charging information, including charging speed and graphs, without doing anything manually.
+Use simple vehicle automations. For example, when the battery drops below 20%, Tesla AI can warn you through Telegram.
+Stay in full control of your vehicle with a completely customizable dashboard.
+Play different background animations while driving. You can even place a YouTube video in the background.
+Switch between dark and light map modes.
+Thanks to full Tessie integration, all entities can be discovered automatically with a single button.
+Tesla AI can operate its own internal integrations. You do not need to configure separate Telegram or external integration systems manually.
 ---
 
 ## Preview
