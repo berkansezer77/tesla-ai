@@ -1,30 +1,30 @@
+# Python
 __pycache__/
 *.py[cod]
 *.pyo
-.pytest_cache/
-.mypy_cache/
-.ruff_cache/
 
-# Home Assistant runtime/generated outputs
-*.log
-*.db
-*.storage/
-
-# Generated report and map images
-*_report.png
-*_map.png
-auto_trip*.png
-final_trip*.png
-manual_tracking*.png
-charge_report*.png
-
-# Secrets and local config
+# Home Assistant runtime / secrets
+.storage/
 secrets.yaml
-configuration.yaml
-*.env
+known_devices.yaml
+home-assistant.log*
+*.db
+*.db-*
+*.sqlite
+*.sqlite-*
 
-# OS/editor files
+# Project/runtime exports that may contain secrets
+*support_report*.json
+*backup*.json
+*settings*.json
+*.tar
+*.tar.gz
+
+# OS/editor
 .DS_Store
 Thumbs.db
 .vscode/
 .idea/
+
+# Node/local tooling
+node_modules/

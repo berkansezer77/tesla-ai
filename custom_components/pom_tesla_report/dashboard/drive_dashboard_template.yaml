@@ -1,0 +1,134 @@
+title: POM Drive Dashboard
+views:
+  - title: ""
+    path: drive
+    icon: mdi:steering
+    type: panel
+    badges: []
+    cards:
+      - type: vertical-stack
+        cards:
+          # POM_DASHBOARD_APP_SWITCHER Drive -> Tesla
+          - type: custom:button-card
+            show_icon: false
+            show_name: false
+            show_state: false
+            tap_action:
+              action: none
+            styles:
+              card:
+                - display: none
+                - width: 0
+                - height: 0
+                - padding: 0
+                - margin: 0
+                - overflow: hidden
+            custom_fields:
+              controller: |
+                [[[
+                  const cfg = { active: 'DRIVE', target: '/tesla-dashboard/tesla' };
+                  window.__pomTeslaAppSwitcherConfig = cfg;
+
+                  const hideDriveTopChrome = () => {
+                  try {
+                  const path = window.location.pathname || '';
+                  const onDrive = path.endsWith('/pom-drive-dashboard/drive') || path === '/pom-drive-dashboard/drive';
+                  const fullscreenWanted = window.localStorage.getItem('pomTeslaDashboardFullscreen') === 'on';
+                  if (!onDrive || !fullscreenWanted) return;
+                  const roots = [];
+                  const seen = new Set();
+                  const collect = (root, depth = 0) => {
+                  if (!root || depth > 7 || seen.has(root)) return;
+                  seen.add(root); roots.push(root);
+                  let nodes = [];
+                  try { nodes = root.querySelectorAll ? root.querySelectorAll('*') : []; } catch(e) { nodes = []; }
+                  nodes.forEach((node) => { if (node.shadowRoot) collect(node.shadowRoot, depth + 1); });
+                  };
+                  collect(document, 0);
+                  const vw = Math.max(document.documentElement?.clientWidth || 0, window.innerWidth || 0);
+                  const isSwitcher = (el) => Boolean(el && (el.id === 'pom-tesla-app-switcher' || el.closest?.('#pom-tesla-app-switcher')));
+                  const hide = (el) => {
+                  if (!el || isSwitcher(el)) return;
+                  try {
+                  el.style.setProperty('display', 'none', 'important');
+                  el.style.setProperty('visibility', 'hidden', 'important');
+                  el.style.setProperty('pointer-events', 'none', 'important');
+                  } catch(e) {}
+                  };
+                  const isTopRight = (el) => {
+                  try {
+                  if (!el || isSwitcher(el)) return false;
+                  const r = el.getBoundingClientRect();
+                  return r && r.width > 0 && r.height > 0 && r.top <= 112 && r.bottom <= 156 && r.right >= (vw - 360) && r.width <= 360 && r.height <= 96;
+                  } catch(e) { return false; }
+                  };
+                  const looksChrome = (el) => {
+                  const tag = String(el.localName || el.tagName || '').toLowerCase();
+                  const txt = String(el.textContent || '').trim().toLowerCase();
+                  return tag.includes('icon-button') || tag.includes('ha-button') || tag.includes('mwc-button') || tag.includes('paper-icon') || tag === 'ha-assist-chip' || txt.includes('updated just now') || txt.includes('update now') || txt.includes('just now') || txt === 'refresh' || txt === 'update';
+                  };
+                  roots.forEach((root) => {
+                  ['app-header','app-toolbar','ha-top-app-bar-fixed','ha-top-app-bar','ha-header-bar','.toolbar[slot="toolbar"]','[slot="toolbar"]','.top-app-bar'].forEach((sel) => { try { root.querySelectorAll(sel).forEach(hide); } catch(e) {} });
+                  try { root.querySelectorAll('*').forEach((el) => { if (isTopRight(el) && looksChrome(el)) hide(el); }); } catch(e) {}
+                  });
+                  } catch(e) {}
+                  };
+                  const dashPaths = ['/tesla-dashboard/tesla', '/pom-drive-dashboard/drive'];
+                  const makeSwitcher = () => {
+                    const path = window.location.pathname || '';
+                    const onDashboard = dashPaths.some((p) => path.endsWith(p) || path === p);
+                    let el = document.getElementById('pom-tesla-app-switcher');
+                    if (!onDashboard) { if (el) el.remove(); return; }
+                    if (!el) {
+                      el = document.createElement('button');
+                      el.id = 'pom-tesla-app-switcher';
+                      el.type = 'button';
+                      el.setAttribute('aria-label', 'Switch Tesla / Drive dashboard');
+                      document.body.appendChild(el);
+                    }
+                    const cfgNow = window.__pomTeslaAppSwitcherConfig || cfg;
+                    const active = cfgNow.active === 'DRIVE' ? 'DRIVE' : 'TESLA';
+                    el.innerHTML = `<span class="${active === 'TESLA' ? 'active' : ''}">TESLA</span><span class="${active === 'DRIVE' ? 'active' : ''}">DRIVE</span>`;
+                    el.style.cssText = [
+                      'position:fixed!important','top:14px!important','right:18px!important',
+                      'width:176px!important','height:40px!important','z-index:2147483000!important',
+                      'display:grid!important','grid-template-columns:1fr 1fr!important','align-items:center!important',
+                      'gap:3px!important','padding:4px!important','box-sizing:border-box!important',
+                      'border-radius:999px!important','border:1px solid rgba(255,255,255,.22)!important',
+                      'background:rgba(5,10,18,.70)!important','box-shadow:0 10px 30px rgba(0,0,0,.42)!important',
+                      'backdrop-filter:blur(12px) saturate(150%)!important','-webkit-backdrop-filter:blur(12px) saturate(150%)!important',
+                      'font-family:Inter,Roboto,Arial,sans-serif!important','font-size:11px!important','font-weight:900!important',
+                      'letter-spacing:.6px!important','line-height:1!important','color:rgba(255,255,255,.72)!important',
+                      'cursor:pointer!important','pointer-events:auto!important','overflow:hidden!important'
+                    ].join(';') + ';';
+                    Array.from(el.children).forEach((child) => {
+                      child.style.cssText = 'height:100%!important;display:flex!important;align-items:center!important;justify-content:center!important;border-radius:999px!important;white-space:nowrap!important;overflow:hidden!important;text-overflow:clip!important;min-width:0!important;';
+                      if (child.classList.contains('active')) {
+                        child.style.cssText += 'color:#06101f!important;background:linear-gradient(135deg,#79bdff,#2f8cff)!important;box-shadow:0 0 18px rgba(47,140,255,.48)!important;';
+                      }
+                    });
+                    el.onclick = (ev) => {
+                      ev.preventDefault(); ev.stopPropagation();
+                      const cfgNow = window.__pomTeslaAppSwitcherConfig || cfg;
+                const target = cfgNow.target;
+                      try {
+                        window.history.pushState(null, '', target);
+                        window.dispatchEvent(new CustomEvent('location-changed', { detail: { replace: true } }));
+                        setTimeout(() => { if ((window.location.pathname || '') !== target) window.location.assign(target); }, 250);
+                      } catch(e) { window.location.assign(target); }
+                    };
+                  };
+                  makeSwitcher();
+                  hideDriveTopChrome();
+                  if (!window.__pomTeslaAppSwitcherTimer) {
+                    window.__pomTeslaAppSwitcherTimer = window.setInterval(() => {
+                      try {
+                        makeSwitcher();
+                              hideDriveTopChrome();
+                      } catch(e) {}
+                    }, 1200);
+                  }
+                  return '';
+                ]]]
+          - type: custom:pom-tesla-drive-dashboard-card
+            title: Drive Dashboard

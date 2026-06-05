@@ -1,0 +1,1859 @@
+type: custom:mod-card
+card_mod:
+  style: |
+    ha-card {
+      background-image: url(
+        {% set charge_state = states('binary_sensor.pom_charging') | lower | trim %}
+        {% set charger_power = states('sensor.pom_charger_power') | float(0) %}
+        {% set shift_state = states('sensor.tesla_shift_state_memory') | lower | trim %}
+        {% set speed_value = states('sensor.tesla_speed') | float(0) %}
+        {% set is_charging = charger_power > 0.1 or charge_state in ['on', 'true', 'charging', 'charging_ac', 'charging_dc', 'supercharging', 'fast_charging'] %}
+        {% set is_drive_gear = shift_state in ['d', 'drive', 'driving', 'r', 'reverse'] %}
+        {% set is_park_gear = shift_state in ['p', 'park', 'parked', 'parking'] %}
+        {% if is_charging %}
+          '/local/png/tesla/teslacharging.gif'
+        {% elif is_drive_gear %}
+          '/local/png/tesla/tesladriving.gif'
+        {% elif is_park_gear or speed_value <= 0 %}
+          '/local/png/tesla.png'
+        {% else %}
+          '/local/png/tesla.png'
+        {% endif %}
+      );
+      background-size: cover;
+      background-position: center center;
+      background-repeat: no-repeat;
+      transform: scale(1.00);
+      position: relative;
+      overflow: hidden !important;
+      border-radius: 0 !important;
+      border: 0 !important;
+      box-shadow: none !important;
+      width: 100vw !important;
+      height: 100vh !important;
+      margin: 0 !important;
+      padding: 0 !important;
+    }
+
+    ha-card::before {
+      content: "";
+      position: absolute;
+      inset: -5%;
+      z-index: 0;
+    }
+
+    ha-card::after {
+      content: "";
+      position: absolute;
+      inset: 0;
+      background: rgba(0,0,0,0.45);
+      z-index: 1;
+    }
+
+    ha-card > * {
+      position: relative;
+      z-index: 2;
+    }
+card:
+  type: vertical-stack
+  cards:
+    # POM_DASHBOARD_APP_SWITCHER Tesla -> Drive
+    - type: custom:button-card
+      show_icon: false
+      show_name: false
+      show_state: false
+      tap_action:
+        action: none
+      styles:
+        card:
+          - display: none
+          - width: 0
+          - height: 0
+          - padding: 0
+          - margin: 0
+          - overflow: hidden
+      custom_fields:
+        controller: |
+          [[[
+            const cfg = { active: 'TESLA', target: '/pom-drive-dashboard/drive' };
+            window.__pomTeslaAppSwitcherConfig = cfg;
+
+            const hideDriveTopChrome = () => {
+              try {
+                const path = window.location.pathname || '';
+                const onDrive = path.endsWith('/pom-drive-dashboard/drive') || path === '/pom-drive-dashboard/drive';
+                const fullscreenWanted = window.localStorage.getItem('pomTeslaDashboardFullscreen') === 'on';
+                if (!onDrive || !fullscreenWanted) return;
+                const roots = [];
+                const seen = new Set();
+                const collect = (root, depth = 0) => {
+                  if (!root || depth > 7 || seen.has(root)) return;
+                  seen.add(root); roots.push(root);
+                  let nodes = [];
+                  try { nodes = root.querySelectorAll ? root.querySelectorAll('*') : []; } catch(e) { nodes = []; }
+                  nodes.forEach((node) => { if (node.shadowRoot) collect(node.shadowRoot, depth + 1); });
+                };
+                collect(document, 0);
+                const vw = Math.max(document.documentElement?.clientWidth || 0, window.innerWidth || 0);
+                const isSwitcher = (el) => Boolean(el && (el.id === 'pom-tesla-app-switcher' || el.closest?.('#pom-tesla-app-switcher')));
+                const hide = (el) => {
+                  if (!el || isSwitcher(el)) return;
+                  try {
+                    el.style.setProperty('display', 'none', 'important');
+                    el.style.setProperty('visibility', 'hidden', 'important');
+                    el.style.setProperty('pointer-events', 'none', 'important');
+                  } catch(e) {}
+                };
+                const isTopRight = (el) => {
+                  try {
+                    if (!el || isSwitcher(el)) return false;
+                    const r = el.getBoundingClientRect();
+                    return r && r.width > 0 && r.height > 0 && r.top <= 112 && r.bottom <= 156 && r.right >= (vw - 360) && r.width <= 360 && r.height <= 96;
+                  } catch(e) { return false; }
+                };
+                const looksChrome = (el) => {
+                  const tag = String(el.localName || el.tagName || '').toLowerCase();
+                  const txt = String(el.textContent || '').trim().toLowerCase();
+                  return tag.includes('icon-button') || tag.includes('ha-button') || tag.includes('mwc-button') || tag.includes('paper-icon') || tag === 'ha-assist-chip' || txt.includes('updated just now') || txt.includes('update now') || txt.includes('just now') || txt === 'refresh' || txt === 'update';
+                };
+                roots.forEach((root) => {
+                  ['app-header','app-toolbar','ha-top-app-bar-fixed','ha-top-app-bar','ha-header-bar','.toolbar[slot="toolbar"]','[slot="toolbar"]','.top-app-bar'].forEach((sel) => { try { root.querySelectorAll(sel).forEach(hide); } catch(e) {} });
+                  try { root.querySelectorAll('*').forEach((el) => { if (isTopRight(el) && looksChrome(el)) hide(el); }); } catch(e) {}
+                });
+              } catch(e) {}
+            };
+            const dashPaths = ['/tesla-dashboard/tesla', '/pom-drive-dashboard/drive'];
+            const makeSwitcher = () => {
+              const path = window.location.pathname || '';
+              const onDashboard = dashPaths.some((p) => path.endsWith(p) || path === p);
+              let el = document.getElementById('pom-tesla-app-switcher');
+              if (!onDashboard) { if (el) el.remove(); return; }
+              if (!el) {
+                el = document.createElement('button');
+                el.id = 'pom-tesla-app-switcher';
+                el.type = 'button';
+                el.setAttribute('aria-label', 'Switch Tesla / Drive dashboard');
+                document.body.appendChild(el);
+              }
+              const cfgNow = window.__pomTeslaAppSwitcherConfig || cfg;
+              const active = cfgNow.active === 'DRIVE' ? 'DRIVE' : 'TESLA';
+              el.innerHTML = `<span class="${active === 'TESLA' ? 'active' : ''}">TESLA</span><span class="${active === 'DRIVE' ? 'active' : ''}">DRIVE</span>`;
+              el.style.cssText = [
+                'position:fixed!important','top:14px!important','right:18px!important',
+                'width:176px!important','height:40px!important','z-index:2147483000!important',
+                'display:grid!important','grid-template-columns:1fr 1fr!important','align-items:center!important',
+                'gap:3px!important','padding:4px!important','box-sizing:border-box!important',
+                'border-radius:999px!important','border:1px solid rgba(255,255,255,.22)!important',
+                'background:rgba(5,10,18,.70)!important','box-shadow:0 10px 30px rgba(0,0,0,.42)!important',
+                'backdrop-filter:blur(12px) saturate(150%)!important','-webkit-backdrop-filter:blur(12px) saturate(150%)!important',
+                'font-family:Inter,Roboto,Arial,sans-serif!important','font-size:11px!important','font-weight:900!important',
+                'letter-spacing:.6px!important','line-height:1!important','color:rgba(255,255,255,.72)!important',
+                'cursor:pointer!important','pointer-events:auto!important','overflow:hidden!important'
+              ].join(';') + ';';
+              Array.from(el.children).forEach((child) => {
+                child.style.cssText = 'height:100%!important;display:flex!important;align-items:center!important;justify-content:center!important;border-radius:999px!important;white-space:nowrap!important;overflow:hidden!important;text-overflow:clip!important;min-width:0!important;';
+                if (child.classList.contains('active')) {
+                  child.style.cssText += 'color:#06101f!important;background:linear-gradient(135deg,#79bdff,#2f8cff)!important;box-shadow:0 0 18px rgba(47,140,255,.48)!important;';
+                }
+              });
+              el.onclick = (ev) => {
+                ev.preventDefault(); ev.stopPropagation();
+                const cfgNow = window.__pomTeslaAppSwitcherConfig || cfg;
+                const target = cfgNow.target;
+                try {
+                  window.history.pushState(null, '', target);
+                  window.dispatchEvent(new CustomEvent('location-changed', { detail: { replace: true } }));
+                  setTimeout(() => { if ((window.location.pathname || '') !== target) window.location.assign(target); }, 250);
+                } catch(e) { window.location.assign(target); }
+              };
+            };
+            makeSwitcher();
+            hideDriveTopChrome();
+            if (!window.__pomTeslaAppSwitcherTimer) {
+              window.__pomTeslaAppSwitcherTimer = window.setInterval(() => {
+                try {
+                  makeSwitcher();
+                } catch(e) {}
+              }, 1200);
+            }
+            return '';
+          ]]]
+
+    # POM_YOUTUBE_DRIVING_BACKGROUND
+    - type: horizontal-stack
+      cards:
+        - type: custom:mod-card
+          card_mod:
+            style: |
+              ha-card {
+                background: transparent !important;
+                box-shadow: none !important;
+                border: none !important;
+                padding: 0 !important;
+                margin: 0 auto !important;
+                z-index: 2 !important;
+                position: relative !important;
+                width: fit-content !important;
+                max-width: 100% !important;
+              }
+
+              :host {
+                margin-top: 80px !important;
+                display: flex !important;
+                justify-content: center !important;
+                align-items: center !important;
+                width: fit-content !important;
+                max-width: fit-content !important;
+                margin-left: auto !important;
+                margin-right: auto !important;
+                position: relative !important;
+                z-index: 2 !important;
+              }
+              @media (min-width: 1400px) {
+                ha-card {
+                  transform: translateY(20%) scale(2.10) !important;
+                  transform-origin: center center !important;
+                }
+              }
+              @media (max-width: 1399px) {
+                ha-card {
+                  transform: translateY(10%) scale(1.25) !important;
+                  transform-origin: left center !important;
+                }
+              }
+          card:
+            type: horizontal-stack
+            cards:
+              # POM_BLOCK_START top_left
+              - type: custom:button-card
+                entity: sensor.tesla_power
+                show_icon: false
+                show_name: false
+                show_state: false
+                tap_action:
+                  action: none
+                custom_fields:
+                  info: |
+                    [[[
+                      const energy = Number(states['sensor.tesla_elevation']?.state);
+                      const elevation = Number(states['sensor.tesla_power']?.state);
+
+                      const energyText = isNaN(energy) ? '-' : `${energy.toFixed(1)} M`;
+                      const elevationText = isNaN(elevation) ? '-' : `${elevation.toFixed(1)}kW`;
+
+                      return `
+                        <div class="left-wrap">
+                          <div class="label">EĞİM</div>
+                          <div class="value">${energyText}</div>
+
+                          <div class="label second">POWER</div>
+                          <div class="value small">${elevationText}</div>
+                        </div>
+                      `;
+                    ]]]
+                styles:
+                  card:
+                    - height: 230px
+                    - width: 250px
+                    - background: transparent
+                    - box-shadow: none
+                    - border: 0
+                    - padding: 0
+                  grid:
+                    - grid-template-areas: "\"info\""
+                    - grid-template-columns: 1fr
+                    - grid-template-rows: 1fr
+                  custom_fields:
+                    info:
+                      - align-self: center
+                      - justify-self: end
+                      - text-align: right
+                      - padding-right: 22px
+                card_mod:
+                  style: |
+                    .left-wrap {
+                      line-height: 1.05;
+                      font-family: inherit;
+                    }
+
+                    .label {
+                      color: rgba(255,255,255,0.28);
+                      font-size: 17px;
+                      font-weight: 500;
+                      letter-spacing: 1.2px;
+                    }
+
+                    .label.second {
+                      margin-top: 14px;
+                    }
+
+                    .value {
+                      color: rgba(255,255,255,0.78);
+                      font-size: 26px;
+                      font-weight: 800;
+                      letter-spacing: -0.5px;
+                    }
+
+                    .value.small {
+                      font-size: 26px;
+                    }
+              # POM_BLOCK_END top_left
+              # POM_BLOCK_START top_center
+              - type: custom:button-card
+                entity: sensor.tesla_speed
+                tap_action:
+                  action: call-service
+                  service: input_boolean.toggle
+                  target:
+                    entity_id: input_boolean.tesla_map
+                show_name: false
+                show_icon: false
+                show_state: false
+                styles:
+                  card:
+                    - width: 180px
+                    - height: 180px
+                    - border-radius: 50%
+                    - padding: 0
+                    - border: none
+                    - background: |
+                        [[[
+                          const v = Number(entity?.state) || 0;
+                          const pct = Math.min(v / 180, 1);
+                          const deg = pct * 360;
+                          const color = v < 50 ? '#60a5fa' : v < 100 ? '#fbbf24' : '#f87171';
+                          return `conic-gradient(
+                            ${color} ${deg}deg,
+                            rgba(255,255,255,0.06) ${deg}deg
+                          )`;
+                        ]]]
+                    - box-shadow: |
+                        [[[ 
+                          const v = Number(entity?.state) || 0;
+                          const glow = v < 50
+                            ? '0 0 25px rgba(96,165,250,0.35)'
+                            : v < 100
+                            ? '0 0 25px rgba(251,191,36,0.35)'
+                            : '0 0 25px rgba(248,113,113,0.35)';
+                          return glow;
+                        ]]]
+                  custom_fields:
+                    inner:
+                      - position: absolute
+                      - inset: 18px
+                      - border-radius: 50%
+                      - background: rgba(8,8,8,0.88)
+                      - border: 1px solid rgba(255,255,255,0.06)
+                      - display: flex
+                      - align-items: center
+                      - justify-content: center
+                      - flex-direction: column
+                custom_fields:
+                  inner: |
+                    [[[
+                      const v = Math.round(Number(entity?.state) || 0);
+                      return `
+                        <div style="font-size:62px;font-weight:700;line-height:1;color:white;">${v}</div>
+                        <div style="font-size:13px;opacity:0.65;color:white;letter-spacing:1.5px;">SPEED</div>
+                      `;
+                    ]]]
+                card_mod:
+                  style: |
+                    ha-card {
+                      z-index: 2 !important;  
+                      
+                    }
+                    :host {
+                      margin-top: 20px !important;  
+              # POM_BLOCK_END top_center
+              # POM_BLOCK_START top_right
+              - type: custom:button-card
+                entity: sensor.tesla_battery_level
+                show_icon: false
+                show_name: false
+                show_state: false
+                tap_action:
+                  action: call-service
+                  service: input_boolean.toggle
+                  target:
+                    entity_id: input_boolean.tablet_kapi_ana_sayfa_secret_menu
+                custom_fields:
+                  info: |
+                    [[[
+                      const battery = Number(states['sensor.tesla_battery_level']?.state);
+                      const range = Number(states['sensor.tesla_est_range']?.state);
+
+                      const batteryText = isNaN(battery) ? '-' : `${Math.round(battery)}%`;
+                      const rangeText = isNaN(range) ? '-' : `${range.toFixed(1)} km`;
+
+                      return `
+                        <div class="right-wrap">
+                          <div class="label">BATARYA</div>
+                          <div class="battery">${batteryText}</div>
+                          <div class="range">${rangeText}</div>
+                        </div>
+                      `;
+                    ]]]
+                styles:
+                  card:
+                    - height: 230px
+                    - width: 260px
+                    - background: transparent
+                    - box-shadow: none
+                    - border: 0
+                    - padding: 0
+                  grid:
+                    - grid-template-areas: "\"info\""
+                    - grid-template-columns: 1fr
+                    - grid-template-rows: 1fr
+                  custom_fields:
+                    info:
+                      - align-self: center
+                      - justify-self: start
+                      - text-align: left
+                      - padding-left: 28px
+                card_mod:
+                  style: |
+                    .right-wrap {
+                      line-height: 1.05;
+                      font-family: inherit;
+                    }
+
+                    .label {
+                      color: rgba(255,255,255,0.28);
+                      font-size: 17px;
+                      font-weight: 500;
+                      letter-spacing: 1.2px;
+                    }
+
+                    .battery {
+                      color: white;
+                      font-size: 52px;
+                      font-weight: 900;
+                      letter-spacing: -1.8px;
+                      line-height: 0.95;
+                    }
+
+                    .range {
+                      color: #18af85;
+                      font-size: 20px;
+                      font-weight: 500;
+                      margin-top: 8px;
+                    }
+              # POM_BLOCK_END top_right
+    - type: custom:mod-card
+      card_mod:
+        style: |
+          ha-card {
+            height: 100vh !important;
+            min-height: 100vh !important;
+            margin-top: -325px !important;
+            background: transparent !important;
+            box-shadow: none !important;        
+            border: 0 !important;
+            border-radius: 0 !important;
+            overflow: hidden !important;
+            position: relative !important;
+          }
+      card:
+        type: conditional
+        conditions:
+          - entity: input_boolean.tesla_map
+            state: "on"
+        card:
+          type: custom:mod-card
+          card_mod:
+            style: |
+              ha-card {
+                position: relative !important;
+                width: 100% !important;
+                height: 100vh !important;
+                min-height: 100vh !important;
+                margin: 0 !important;
+                padding: 0 !important;
+                background: transparent !important;
+                box-shadow: none !important;
+                border: 0 !important;
+                border-radius: 0 !important;
+                overflow: hidden !important;
+              }
+          card:
+            type: vertical-stack
+            cards:
+              - type: custom:mod-card
+                card_mod:
+                  style: |
+                    :host {
+                      position: absolute !important;
+                      inset: 0 !important;
+                      width: 100% !important;
+                      height: 100% !important;
+                      {% if is_state('input_boolean.tesla_person_cards_on_map', 'off') %}
+                        visibility: visible !important;
+                        opacity: 1 !important;
+                        pointer-events: auto !important;
+                      {% else %}
+                        visibility: hidden !important;
+                        opacity: 0 !important;
+                        pointer-events: none !important;
+                      {% endif %}
+
+                      transition: opacity 0.2s ease-in-out;
+                    }
+
+                    ha-card {
+                      position: relative !important;
+                      width: 100% !important;
+                      height: 100% !important;
+                      margin: 0 !important;
+                      padding: 0 !important;
+                      background: transparent !important;
+                      box-shadow: none !important;
+                      border: 0 !important;
+                      border-radius: 0 !important;
+                      overflow: hidden !important;
+                    }
+                card:
+                  type: map
+                  entities:
+                    - entity: person.tesla
+                  hours_to_show: 1
+                  aspect_ratio: "16:9"
+                  theme_mode: auto
+                  auto_fit: true
+                  cluster: false
+                  card_mod:
+                    style:
+                      ha-map $ ha-entity-marker $: |
+                        .marker {
+                          border: 0 !important;
+                          box-shadow: none !important;
+                          border-radius: 50% 50% 50% 0 !important;
+                          transform: rotate(-45deg) translate(50%, -50%);
+                          overflow: visible !important;
+                          background: var(--state-person) !important;
+                        }
+
+                        .entity-picture {
+                          transform: rotate(45deg);
+                          border-radius: 50%;
+                          border: 0 !important;
+                          box-shadow: none !important;
+                        }
+                      ha-map $: |
+                        .leaflet-container {
+                          border-radius: 0 !important;
+                          overflow: hidden !important;
+                          width: 100% !important;
+                          height: 100% !important;
+                          background: transparent !important;
+                        }
+
+                        .leaflet-control-attribution,
+                        .leaflet-control-zoom,
+                        .leaflet-top,
+                        .leaflet-bottom {
+                          display: none !important;
+                        }
+                        ha-icon-button {
+                          position: absolute !important;
+                          left: 110px !important;
+                          bottom: 120px !important;
+                          z-index: 3 !important;
+                          display: flex !important;
+                          pointer-events: auto !important;
+                          color: white !important;
+                          background: rgba(8,10,18,0.88) !important;
+                          border-radius: 50% !important;
+                          border: 1px solid rgba(255,255,255,0.12) !important;
+                          box-shadow: 0 8px 24px rgba(0,0,0,0.35) !important;
+                        }
+                        .leaflet-container:after {
+                          display: none !important;
+                          content: none !important;
+                        }
+
+                        path {
+                          stroke: var(--state-person) !important;
+                          fill: none !important;
+                          stroke-width: 3px !important;
+                          opacity: 0.65 !important;
+                        }
+                      .: |
+                        :host {
+                          display: block !important;
+                          position: relative !important;
+                          z-index: 0 !important;
+                          height: 100%;
+                          {% if is_state('input_boolean.tesla_interactive_map', 'on') %}
+                            pointer-events: none !important;
+                          {% else %}
+                            pointer-events: auto !important;
+                          {% endif %}
+
+                          --state-person-home: var(--green-color);
+                          --state-person-not-home: var(--red-color);
+                          --state-person-zone: var(--blue-color);
+                          --state-person-unknown: var(--grey-color);
+
+                          --state-person:
+                          {% if is_state(config.entities[0].entity, 'home') %}
+                            var(--state-person-home)
+                          {% elif is_state(config.entities[0].entity, 'not_home') %}
+                            var(--state-person-not-home)
+                          {% elif is_state(config.entities[0].entity, 'unknown') %}
+                            var(--state-person-unknown)
+                          {% else %}
+                            var(--state-person-zone)
+                          {% endif %};
+                        }
+
+                        ha-card {
+                          {% if is_state('input_boolean.tesla_interactive_map', 'on') %}
+                            pointer-events: none !important;
+                            opacity: 0.48 !important;
+                            filter: saturate(0.88) brightness(0.90) !important;
+                          {% else %}
+                            pointer-events: auto !important;
+                            opacity: 1 !important;
+                            filter: none !important;
+                          {% endif %}
+                          position: relative !important;
+                          width: 100% !important;
+                          height: 100% !important;
+                          min-height: 100vh !important;
+                          margin: 0 !important;
+                          padding: 0 !important;
+                          border: 0 !important;
+                          border-radius: 0 !important;
+                          box-shadow: none !important;
+                          background: transparent !important;
+                          overflow: hidden !important;
+                        }
+
+                        ha-map {
+                          {% if is_state('input_boolean.tesla_interactive_map', 'on') %}
+                            pointer-events: none !important;
+                          {% else %}
+                            pointer-events: auto !important;
+                          {% endif %}
+                          display: block !important;
+                          width: 100% !important;
+                          height: 100% !important;
+                          min-height: 100vh !important;
+                          border-radius: 0 !important;
+                          overflow: hidden !important;
+                        }
+              - type: custom:mod-card
+                card_mod:
+                  style: |
+                    :host {
+                      position: absolute !important;
+                      inset: 0 !important;
+                      width: 100% !important;
+                      height: 100% !important;
+
+                      {% if is_state('input_boolean.tesla_person_cards_on_map', 'on') %}
+                        visibility: visible !important;
+                        opacity: 1 !important;
+                        pointer-events: auto !important;
+                      {% else %}
+                        visibility: hidden !important;
+                        opacity: 0 !important;
+                        pointer-events: none !important;
+                      {% endif %}
+
+                      transition: opacity 0.2s ease-in-out;
+                    }
+
+                    ha-card {
+                      position: relative !important;
+                      width: 100% !important;
+                      height: 100% !important;
+                      margin: 0 !important;
+                      padding: 0 !important;
+                      background: transparent !important;
+                      box-shadow: none !important;
+                      border: 0 !important;
+                      border-radius: 0 !important;
+                      overflow: hidden !important;
+                    }
+                card:
+                  type: map
+                  entities:
+                    - entity: person.tesla
+                    - entity: person.ali
+                    - entity: person.cavidan
+                  hours_to_show: 0
+                  default_zoom: 14
+                  aspect_ratio: "16:9"
+                  theme_mode: auto
+                  auto_fit: true
+                  cluster: false
+                  card_mod:
+                    style:
+                      ha-map $ ha-entity-marker $: |
+                        .marker {
+                          border: 0 !important;
+                          box-shadow: none !important;
+                          border-radius: 50% 50% 50% 0 !important;
+                          transform: rotate(-45deg) translate(50%, -50%);
+                          overflow: visible !important;
+                          background: var(--state-person) !important;
+                        }
+
+                        .entity-picture {
+                          transform: rotate(45deg);
+                          border-radius: 50%;
+                          border: 0 !important;
+                          box-shadow: none !important;
+                        }
+                      ha-map $: |
+                        .leaflet-container {
+                          border-radius: 0 !important;
+                          overflow: hidden !important;
+                          width: 100% !important;
+                          height: 100% !important;
+                          background: transparent !important;
+                        }
+
+                        .leaflet-control-attribution,
+                        .leaflet-control-zoom,
+                        .leaflet-top,
+                        .leaflet-bottom,
+                        ha-icon-button {
+                          display: none !important;
+                        }
+
+                        .leaflet-container:after {
+                          display: none !important;
+                          content: none !important;
+                        }
+
+                        path {
+                          stroke: var(--state-person) !important;
+                          fill: none !important;
+                          stroke-width: 3px !important;
+                          opacity: 0.75 !important;
+                        }
+                      .: |
+                        :host {
+                          display: block !important;
+                          position: relative !important;
+                          z-index: 0 !important;
+                          height: 100%;
+                          {% if is_state('input_boolean.tesla_interactive_map', 'on') %}
+                            pointer-events: none !important;
+                          {% else %}
+                            pointer-events: auto !important;
+                          {% endif %}
+
+                          --state-person-home: var(--green-color);
+                          --state-person-not-home: var(--red-color);
+                          --state-person-zone: var(--blue-color);
+                          --state-person-unknown: var(--grey-color);
+
+                          --state-person:
+                          {% if is_state(config.entities[0].entity, 'home') %}
+                            var(--state-person-home)
+                          {% elif is_state(config.entities[0].entity, 'not_home') %}
+                            var(--state-person-not-home)
+                          {% elif is_state(config.entities[0].entity, 'unknown') %}
+                            var(--state-person-unknown)
+                          {% else %}
+                            var(--state-person-zone)
+                          {% endif %};
+                        }
+
+                        ha-card {
+                          {% if is_state('input_boolean.tesla_interactive_map', 'on') %}
+                            pointer-events: none !important;
+                            opacity: 0.48 !important;
+                            filter: saturate(0.88) brightness(0.90) !important;
+                          {% else %}
+                            pointer-events: auto !important;
+                            opacity: 1 !important;
+                            filter: none !important;
+                          {% endif %}
+                          position: relative !important;
+                          width: 100% !important;
+                          height: 100% !important;
+                          min-height: 100vh !important;
+                          margin: 0 !important;
+                          padding: 0 !important;
+                          border: 0 !important;
+                          border-radius: 0 !important;
+                          box-shadow: none !important;
+                          background: transparent !important;
+                          overflow: hidden !important;
+                        }
+
+                        ha-map {
+                          {% if is_state('input_boolean.tesla_interactive_map', 'on') %}
+                            pointer-events: none !important;
+                          {% else %}
+                            pointer-events: auto !important;
+                          {% endif %}
+                          display: block !important;
+                          width: 100% !important;
+                          height: 100% !important;
+                          min-height: 100vh !important;
+                          border-radius: 0 !important;
+                          overflow: hidden !important;
+                        }
+    - type: conditional
+      conditions:
+        - entity: input_boolean.tesla_controls
+          state: "off"
+      card:
+        type: custom:mod-card
+        card_mod:
+          style: |
+            :host {
+              /*
+                Varsayılan / PC ayarı
+                Ölçülen Tesla değerleri:
+                - Park / tam ekran: 1920 x 1079
+                - Sürüşte küçük ekran: 1180 x 919
+              */
+
+              --trip-card-max-width: 1120px;
+              --trip-card-gap: 96px;
+              --trip-card-bottom: 118px;
+              --trip-card-scale: 1;
+
+              position: fixed !important;
+              left: 50% !important;
+              bottom: var(--trip-card-bottom) !important;
+              transform: translateX(-50%) !important;
+
+              width: min(var(--trip-card-max-width), calc(100vw - var(--trip-card-gap))) !important;
+              max-width: var(--trip-card-max-width) !important;
+
+              margin: 0 !important;
+              z-index: 18 !important;
+              pointer-events: auto !important;
+              display: block !important;
+            }
+
+            ha-card {
+              width: 100% !important;
+              max-width: 100% !important;
+
+              background: transparent !important;
+              box-shadow: none !important;
+              border: 0 !important;
+              padding: 0 !important;
+              margin: 0 auto !important;
+              overflow: visible !important;
+
+              transform-origin: bottom center !important;
+              transform: scale(var(--trip-card-scale)) !important;
+            }
+
+            /*
+              Tesla park halinde / büyük browser ekranı
+              Ölçüm: 1920 x 1079
+            */
+            @media (min-width: 1600px) and (min-height: 950px) {
+              :host {
+                --trip-card-max-width: 1120px;
+                --trip-card-gap: 180px;
+                --trip-card-bottom: 112px;
+                --trip-card-scale: 1.05;
+              }
+            }
+
+            /*
+              Tesla sürüş ekranı / browser küçülmüş hali
+              Ölçüm: 1180 x 919
+              Kritik bölüm burası.
+            */
+            @media (max-width: 1300px) and (min-height: 800px) {
+              :host {
+                --trip-card-max-width: 1040px;
+                --trip-card-gap: 72px;
+                --trip-card-bottom: 82px;
+                --trip-card-scale: 0.92;
+              }
+            }
+
+            /*
+              Daha basık yatay tablet / düşük yükseklikli ekranlar
+            */
+            @media (max-width: 1300px) and (max-height: 800px) {
+              :host {
+                --trip-card-max-width: 980px;
+                --trip-card-gap: 64px;
+                --trip-card-bottom: 78px;
+                --trip-card-scale: 0.76;
+              }
+            }
+
+            /*
+              Telefon / çok dar ekran
+            */
+            @media (max-width: 800px) {
+              :host {
+                --trip-card-max-width: 100vw;
+                --trip-card-gap: 32px;
+                --trip-card-bottom: 88px;
+                --trip-card-scale: 0.72;
+              }
+            }
+        card:
+          type: custom:pom-tesla-trip-report-card
+          live_trip_entity: sensor.pom_live_trip
+    - type: horizontal-stack
+      cards:
+        - type: custom:mod-card
+          card:
+            type: horizontal-stack
+            cards:
+              # POM_BLOCK_START bottom_range
+              - type: custom:button-card
+                entity: sensor.tesla_rated_range
+                show_icon: true
+                show_name: false
+                show_state: false
+                icon: mdi:map-marker-distance
+                custom_fields:
+                  value: |
+                    [[[
+                      const v = Number(entity?.state);
+                      return isNaN(v) ? "-" : `${Math.round(v)} km`;
+                    ]]]
+                styles:
+                  card:
+                    - height: 42px
+                    - width: fit-content
+                    - min-width: 128px
+                    - padding: 0 18px
+                    - border-radius: 24px
+                    - background: rgba(0,115,85,0.78)
+                    - box-shadow: none
+                    - border: 0
+                  grid:
+                    - grid-template-areas: "\"i value\""
+                    - grid-template-columns: min-content max-content
+                    - grid-template-rows: 42px
+                    - column-gap: 9px
+                    - justify-content: center
+                    - align-content: center
+                  img_cell:
+                    - align-self: center
+                    - justify-self: center
+                    - width: 18px
+                    - height: 18px
+                  icon:
+                    - color: "#b8ffe8"
+                    - width: 16px
+                    - height: 16px
+                  custom_fields:
+                    value:
+                      - align-self: center
+                      - justify-self: start
+                      - color: "#ffffff"
+                      - font-size: 16px
+                      - font-weight: 800
+                      - white-space: nowrap
+                tap_action:
+                  action: none
+              # POM_BLOCK_END bottom_range
+              # POM_BLOCK_START bottom_energy
+              - type: custom:button-card
+                entity: sensor.pom_energy_remaining
+                show_icon: true
+                show_name: false
+                show_state: false
+                icon: mdi:flash
+                custom_fields:
+                  value: |
+                    [[[
+                      const v = Number(entity?.state);
+                      return isNaN(v) ? "-" : `${v.toFixed(1)} kWh`;
+                    ]]]
+                styles:
+                  card:
+                    - height: 42px
+                    - width: fit-content
+                    - padding: 0 18px
+                    - background: transparent
+                    - box-shadow: none
+                    - border-radius: 0
+                    - border-left: 1px solid rgba(255,255,255,0.14)
+                    - border-right: 0
+                  grid:
+                    - grid-template-areas: "\"i value\""
+                    - grid-template-columns: min-content max-content
+                    - grid-template-rows: 42px
+                    - column-gap: 9px
+                    - justify-content: center
+                    - align-content: center
+                  img_cell:
+                    - align-self: center
+                    - justify-self: center
+                    - width: 18px
+                    - height: 18px
+                  icon:
+                    - color: |
+                        [[[
+                          const kwh = Number(entity?.state) || 0;
+                          const pct = (kwh / 54.5) * 100;
+                          if (pct > 60) return "#50f5cf";
+                          if (pct > 30) return "#facc15";
+                          return "#ff6b6b";
+                        ]]]
+                    - width: 15px
+                    - height: 15px
+                  custom_fields:
+                    value:
+                      - align-self: center
+                      - justify-self: start
+                      - color: rgba(255,255,255,0.78)
+                      - font-size: 16px
+                      - font-weight: 800
+                      - white-space: nowrap
+                tap_action:
+                  action: none
+              # POM_BLOCK_END bottom_energy
+              # POM_BLOCK_START bottom_inside_temp
+              - type: custom:button-card
+                entity: sensor.tesla_inside_temp
+                show_icon: true
+                show_name: false
+                show_state: false
+                icon: mdi:clock-outline
+                custom_fields:
+                  value: |
+                    [[[
+                      const v = Number(entity?.state);
+                      return isNaN(v) ? "-" : `${v.toFixed(1)}°`;
+                    ]]]
+                styles:
+                  card:
+                    - height: 42px
+                    - width: fit-content
+                    - padding: 0 18px
+                    - background: transparent
+                    - box-shadow: none
+                    - border-radius: 0
+                  grid:
+                    - grid-template-areas: "\"i value\""
+                    - grid-template-columns: min-content max-content
+                    - grid-template-rows: 42px
+                    - column-gap: 9px
+                    - justify-content: center
+                    - align-content: center
+                  img_cell:
+                    - align-self: center
+                    - justify-self: center
+                    - width: 18px
+                    - height: 18px
+                  icon:
+                    - color: |
+                        [[[
+                          const t = Number(entity?.state) || 0;
+                          if (t < 18) return "#63a8ff";
+                          if (t < 26) return "#4ade80";
+                          if (t < 32) return "#facc15";
+                          return "#ff6b6b";
+                        ]]]
+                    - width: 16px
+                    - height: 16px
+                  custom_fields:
+                    value:
+                      - align-self: center
+                      - justify-self: start
+                      - color: rgba(255,255,255,0.78)
+                      - font-size: 16px
+                      - font-weight: 800
+                      - white-space: nowrap
+                tap_action:
+                  action: navigate
+                  navigation_path: "#teslaclimate"
+              # POM_BLOCK_END bottom_inside_temp
+              # POM_BLOCK_START bottom_battery_temp
+              - type: custom:button-card
+                entity: sensor.pom_battery_module_temperature_max
+                show_icon: true
+                show_name: false
+                show_state: false
+                icon: mdi:engine
+                custom_fields:
+                  value: |
+                    [[[
+                      const v = Number(entity?.state);
+                      return isNaN(v) ? "-" : `${v.toFixed(1)} `;
+                    ]]]
+                styles:
+                  card:
+                    - height: 42px
+                    - width: fit-content
+                    - padding: 0 18px
+                    - background: transparent
+                    - box-shadow: none
+                    - border-radius: 0
+                  grid:
+                    - grid-template-areas: "\"i value\""
+                    - grid-template-columns: min-content max-content
+                    - grid-template-rows: 42px
+                    - column-gap: 9px
+                    - justify-content: center
+                    - align-content: center
+                  img_cell:
+                    - align-self: center
+                    - justify-self: center
+                    - width: 18px
+                    - height: 18px
+                  icon:
+                    - color: |
+                        [[[
+                          const t = Number(entity?.state) || 0;
+                          if (t < 20) return "#3b82f6";
+                          if (t < 30) return "#facc15";
+                          if (t < 40) return "#22c55e";
+                          return "#b8a8ff";
+                        ]]]
+                    - width: 16px
+                    - height: 16px
+                  custom_fields:
+                    value:
+                      - align-self: center
+                      - justify-self: start
+                      - color: rgba(255,255,255,0.78)
+                      - font-size: 16px
+                      - font-weight: 800
+                      - white-space: nowrap
+                tap_action:
+                  action: none
+              # POM_BLOCK_END bottom_battery_temp
+              # POM_BLOCK_START bottom_location
+              - type: custom:button-card
+                entity: sensor.pom_tesla_dashboard_location_label
+                show_icon: true
+                show_name: false
+                show_state: false
+                icon: mdi:map-marker-radius-outline
+                custom_fields:
+                  value: |
+                    [[[
+                      const value = entity?.state;
+                      if (!value || value === 'unknown' || value === 'unavailable' || value === 'none') return "-";
+                      return String(value).replace(" Mahallesi", "");
+                    ]]]
+                styles:
+                  card:
+                    - height: 42px
+                    - width: fit-content
+                    - min-width: 132px
+                    - padding: 0 18px
+                    - border-radius: 24px
+                    - background: rgba(33,104,184,0.82)
+                    - box-shadow: none
+                    - border: 0
+                  grid:
+                    - grid-template-areas: "\"i value\""
+                    - grid-template-columns: min-content max-content
+                    - grid-template-rows: 42px
+                    - column-gap: 9px
+                    - justify-content: center
+                    - align-content: center
+                  img_cell:
+                    - align-self: center
+                    - justify-self: center
+                    - width: 18px
+                    - height: 18px
+                  icon:
+                    - color: "#d6eaff"
+                    - width: 16px
+                    - height: 16px
+                  custom_fields:
+                    value:
+                      - align-self: center
+                      - justify-self: start
+                      - color: "#ffffff"
+                      - font-size: 16px
+                      - font-weight: 800
+                      - white-space: nowrap
+                tap_action:
+                  action: call-service
+                  service: homeassistant.toggle
+                  target:
+                    entity_id: switch.pom_tesla_dashboard_address_popup
+              # POM_BLOCK_END bottom_location
+              # POM_BLOCK_START bottom_map_toggle
+              - type: custom:button-card
+                entity: input_boolean.tesla_interactive_map
+                show_icon: true
+                show_name: false
+                show_state: false
+                icon: mdi:map
+                styles:
+                  card:
+                    - height: 42px
+                    - width: 42px
+                    - min-width: 42px
+                    - padding: 0
+                    - border-radius: 21px
+                    - background: transparent
+                    - box-shadow: none
+                    - border: 0
+                  grid:
+                    - grid-template-areas: "\"i\""
+                    - grid-template-columns: 42px
+                    - grid-template-rows: 42px
+                  img_cell:
+                    - align-self: center
+                    - justify-self: center
+                    - width: 42px
+                    - height: 42px
+                    - display: flex
+                    - align-items: center
+                    - justify-content: center
+                  icon:
+                    - color: |
+                        [[[
+                          return entity?.state === 'on' ? "#e66f48" : "rgba(255,255,255,0.78)";
+                        ]]]
+                    - width: 22px
+                    - height: 22px
+                tap_action:
+                  action: call-service
+                  service: input_boolean.toggle
+                  target:
+                    entity_id: input_boolean.tesla_interactive_map
+              # POM_BLOCK_END bottom_map_toggle
+              # POM_BLOCK_START bottom_controls
+              - type: custom:button-card
+                entity: input_boolean.tesla_controls
+                show_icon: true
+                show_name: false
+                show_state: false
+                icon: mdi:tune
+                styles:
+                  card:
+                    - height: 42px
+                    - width: 42px
+                    - min-width: 42px
+                    - padding: 0
+                    - border-radius: 21px
+                    - background: transparent
+                    - box-shadow: none
+                    - border: 0
+                  grid:
+                    - grid-template-areas: "\"i\""
+                    - grid-template-columns: 42px
+                    - grid-template-rows: 42px
+                  img_cell:
+                    - align-self: center
+                    - justify-self: center
+                    - width: 42px
+                    - height: 42px
+                    - display: flex
+                    - align-items: center
+                    - justify-content: center
+                  icon:
+                    - color: |
+                        [[[
+                          return entity?.state === 'on' ? "#e66f48" : "rgba(255,255,255,0.78)";
+                        ]]]
+                    - width: 22px
+                    - height: 22px
+                tap_action:
+                  action: call-service
+                  service: input_boolean.toggle
+                  target:
+                    entity_id: input_boolean.tesla_controls
+              # POM_BLOCK_END bottom_controls
+              # POM_BLOCK_START bottom_person_toggle
+              - type: custom:button-card
+                entity: input_boolean.tesla_person_cards_on_map
+                show_icon: true
+                show_name: false
+                show_state: false
+                icon: mdi:account-convert
+                styles:
+                  card:
+                    - height: 42px
+                    - width: 42px
+                    - min-width: 42px
+                    - padding: 0
+                    - border-radius: 21px
+                    - background: transparent
+                    - box-shadow: none
+                    - border: 0
+                  grid:
+                    - grid-template-areas: "\"i\""
+                    - grid-template-columns: 42px
+                    - grid-template-rows: 42px
+                  img_cell:
+                    - align-self: center
+                    - justify-self: center
+                    - width: 42px
+                    - height: 42px
+                    - display: flex
+                    - align-items: center
+                    - justify-content: center
+                  icon:
+                    - color: |
+                        [[[
+                          return entity?.state === 'on' ? "#e66f48" : "rgba(255,255,255,0.78)";
+                        ]]]
+                    - width: 22px
+                    - height: 22px
+                tap_action:
+                  action: toggle
+              # POM_BLOCK_END bottom_person_toggle
+              # POM_BLOCK_START bottom_charging
+              - type: custom:button-card
+                entity: binary_sensor.pom_charging
+                show_icon: true
+                show_name: false
+                show_state: false
+                icon: mdi:ev-station
+                styles:
+                  card:
+                    - height: 42px
+                    - width: 42px
+                    - min-width: 42px
+                    - padding: 0
+                    - border-radius: 21px
+                    - background: transparent
+                    - box-shadow: none
+                    - border: 0
+                  grid:
+                    - grid-template-areas: "\"i\""
+                    - grid-template-columns: 42px
+                    - grid-template-rows: 42px
+                  img_cell:
+                    - align-self: center
+                    - justify-self: center
+                    - width: 42px
+                    - height: 42px
+                    - display: flex
+                    - align-items: center
+                    - justify-content: center
+                  icon:
+                    - color: |
+                        [[[
+                          return entity?.state === 'on'
+                            ? "#00f5b8"
+                            : "rgba(255,255,255,0.78)";
+                        ]]]
+                    - width: 22px
+                    - height: 22px
+                tap_action:
+                  action: navigate
+                  navigation_path: "#charge"
+              # POM_BLOCK_END bottom_charging
+          card_mod:
+            style: |
+              :host {
+                position: fixed !important;
+                left: 0 !important;
+                right: 0 !important;
+                bottom: 24px !important;
+                width: 100% !important;
+                margin: 0 !important;
+                z-index: 2 !important;
+                pointer-events: auto !important;
+                display: flex !important;
+                justify-content: center !important;
+              }
+
+              ha-card {
+                width: fit-content !important;
+                max-width: calc(100vw - 32px) !important;
+                box-sizing: border-box !important;
+                margin: 0 auto !important;
+                padding: 6px 10px !important;
+                background: rgba(8,10,18,0.88) !important;
+                border: 1px solid rgba(255,255,255,0.10) !important;
+                border-radius: 999px !important;
+                box-shadow:
+                  0 10px 30px rgba(0,0,0,0.42),
+                  inset 0 0 16px rgba(255,255,255,0.04) !important;
+                overflow: hidden !important;
+                backdrop-filter: blur(16px) saturate(150%);
+                -webkit-backdrop-filter: blur(16px) saturate(150%);
+
+                display: flex !important;
+                justify-content: center !important;
+                align-items: center !important;
+                gap: 4px !important;
+                flex-wrap: nowrap !important;
+              }
+              @media (min-width: 1400px) and (min-height: 700px) {
+                :host {
+                  bottom: 34px !important;
+                }
+
+                ha-card {
+                  transform: scale(1.42) !important;
+                  max-width: calc((100vw - 80px) / 1.22) !important;
+                }
+              }
+    - type: conditional
+      conditions:
+        - entity: input_boolean.tesla_controls
+          state: "on"
+      card:
+        type: custom:mod-card
+        card_mod:
+          style: |
+            ha-card {
+              position: fixed !important;
+              left: 24px !important;
+              top: 50% !important;
+              transform: translateY(-50%) !important;
+
+              width: 82px !important;
+              padding: 14px 10px !important;
+              border-radius: 24px !important;
+
+              background: rgba(6, 10, 18, 0.92) !important;
+              border: 1px solid rgba(255,255,255,0.05) !important;
+              box-shadow:
+                0 18px 40px rgba(0,0,0,0.45),
+                inset 0 0 18px rgba(255,255,255,0.025) !important;
+
+              backdrop-filter: blur(16px) saturate(140%);
+              -webkit-backdrop-filter: blur(16px) saturate(140%);
+
+              z-index: 20 !important;
+              display: flex !important;
+              justify-content: center !important;
+              align-items: center !important;
+            }
+            @media (min-width: 1400px) {
+              ha-card {
+                transform: translateY(-50%) scale(1.18) !important;
+                transform-origin: left center !important;
+              }
+            }
+        card:
+          type: vertical-stack
+          cards:
+            # POM_BLOCK_START sidebar_flash_lights
+            - type: custom:button-card
+              entity: button.pom_flash_lights_2
+              icon: mdi:car-light-high
+              show_icon: true
+              show_name: false
+              show_state: false
+              layout: icon
+              styles:
+                card:
+                  - width: 60px
+                  - height: 60px
+                  - padding: 0
+                  - margin: 0 auto 12px auto
+                  - border-radius: 18px
+                  - background: rgba(0,115,85,0.72)
+                  - border: 1px solid rgba(80,255,207,0.85)
+                  - box-shadow: >-
+                      0 0 18px rgba(80,255,207,0.28), inset 0 0 14px
+                      rgba(80,255,207,0.10)
+                grid:
+                  - grid-template-areas: "\"i\""
+                  - grid-template-columns: 1fr
+                  - grid-template-rows: 1fr
+                img_cell:
+                  - width: 100%
+                  - height: 100%
+                  - display: flex
+                  - align-items: center
+                  - justify-content: center
+                icon:
+                  - color: "#b8ffe8"
+                  - width: 34px
+                  - height: 34px
+              state:
+                - value: unavailable
+                  styles:
+                    icon:
+                      - color: rgba(255,255,255,0.22)
+              tap_action:
+                action: call-service
+                service: button.press
+                target:
+                  entity_id: button.pom_flash_lights
+            # POM_BLOCK_END sidebar_flash_lights
+            # POM_BLOCK_START sidebar_sentry
+            - type: custom:button-card
+              entity: switch.pom_sentry_mode_2
+              icon: mdi:record-circle-outline
+              show_icon: true
+              show_name: false
+              show_state: false
+              layout: icon
+              styles:
+                card:
+                  - width: 60px
+                  - height: 60px
+                  - padding: 0
+                  - margin: 0 auto 12px auto
+                  - border-radius: 18px
+                  - background: |
+                      [[[
+                        return entity?.state === 'on'
+                          ? "rgba(15, 40, 72, 0.72)"
+                          : "transparent";
+                      ]]]
+                  - border: |
+                      [[[
+                        return entity?.state === 'on'
+                          ? "1px solid rgba(0,145,255,0.95)"
+                          : "1px solid transparent";
+                      ]]]
+                  - box-shadow: |
+                      [[[
+                        return entity?.state === 'on'
+                          ? "0 0 18px rgba(0,145,255,0.28), inset 0 0 14px rgba(0,145,255,0.10)"
+                          : "none";
+                      ]]]
+                grid:
+                  - grid-template-areas: "\"i\""
+                  - grid-template-columns: 1fr
+                  - grid-template-rows: 1fr
+                img_cell:
+                  - width: 100%
+                  - height: 100%
+                  - display: flex
+                  - align-items: center
+                  - justify-content: center
+                icon:
+                  - color: |
+                      [[[
+                        return entity?.state === 'on'
+                          ? "#5bbcff"
+                          : "rgba(255,255,255,0.42)";
+                      ]]]
+                  - width: 28px
+                  - height: 28px
+              tap_action:
+                action: toggle
+            # POM_BLOCK_END sidebar_sentry
+            # POM_BLOCK_START sidebar_honk
+            - type: custom:button-card
+              entity: button.pom_honk_horn_2
+              icon: mdi:bullhorn-outline
+              show_icon: true
+              show_name: false
+              show_state: false
+              layout: icon
+              styles:
+                card:
+                  - width: 60px
+                  - height: 60px
+                  - padding: 0
+                  - margin: 0 auto 12px auto
+                  - border-radius: 18px
+                  - background: transparent
+                  - box-shadow: none
+                  - border: 1px solid transparent
+                grid:
+                  - grid-template-areas: "\"i\""
+                  - grid-template-columns: 1fr
+                  - grid-template-rows: 1fr
+                img_cell:
+                  - width: 100%
+                  - height: 100%
+                  - display: flex
+                  - align-items: center
+                  - justify-content: center
+                icon:
+                  - color: rgba(255,255,255,0.42)
+                  - width: 28px
+                  - height: 28px
+              state:
+                - value: unavailable
+                  styles:
+                    icon:
+                      - color: rgba(255,255,255,0.22)
+              tap_action:
+                action: call-service
+                service: button.press
+                target:
+                  entity_id: button.pom_honk_horn
+            # POM_BLOCK_END sidebar_honk
+            # POM_BLOCK_START sidebar_fart
+            - type: custom:button-card
+              entity: button.pom_play_fart_2
+              icon: mdi:emoticon-poop-outline
+              show_icon: true
+              show_name: false
+              show_state: false
+              layout: icon
+              styles:
+                card:
+                  - width: 60px
+                  - height: 60px
+                  - padding: 0
+                  - margin: 0 auto 12px auto
+                  - border-radius: 18px
+                  - background: transparent
+                  - box-shadow: none
+                  - border: 1px solid transparent
+                grid:
+                  - grid-template-areas: "\"i\""
+                  - grid-template-columns: 1fr
+                  - grid-template-rows: 1fr
+                img_cell:
+                  - width: 100%
+                  - height: 100%
+                  - display: flex
+                  - align-items: center
+                  - justify-content: center
+                icon:
+                  - color: rgba(255,255,255,0.42)
+                  - width: 28px
+                  - height: 28px
+              state:
+                - value: unavailable
+                  styles:
+                    icon:
+                      - color: rgba(255,255,255,0.22)
+              tap_action:
+                action: call-service
+                service: button.press
+                target:
+                  entity_id: button.pom_play_fart
+            # POM_BLOCK_END sidebar_fart
+            # POM_BLOCK_START sidebar_windows
+            - type: custom:button-card
+              entity: binary_sensor.tesla_windows_open
+              show_icon: true
+              show_name: false
+              show_state: false
+              layout: icon
+              icon: |
+                [[[
+                  const open = entity?.state === 'on';
+                  return open ? 'mdi:window-open' : 'mdi:window-closed';
+                ]]]
+              styles:
+                card:
+                  - width: 60px
+                  - height: 60px
+                  - padding: 0
+                  - margin: 0 auto 12px auto
+                  - border-radius: 18px
+                  - background: |
+                      [[[
+                        return entity?.state === 'on'
+                          ? "rgba(15, 40, 72, 0.72)"
+                          : "transparent";
+                      ]]]
+                  - border: |
+                      [[[
+                        return entity?.state === 'on'
+                          ? "1px solid rgba(0,145,255,0.95)"
+                          : "1px solid transparent";
+                      ]]]
+                  - box-shadow: |
+                      [[[
+                        return entity?.state === 'on'
+                          ? "0 0 18px rgba(0,145,255,0.28), inset 0 0 14px rgba(0,145,255,0.10)"
+                          : "none";
+                      ]]]
+                grid:
+                  - grid-template-areas: "\"i\""
+                  - grid-template-columns: 1fr
+                  - grid-template-rows: 1fr
+                img_cell:
+                  - width: 100%
+                  - height: 100%
+                  - display: flex
+                  - align-items: center
+                  - justify-content: center
+                icon:
+                  - color: |
+                      [[[
+                        return entity?.state === 'on'
+                          ? "#5bbcff"
+                          : "rgba(255,255,255,0.42)";
+                      ]]]
+                  - width: 28px
+                  - height: 28px
+              tap_action:
+                action: none
+            # POM_BLOCK_END sidebar_windows
+            # POM_BLOCK_START sidebar_doors
+            - type: custom:button-card
+              entity: binary_sensor.tesla_doors_open
+              show_icon: true
+              show_name: false
+              show_state: false
+              layout: icon
+              icon: mdi:car-door
+              styles:
+                card:
+                  - width: 60px
+                  - height: 60px
+                  - padding: 0
+                  - margin: 0 auto 12px auto
+                  - border-radius: 18px
+                  - background: |
+                      [[[
+                        return entity?.state === 'on'
+                          ? "rgba(15, 40, 72, 0.72)"
+                          : "transparent";
+                      ]]]
+                  - border: |
+                      [[[
+                        return entity?.state === 'on'
+                          ? "1px solid rgba(0,145,255,0.95)"
+                          : "1px solid transparent";
+                      ]]]
+                  - box-shadow: |
+                      [[[
+                        return entity?.state === 'on'
+                          ? "0 0 18px rgba(0,145,255,0.28), inset 0 0 14px rgba(0,145,255,0.10)"
+                          : "none";
+                      ]]]
+                grid:
+                  - grid-template-areas: "\"i\""
+                  - grid-template-columns: 1fr
+                  - grid-template-rows: 1fr
+                img_cell:
+                  - width: 100%
+                  - height: 100%
+                  - display: flex
+                  - align-items: center
+                  - justify-content: center
+                icon:
+                  - color: |
+                      [[[
+                        return entity?.state === 'on'
+                          ? "#5bbcff"
+                          : "rgba(255,255,255,0.42)";
+                      ]]]
+                  - width: 28px
+                  - height: 28px
+              tap_action:
+                action: none
+            # POM_BLOCK_END sidebar_doors
+            # POM_BLOCK_START sidebar_home_automation
+            - type: custom:button-card
+              entity: input_boolean.zone_leave_house_activate
+              show_icon: true
+              show_name: false
+              show_state: false
+              layout: icon
+              icon: |
+                [[[
+                  return entity?.state === 'on'
+                    ? 'mdi:home-export-outline'
+                    : 'mdi:home-outline';
+                ]]]
+              styles:
+                card:
+                  - width: 60px
+                  - height: 60px
+                  - padding: 0
+                  - margin: 0 auto
+                  - border-radius: 18px
+                  - background: |
+                      [[[
+                        return entity?.state === 'on'
+                          ? "rgba(15, 40, 72, 0.72)"
+                          : "transparent";
+                      ]]]
+                  - border: |
+                      [[[
+                        return entity?.state === 'on'
+                          ? "1px solid rgba(0,145,255,0.95)"
+                          : "1px solid transparent";
+                      ]]]
+                  - box-shadow: |
+                      [[[
+                        return entity?.state === 'on'
+                          ? "0 0 18px rgba(0,145,255,0.28), inset 0 0 14px rgba(0,145,255,0.10)"
+                          : "none";
+                      ]]]
+                grid:
+                  - grid-template-areas: "\"i\""
+                  - grid-template-columns: 1fr
+                  - grid-template-rows: 1fr
+                img_cell:
+                  - width: 100%
+                  - height: 100%
+                  - display: flex
+                  - align-items: center
+                  - justify-content: center
+                icon:
+                  - color: |
+                      [[[
+                        return entity?.state === 'on'
+                          ? "#5bbcff"
+                          : "rgba(255,255,255,0.42)";
+                      ]]]
+                  - width: 28px
+                  - height: 28px
+              tap_action:
+                action: toggle
+            # POM_BLOCK_END sidebar_home_automation
+            # POM_BLOCK_START sidebar_manual_tracking
+            - type: custom:button-card
+              entity: input_boolean.tesla_automation_speed_sections
+              show_icon: true
+              show_name: false
+              show_state: false
+              layout: icon
+              icon: |
+                [[[
+                  return entity?.state === 'on'
+                    ? 'mdi:timer'
+                    : 'mdi:timer';
+                ]]]
+              styles:
+                card:
+                  - width: 60px
+                  - height: 60px
+                  - padding: 0
+                  - margin: 0 auto
+                  - border-radius: 18px
+                  - background: |
+                      [[[
+                        return entity?.state === 'on'
+                          ? "rgba(15, 40, 72, 0.72)"
+                          : "transparent";
+                      ]]]
+                  - border: |
+                      [[[
+                        return entity?.state === 'on'
+                          ? "1px solid rgba(0,145,255,0.95)"
+                          : "1px solid transparent";
+                      ]]]
+                  - box-shadow: |
+                      [[[
+                        return entity?.state === 'on'
+                          ? "0 0 18px rgba(0,145,255,0.28), inset 0 0 14px rgba(0,145,255,0.10)"
+                          : "none";
+                      ]]]
+                grid:
+                  - grid-template-areas: "\"i\""
+                  - grid-template-columns: 1fr
+                  - grid-template-rows: 1fr
+                img_cell:
+                  - width: 100%
+                  - height: 100%
+                  - display: flex
+                  - align-items: center
+                  - justify-content: center
+                icon:
+                  - color: |
+                      [[[
+                        return entity?.state === 'on'
+                          ? "#5bbcff"
+                          : "rgba(255,255,255,0.42)";
+                      ]]]
+                  - width: 28px
+                  - height: 28px
+              tap_action:
+                action: toggle
+            # POM_BLOCK_END sidebar_manual_tracking
+view_layout:
+  grid-area: sidebar

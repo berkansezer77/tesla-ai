@@ -1,0 +1,1020 @@
+type: custom:mod-card
+card_mod:
+  style: |
+    :host {
+      display: block !important;
+      width: 100vw !important;
+      max-width: 100vw !important;
+      margin-left: calc(50% - 50vw) !important;
+      margin-right: calc(50% - 50vw) !important;
+    }
+    ha-card {
+      width: min(1220px, calc(100vw - 84px)) !important;
+      max-width: 1220px !important;
+      margin: 0 auto !important;
+      background: transparent !important;
+      box-shadow: none !important;
+      border: 0 !important;
+      border-radius: 24px !important;
+      overflow: visible !important;
+      transform: scale(0.92) !important;
+      transform-origin: top center !important;
+      margin-bottom: -72px !important;
+    }
+
+    @media (min-width: 1500px) {
+      ha-card {
+        width: calc(100vw - 96px) !important;
+        max-width: 1280px !important;
+        transform: scale(0.90) !important;
+        margin-bottom: -90px !important;
+      }
+    }
+
+    @media (max-width: 1220px) {
+      ha-card {
+        width: min(930px, calc(100vw - 34px)) !important;
+        max-width: 930px !important;
+        transform: scale(0.94) !important;
+        transform-origin: top center !important;
+        margin-bottom: -72px !important;
+      }
+    }
+
+    @media (max-width: 1185px) and (max-height: 940px) {
+      ha-card {
+        width: min(930px, calc(100vw - 36px)) !important;
+        max-width: 930px !important;
+        transform: scale(0.94) !important;
+        transform-origin: top center !important;
+        margin-bottom: -72px !important;
+      }
+    }
+
+    @media (max-width: 1143px) and (max-height: 686px) {
+      ha-card {
+        width: calc(100vw - 38px) !important;
+        max-width: 1098px !important;
+        transform: scale(0.79) !important;
+        transform-origin: top center !important;
+        margin-bottom: -210px !important;
+      }
+    }
+
+    @media (max-width: 900px) {
+      ha-card {
+        width: calc(100vw - 24px) !important;
+        max-width: 820px !important;
+        transform: scale(0.86) !important;
+        margin-bottom: -150px !important;
+      }
+    }
+card:
+  type: custom:button-card
+  entity: binary_sensor.pom_charging
+  triggers_update:
+    - binary_sensor.pom_charging
+    - sensor.pom_tesla_dashboard_last_charge
+    - sensor.pom_battery_level
+    - sensor.pom_battery_range
+    - sensor.pom_battery_range_estimate
+    - sensor.pom_charge_energy_added
+    - sensor.pom_charger_power
+    - sensor.pom_battery_module_temperature_max
+    - sensor.pom_battery_pack_voltage
+    - binary_sensor.pom_charge_cable
+    - sensor.pom_charge_rate
+    - sensor.pom_charger_current
+    - sensor.pom_charger_voltage
+    - sensor.pom_time_to_full_charge
+  show_icon: false
+  show_name: false
+  show_state: false
+  tap_action:
+    action: call-service
+    service: homeassistant.turn_off
+    target:
+      entity_id: __POM_CHARGE_POPUP_SWITCH__
+  custom_fields:
+    panel: |
+      [[[ 
+        const getState = (entityId, fallback = '-') => {
+          const e = states[entityId];
+          if (!e) return fallback;
+          const v = e.state;
+          if (v === undefined || v === null || v === '' || ['unknown', 'unavailable', 'none'].includes(String(v).toLowerCase())) return fallback;
+          return String(v);
+        };
+
+        const getAttr = (entityId, attr, fallback = undefined) => {
+          const e = states[entityId];
+          if (!e || !e.attributes) return fallback;
+          const v = e.attributes[attr];
+          if (v === undefined || v === null || v === '') return fallback;
+          return v;
+        };
+
+        const unit = (entityId) => states[entityId]?.attributes?.unit_of_measurement || '';
+
+        const toNum = (value, fallback = 0) => {
+          if (typeof value === 'number') return Number.isFinite(value) ? value : fallback;
+          const n = parseFloat(String(value ?? '').replace(',', '.'));
+          return Number.isNaN(n) ? fallback : n;
+        };
+
+        const num = (entityId, fallback = 0) => toNum(getState(entityId, fallback), fallback);
+
+        const fmtPlain = (entityId, decimals = 1, fallback = '-') => {
+          const e = states[entityId];
+          if (!e) return fallback;
+          const raw = e.state;
+          if (raw === undefined || raw === null || raw === '' || ['unknown', 'unavailable', 'none'].includes(String(raw).toLowerCase())) return fallback;
+          const n = toNum(raw, NaN);
+          if (Number.isNaN(n)) return String(raw);
+          return n.toFixed(decimals);
+        };
+
+        const fmtNumber = (value, decimals = 1, fallback = '-') => {
+          const n = toNum(value, NaN);
+          if (Number.isNaN(n)) return fallback;
+          return n.toFixed(decimals);
+        };
+
+        const shortDurationMinutes = (minutes) => {
+          const totalMin = Math.max(0, Math.round(toNum(minutes, 0)));
+          if (totalMin <= 0) return '-';
+          const h = Math.floor(totalMin / 60);
+          const m = totalMin % 60;
+          if (h > 0 && m > 0) return `${h} saat ${m} dk.`;
+          if (h > 0) return `${h} saat`;
+          return `${m} dk.`;
+        };
+
+        const shortDurationMs = (ms) => {
+          if (!Number.isFinite(ms) || ms < 0) return '-';
+          return shortDurationMinutes(ms / 60000);
+        };
+
+        const normalizeSamples = (samplesRaw) => {
+          let samples = samplesRaw;
+          if (typeof samples === 'string') {
+            try { samples = JSON.parse(samples); } catch (_) { samples = []; }
+          }
+          if (!Array.isArray(samples)) return [];
+          return samples
+            .map((s, i) => ({
+              minute: toNum(s?.minute, i),
+              power_kw: Math.max(0, toNum(s?.power_kw ?? s?.power, 0))
+            }))
+            .filter((s) => Number.isFinite(s.minute) && Number.isFinite(s.power_kw));
+        };
+
+        const downsample = (items, maxPoints = 90) => {
+          if (!items || items.length <= maxPoints) return items || [];
+          const out = [];
+          const step = (items.length - 1) / (maxPoints - 1);
+          for (let i = 0; i < maxPoints; i++) {
+            out.push(items[Math.round(i * step)]);
+          }
+          return out;
+        };
+
+        const buildCurve = (samplesRaw, fallbackPower = 0) => {
+          let samples = normalizeSamples(samplesRaw);
+          if (samples.length < 2) {
+            const p = Math.max(0, toNum(fallbackPower, 0));
+            samples = [{minute: 0, power_kw: 0}, {minute: 1, power_kw: p}, {minute: 2, power_kw: p * 0.65}, {minute: 3, power_kw: 0}];
+          }
+          samples = downsample(samples, 90);
+          const minMinute = Math.min(...samples.map((s) => s.minute));
+          const maxMinute = Math.max(...samples.map((s) => s.minute), minMinute + 1);
+          const maxPower = Math.max(...samples.map((s) => s.power_kw), 1);
+          const w = 480;
+          const h = 180;
+          const padX = 0;
+          const padTop = 20;
+          const padBottom = 24;
+          const chartH = h - padTop - padBottom;
+          const pts = samples.map((s) => {
+            const x = padX + ((s.minute - minMinute) / (maxMinute - minMinute)) * (w - padX * 2);
+            const y = padTop + chartH - (s.power_kw / maxPower) * chartH;
+            return [Math.max(0, Math.min(w, x)), Math.max(padTop, Math.min(h - padBottom, y))];
+          });
+          const line = pts.map((p, i) => `${i === 0 ? 'M' : 'L'}${p[0].toFixed(1)} ${p[1].toFixed(1)}`).join(' ');
+          const area = `${line} L${pts[pts.length - 1][0].toFixed(1)} ${h} L${pts[0][0].toFixed(1)} ${h} Z`;
+          return { line, area, maxPower };
+        };
+
+        const charging = states['binary_sensor.pom_charging']?.state === 'on';
+        const cable = states['binary_sensor.pom_charge_cable']?.state === 'on';
+        const last = states['sensor.pom_tesla_dashboard_last_charge']?.attributes || {};
+        const hasLastCharge = toNum(last.added_kwh, 0) > 0.01 || Array.isArray(last.power_samples);
+        const useLast = !charging && hasLastCharge;
+
+        const battery = num('sensor.pom_battery_level', 0);
+        const batterySafe = Math.max(0, Math.min(100, battery));
+        const batteryDeg = batterySafe * 3.6;
+
+        const addedKwh = useLast ? toNum(last.added_kwh, 0) : num('sensor.pom_charge_energy_added', 0);
+        const range = useLast && toNum(last.battery_range_km, 0) > 0 ? fmtNumber(last.battery_range_km, 1) : fmtPlain('sensor.pom_battery_range', 1);
+        const rangeEstimate = useLast && toNum(last.battery_range_estimate_km, 0) > 0 ? fmtNumber(last.battery_range_estimate_km, 1) : fmtPlain('sensor.pom_battery_range_estimate', 1);
+        const currentPower = num('sensor.pom_charger_power', 0);
+        const peakPower = useLast ? toNum(last.peak_power_kw, currentPower) : currentPower;
+        const samples = useLast || last.active ? last.power_samples : [];
+        const curve = buildCurve(samples, peakPower || currentPower);
+
+        const escHtml = (value) => String(value ?? '').replace(/[&<>"']/g, (ch) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
+        const injectedCostPresets = __POM_CHARGE_COST_PRESETS__;
+        const costPresetsRaw = Array.isArray(injectedCostPresets) ? injectedCostPresets : [];
+        const fallbackCostPresets = [
+          {name: 'Supercharger', unit_price: 0, currency: 'TL'},
+          {name: 'ZES', unit_price: 0, currency: 'TL'},
+          {name: 'Astor', unit_price: 0, currency: 'TL'},
+        ];
+        const costPresets = (costPresetsRaw.length ? costPresetsRaw : fallbackCostPresets).slice(0, 3);
+        while (costPresets.length < 3) costPresets.push(fallbackCostPresets[costPresets.length]);
+        const costClasses = ['supercharger', 'zes', 'astor'];
+        const costCards = costPresets.map((preset, idx) => {
+          const name = escHtml(preset?.name || fallbackCostPresets[idx]?.name || '-');
+          const currency = escHtml(preset?.currency || 'TL');
+          const price = toNum(preset?.unit_price ?? preset?.price, 0);
+          const cost = (addedKwh * price).toFixed(2);
+          return `<div class="cost-card ${costClasses[idx] || 'supercharger'}"><div class="cost-brand">${name}</div><div class="cost-value">${cost}<span>${currency}</span></div></div>`;
+        }).join('');
+
+        const start = states['binary_sensor.pom_charging']?.last_changed ? new Date(states['binary_sensor.pom_charging'].last_changed) : null;
+        const chargeDuration = useLast
+          ? shortDurationMinutes(last.duration_minutes)
+          : (charging && start ? shortDurationMs(Date.now() - start.getTime()) : '-');
+
+        const timeToFullRaw = getState('sensor.pom_time_to_full_charge', '-');
+        const timeToFull = (() => {
+          if (useLast) return '-';
+          if (timeToFullRaw === '-') return '-';
+          const n = toNum(timeToFullRaw, NaN);
+          if (!Number.isNaN(n)) {
+            const u = unit('sensor.pom_time_to_full_charge').toLowerCase();
+            let minutes = n;
+            if (u.includes('hour') || u.includes('saat') || u === 'h') minutes = n * 60;
+            if (u.includes('second') || u.includes('sn') || u === 's') minutes = n / 60;
+            return shortDurationMinutes(minutes);
+          }
+          return String(timeToFullRaw).replace('hours', 'saat').replace('hour', 'saat').replace('minutes', 'dk.').replace('minute', 'dk.');
+        })();
+
+        const statusLine = charging
+          ? 'Araç şu anda şarj oluyor'
+          : useLast
+            ? `Son tamamlanan şarj${last.finished_at ? ' · ' + last.finished_at : ''}`
+            : cable ? 'Kablo bağlı, şarj aktif değil' : 'Araç şarj etmiyor';
+        const stateText = charging ? 'Şarj oluyor' : (useLast ? 'Son şarj' : (cable ? 'Kablo bağlı' : 'Şarj etmiyor'));
+        const stateClass = charging ? 'on' : (useLast ? 'last' : (cable ? 'standby' : 'off'));
+        const powerLabel = useLast ? 'Tepe Güç' : 'Güç';
+        const chartTitle = useLast ? 'SON ŞARJ EĞRİSİ' : 'ŞARJ İLERLEMESİ';
+        const chartRight = useLast ? 'Bitiş' : 'Şimdi';
+        const chargeRateValue = useLast ? fmtNumber(last.peak_power_kw, 1) : fmtPlain('sensor.pom_charge_rate', 1);
+        const batteryTempRaw = getState('sensor.pom_battery_module_temperature_max', '-');
+        const batteryTempText = (() => {
+          const n = toNum(batteryTempRaw, NaN);
+          if (!Number.isNaN(n)) return `${n.toFixed(1)}<span>°C</span>`;
+          if (batteryTempRaw === '-') return '-<span>°C</span>';
+          return `${batteryTempRaw}<span></span>`;
+        })();
+
+        return `
+          <div class="charge-wrap ${stateClass}" style="--battery-deg:${batteryDeg}deg; --battery-pct:${batterySafe}%;">
+            <div class="top">
+              <div class="title-block">
+                <div class="main-title">Şarj Durumu</div>
+                <div class="sub-title">${statusLine}</div>
+              </div>
+              <div class="status-pill"><span></span>${stateText}</div>
+            </div>
+
+            <div class="hero">
+              <div class="battery-ring">
+                <div class="ring-inner">
+                  <div class="bolt">⚡</div>
+                  <div class="ring-value">%${Math.round(batterySafe)}</div>
+                  <div class="ring-state">${stateText}</div>
+                </div>
+              </div>
+
+              <div class="range-block">
+                <div class="range-label">KALAN MENZİL</div>
+                <div class="range-main">${range}<span>km</span></div>
+                <div class="range-sub">Tahmini menzil ${rangeEstimate} km</div>
+                <div class="wide-bar"><div class="wide-fill"></div></div>
+                <div class="bar-labels"><span>0%</span><span>%${Math.round(batterySafe)}</span><span>100%</span></div>
+              </div>
+            </div>
+
+            <div class="data-grid top-grid">
+              <div class="data-card"><div class="data-icon cyan">↯</div><div><div class="data-label">Eklenen Enerji</div><div class="data-value">${fmtNumber(addedKwh, 1)}<span>kWh</span></div></div></div>
+              <div class="data-card"><div class="data-icon blue">◴</div><div><div class="data-label">Şarj Süresi</div><div class="data-value">${chargeDuration}</div></div></div>
+              <div class="data-card"><div class="data-icon orange">⚡</div><div><div class="data-label">${powerLabel}</div><div class="data-value">${fmtNumber(useLast ? peakPower : currentPower, 1)}<span>kW</span></div></div></div>
+              <div class="data-card"><div class="data-icon purple">∿</div><div><div class="data-label">${useLast ? 'Tepe / Oran' : 'Akım'}</div><div class="data-value">${useLast ? chargeRateValue : fmtPlain('sensor.pom_charger_current', 0)}<span>${useLast ? 'kW' : 'A'}</span></div></div></div>
+            </div>
+
+            <div class="data-grid bottom-grid">
+              <div class="mini-card"><div class="mini-label">Voltaj</div><div class="mini-value">${fmtPlain('sensor.pom_charger_voltage', 0)}<span>V</span></div></div>
+              <div class="mini-card"><div class="mini-label">Batarya Sıcaklığı</div><div class="mini-value">${batteryTempText}</div></div>
+              <div class="mini-card"><div class="mini-label">Paket Voltajı</div><div class="mini-value">${fmtPlain('sensor.pom_battery_pack_voltage', 1)}<span>V</span></div></div>
+              <div class="mini-card active"><div class="mini-label">Kablo</div><div class="mini-value">${cable ? 'Bağlı' : 'Bağlı değil'}</div></div>
+            </div>
+
+            <div class="middle-row">
+              <div class="time-card">
+                <div class="time-label">${useLast ? 'SON ŞARJ SÜRESİ' : 'TAM DOLUMA KALAN'}</div>
+                <div class="time-value">${useLast ? chargeDuration : timeToFull}</div>
+                <div class="time-bar"><div class="time-fill"></div></div>
+                <div class="bar-labels"><span>0%</span><span>%${Math.round(batterySafe)}</span><span>100%</span></div>
+              </div>
+
+              <div class="chart-card">
+                <div class="chart-title">${chartTitle}</div>
+                <svg class="charge-chart" viewBox="0 0 480 180" preserveAspectRatio="none">
+                  <defs>
+                    <linearGradient id="chargeAreaGradient" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stop-color="rgba(0,245,184,0.65)" />
+                      <stop offset="100%" stop-color="rgba(0,245,184,0.02)" />
+                    </linearGradient>
+                  </defs>
+                  <path class="grid-line" d="M0 40 H480 M0 90 H480 M0 140 H480" />
+                  <path class="area" d="${curve.area}" />
+                  <path class="line" d="${curve.line}" />
+                </svg>
+                <div class="chart-bottom"><span>Başlangıç</span><span>${chartRight}</span></div>
+              </div>
+            </div>
+
+            <div class="cost-box">
+              <div class="cost-title">TAHMİNİ MALİYET</div>
+              <div class="cost-grid">
+                ${costCards}
+              </div>
+            </div>
+          </div>
+        `;
+      ]]]
+  styles:
+    card:
+      - width: 100%
+      - background: transparent
+      - box-shadow: none
+      - border: 0
+      - padding: 0
+    custom_fields:
+      panel:
+        - width: 100%
+  extra_styles: |
+    ha-card {
+      background: transparent !important;
+      box-shadow: none !important;
+      border: 0 !important;
+      padding: 0 !important;
+      margin: 0 !important;
+    }
+
+    .charge-wrap,
+    .charge-wrap * {
+      box-sizing: border-box;
+    }
+
+    .charge-wrap {
+      width: 100%;
+      max-width: 1220px;
+      margin: 0 auto;
+      color: #ffffff;
+      font-family: inherit;
+      padding: 30px 34px 30px;
+      border-radius: 30px;
+      background:
+        radial-gradient(circle at 17% 22%, rgba(0,245,184,0.12), transparent 31%),
+        radial-gradient(circle at 85% 78%, rgba(230,111,72,0.08), transparent 32%),
+        linear-gradient(180deg, rgba(6,13,20,0.68), rgba(5,8,13,0.54));
+      border: 1px solid rgba(80,255,207,0.22);
+      box-shadow:
+        0 20px 60px rgba(0,0,0,0.36),
+        inset 0 0 34px rgba(255,255,255,0.030);
+      overflow: hidden;
+      backdrop-filter: blur(22px) saturate(160%);
+      -webkit-backdrop-filter: blur(22px) saturate(160%);
+    }
+
+    .top {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 20px;
+      margin-bottom: 22px;
+    }
+
+    .main-title {
+      font-size: 30px;
+      font-weight: 950;
+      line-height: 1;
+      letter-spacing: -0.7px;
+    }
+
+    .sub-title {
+      margin-top: 9px;
+      color: rgba(80,180,255,0.70);
+      font-size: 16px;
+      font-weight: 800;
+    }
+
+    .status-pill {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 12px 20px;
+      border-radius: 999px;
+      background: rgba(0,245,184,0.10);
+      border: 1px solid rgba(0,245,184,0.40);
+      color: #00f5b8;
+      font-weight: 900;
+      font-size: 16px;
+      white-space: nowrap;
+    }
+
+    .status-pill span {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      background: #00f5b8;
+      box-shadow: 0 0 18px rgba(0,245,184,0.95);
+    }
+
+    .charge-wrap.off .status-pill,
+    .charge-wrap.last .status-pill {
+      color: rgba(255,255,255,0.72);
+      background: rgba(255,255,255,0.06);
+      border-color: rgba(255,255,255,0.12);
+    }
+
+    .charge-wrap.off .status-pill span,
+    .charge-wrap.last .status-pill span {
+      background: rgba(255,255,255,0.48);
+      box-shadow: none;
+    }
+
+    .hero {
+      display: grid;
+      grid-template-columns: 280px 1fr;
+      gap: 28px;
+      align-items: center;
+      margin-bottom: 18px;
+    }
+
+    .battery-ring {
+      position: relative;
+      width: 232px;
+      height: 232px;
+      border-radius: 50%;
+      background:
+        conic-gradient(from -90deg, #00f5b8 var(--battery-deg), rgba(255,255,255,0.08) var(--battery-deg));
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow:
+        0 0 34px rgba(0,245,184,0.17),
+        inset 0 0 18px rgba(0,0,0,0.70);
+    }
+
+    .charge-wrap.on .battery-ring::before {
+      content: "";
+      position: absolute;
+      inset: -9px;
+      border-radius: 50%;
+      border: 2px solid rgba(0,245,184,0.36);
+      animation: pulseRing 1.6s ease-in-out infinite;
+    }
+
+    .ring-inner {
+      width: 180px;
+      height: 180px;
+      border-radius: 50%;
+      background: rgba(5,8,13,0.92);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      box-shadow: inset 0 0 28px rgba(0,245,184,0.08);
+    }
+
+    .bolt {
+      color: #00f5b8;
+      font-size: 24px;
+      line-height: 1;
+      margin-bottom: 8px;
+    }
+
+    .ring-value {
+      font-size: 62px;
+      font-weight: 950;
+      line-height: 0.95;
+      letter-spacing: -3px;
+    }
+
+    .ring-state {
+      margin-top: 12px;
+      font-size: 16px;
+      font-weight: 850;
+      color: #00f5b8;
+    }
+
+    .range-label {
+      color: rgba(255,255,255,0.60);
+      font-size: 16px;
+      font-weight: 850;
+      letter-spacing: 1.2px;
+    }
+
+    .range-main {
+      margin-top: 8px;
+      font-size: 64px;
+      font-weight: 950;
+      line-height: 0.95;
+      letter-spacing: -3px;
+    }
+
+    .range-main span {
+      font-size: 24px;
+      color: rgba(255,255,255,0.52);
+      margin-left: 6px;
+      font-weight: 800;
+      letter-spacing: -0.5px;
+    }
+
+    .range-sub {
+      margin-top: 9px;
+      font-size: 20px;
+      color: #00f5b8;
+      font-weight: 850;
+    }
+
+    .wide-bar,
+    .time-bar {
+      position: relative;
+      height: 14px;
+      margin-top: 28px;
+      border-radius: 999px;
+      background: rgba(255,255,255,0.08);
+      overflow: hidden;
+    }
+
+    .wide-fill,
+    .time-fill {
+      width: var(--battery-pct);
+      height: 100%;
+      border-radius: 999px;
+      background: linear-gradient(90deg, rgba(0,245,184,0.80), rgba(0,245,184,1));
+      box-shadow: 0 0 18px rgba(0,245,184,0.50);
+    }
+
+    .charge-wrap.on .wide-fill,
+    .charge-wrap.on .time-fill {
+      background:
+        linear-gradient(90deg, rgba(0,245,184,0.78), rgba(0,245,184,1)),
+        repeating-linear-gradient(45deg, rgba(255,255,255,0.18) 0 10px, transparent 10px 20px);
+      animation: chargeFlow 1.1s linear infinite;
+      background-size: 100% 100%, 36px 36px;
+    }
+
+    .bar-labels {
+      display: flex;
+      justify-content: space-between;
+      color: rgba(80,180,255,0.50);
+      font-size: 13px;
+      font-weight: 700;
+      margin-top: 10px;
+    }
+
+    .data-grid {
+      display: grid;
+      gap: 16px;
+      margin-bottom: 16px;
+    }
+
+    .top-grid,
+    .bottom-grid {
+      grid-template-columns: repeat(4, 1fr);
+    }
+
+    .data-card,
+    .mini-card {
+      min-height: 82px;
+      border-radius: 17px;
+      background: rgba(255,255,255,0.045);
+      border: 1px solid rgba(255,255,255,0.08);
+      padding: 15px 17px;
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      overflow: hidden;
+    }
+
+    .mini-card {
+      display: block;
+      min-height: 74px;
+    }
+
+    .mini-card.active {
+      border-color: rgba(0,245,184,0.28);
+      background: rgba(0,245,184,0.055);
+    }
+
+    .data-icon {
+      width: 36px;
+      height: 36px;
+      flex-shrink: 0;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 23px;
+      font-weight: 950;
+      background: rgba(255,255,255,0.06);
+    }
+
+    .data-icon.cyan { color: #00f5b8; }
+    .data-icon.blue { color: #2994ff; }
+    .data-icon.orange { color: #ffb020; }
+    .data-icon.purple { color: #8b5cf6; }
+
+    .data-label,
+    .mini-label {
+      color: rgba(255,255,255,0.58);
+      font-size: 15px;
+      font-weight: 800;
+      line-height: 1.2;
+      margin-bottom: 8px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .data-value,
+    .mini-value {
+      color: #ffffff;
+      font-size: 24px;
+      font-weight: 950;
+      line-height: 1.05;
+      letter-spacing: -0.7px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .data-value span,
+    .mini-value span {
+      font-size: 13px;
+      color: rgba(80,180,255,0.62);
+      margin-left: 5px;
+      font-weight: 850;
+      letter-spacing: 0;
+    }
+
+    .mini-card.active .mini-value {
+      color: #00f5b8;
+    }
+
+    .middle-row {
+      display: grid;
+      grid-template-columns: 0.9fr 1fr;
+      gap: 18px;
+      margin-bottom: 24px;
+    }
+
+    .time-card,
+    .chart-card {
+      border-radius: 19px;
+      background: rgba(255,255,255,0.045);
+      border: 1px solid rgba(255,255,255,0.08);
+      padding: 18px 20px;
+      min-height: 174px;
+      overflow: hidden;
+    }
+
+    .time-card {
+      background: rgba(0,245,184,0.055);
+      border-color: rgba(0,245,184,0.22);
+    }
+
+    .time-label,
+    .chart-title,
+    .cost-title {
+      color: rgba(255,255,255,0.58);
+      font-size: 16px;
+      font-weight: 850;
+      letter-spacing: 1.2px;
+      margin-bottom: 16px;
+    }
+
+    .time-value {
+      color: #00f5b8;
+      font-size: 30px;
+      font-weight: 950;
+      letter-spacing: -1px;
+      line-height: 1.05;
+      margin-bottom: 10px;
+    }
+
+    .charge-chart {
+      width: 100%;
+      height: 108px;
+      display: block;
+    }
+
+    .grid-line {
+      stroke: rgba(255,255,255,0.07);
+      stroke-width: 1;
+      fill: none;
+    }
+
+    .area {
+      fill: url(#chargeAreaGradient);
+    }
+
+    .line {
+      stroke: #00f5b8;
+      stroke-width: 5;
+      fill: none;
+      filter: drop-shadow(0 0 8px rgba(0,245,184,0.65));
+    }
+
+    .chart-bottom {
+      display: flex;
+      justify-content: space-between;
+      color: rgba(80,180,255,0.50);
+      font-size: 13px;
+      font-weight: 700;
+      margin-top: -2px;
+    }
+
+    .cost-box {
+      border-radius: 19px;
+      background: rgba(255,255,255,0.045);
+      border: 1px solid rgba(255,255,255,0.08);
+      padding: 24px 26px 26px;
+    }
+
+    .cost-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 15px;
+    }
+
+    .cost-card {
+      border-radius: 17px;
+      padding: 16px 18px;
+      min-height: 90px;
+      background: rgba(255,255,255,0.045);
+      border: 1px solid rgba(255,255,255,0.10);
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      text-align: center;
+    }
+
+    .cost-brand {
+      font-size: 15px;
+      font-weight: 850;
+      margin-bottom: 10px;
+    }
+
+    .cost-value {
+      font-size: 28px;
+      font-weight: 950;
+      letter-spacing: -0.8px;
+    }
+
+    .cost-value span {
+      font-size: 15px;
+      font-weight: 850;
+      margin-left: 4px;
+      opacity: 0.75;
+    }
+
+    .cost-card.supercharger {
+      color: #ff5353;
+      border-color: rgba(255,83,83,0.35);
+      background: rgba(255,83,83,0.08);
+    }
+
+    .cost-card.zes {
+      color: #00f5b8;
+      border-color: rgba(0,245,184,0.32);
+      background: rgba(0,245,184,0.07);
+    }
+
+    .cost-card.astor {
+      color: #ffb020;
+      border-color: rgba(255,176,32,0.34);
+      background: rgba(255,176,32,0.08);
+    }
+
+    @keyframes pulseRing {
+      0%, 100% { transform: scale(1); opacity: 0.35; }
+      50% { transform: scale(1.055); opacity: 0.78; }
+    }
+
+    @keyframes chargeFlow {
+      from { background-position: 0 0, 0 0; }
+      to { background-position: 0 0, 36px 0; }
+    }
+
+    @media (min-width: 901px) and (max-width: 1220px) {
+      .charge-wrap {
+        padding: 28px 32px 28px;
+        border-radius: 28px;
+      }
+
+      .top {
+        margin-bottom: 16px;
+      }
+
+      .main-title {
+        font-size: 28px;
+      }
+
+      .sub-title {
+        font-size: 14px;
+        margin-top: 7px;
+      }
+
+      .status-pill {
+        padding: 10px 16px;
+        font-size: 14px;
+      }
+
+      .hero {
+        grid-template-columns: 270px 1fr;
+        gap: 26px;
+        margin-bottom: 16px;
+      }
+
+      .battery-ring {
+        width: 224px;
+        height: 224px;
+      }
+
+      .ring-inner {
+        width: 174px;
+        height: 174px;
+      }
+
+      .ring-value {
+        font-size: 58px;
+      }
+
+      .ring-state {
+        font-size: 14px;
+        margin-top: 9px;
+      }
+
+      .range-label {
+        font-size: 14px;
+      }
+
+      .range-main {
+        font-size: 60px;
+      }
+
+      .range-sub {
+        font-size: 17px;
+        margin-top: 7px;
+      }
+
+      .wide-bar,
+      .time-bar {
+        height: 12px;
+        margin-top: 20px;
+      }
+
+      .bar-labels {
+        font-size: 12px;
+        margin-top: 7px;
+      }
+
+      .data-grid {
+        gap: 13px;
+        margin-bottom: 13px;
+      }
+
+      .data-card,
+      .mini-card {
+        min-height: 76px;
+        border-radius: 16px;
+        padding: 13px 15px;
+        gap: 12px;
+      }
+
+      .mini-card {
+        min-height: 70px;
+      }
+
+      .data-icon {
+        width: 32px;
+        height: 32px;
+        font-size: 20px;
+      }
+
+      .data-label,
+      .mini-label {
+        font-size: 13px;
+        margin-bottom: 6px;
+      }
+
+      .data-value,
+      .mini-value {
+        font-size: 22px;
+      }
+
+      .middle-row {
+        gap: 14px;
+        margin-bottom: 18px;
+      }
+
+      .time-card,
+      .chart-card {
+        min-height: 158px;
+        padding: 16px 18px;
+      }
+
+      .time-label,
+      .chart-title,
+      .cost-title {
+        font-size: 14px;
+        margin-bottom: 12px;
+      }
+
+      .time-value {
+        font-size: 26px;
+      }
+
+      .charge-chart {
+        height: 92px;
+      }
+
+      .cost-box {
+        padding: 18px 22px 20px;
+      }
+
+      .cost-grid {
+        gap: 12px;
+      }
+
+      .cost-card {
+        min-height: 82px;
+        padding: 14px 16px;
+      }
+
+      .cost-brand {
+        font-size: 13px;
+        margin-bottom: 8px;
+      }
+
+      .cost-value {
+        font-size: 24px;
+      }
+    }
+
+    @media (max-width: 900px) {
+      .charge-wrap {
+        width: calc(100vw - 24px);
+        padding: 24px 20px 22px;
+      }
+
+      .hero {
+        grid-template-columns: 1fr;
+        gap: 20px;
+      }
+
+      .battery-ring {
+        margin: 0 auto;
+        width: 220px;
+        height: 220px;
+      }
+
+      .ring-inner {
+        width: 172px;
+        height: 172px;
+      }
+
+      .ring-value {
+        font-size: 58px;
+      }
+
+      .range-main {
+        font-size: 60px;
+      }
+
+      .top-grid,
+      .bottom-grid,
+      .middle-row,
+      .cost-grid {
+        grid-template-columns: 1fr;
+      }
+    }
