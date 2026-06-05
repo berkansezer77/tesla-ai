@@ -7,6 +7,25 @@ It brings together a Tesla-style dashboard, a dedicated in-car Drive Dashboard, 
 > **Disclaimer:** Tesla AI is an independent Home Assistant custom integration. It is not affiliated with, endorsed by, or sponsored by Tesla, Inc.
 
 ---
+## Key Features
+
+- Tesla-style Home Assistant dashboard
+- Dedicated Drive Dashboard for Tesla browser use
+- Live Trip tracking with distance, speed, traffic, energy, climate and elevation data
+- Live Trip AI comments with configurable 1 km / 5 km / 10 km intervals
+- Large AI comment reader popup for easier viewing when safe
+- Visual Telegram trip reports
+- Visual charge reports with charging curve and cost comparison
+- Trip Records and Charge Records
+- Monthly trip summaries
+- Route map reports
+- Built-in Telegram bot support
+- Optional OpenAI-powered driving comments and AI trip stories
+- Entity mapping and Auto Find tools
+- Dashboard rebuild tools
+- Debug center and support report tools
+
+---
 
 ## Preview
 
@@ -73,27 +92,6 @@ The built-in Telegram bot can answer contextual questions and, when configured, 
 ![Tesla AI Telegram Chat Multilingual](docs/images/telegram-ai-chat-2.png)
 
 ---
-
-## Key Features
-
-- Tesla-style Home Assistant dashboard
-- Dedicated Drive Dashboard for Tesla browser use
-- Live Trip tracking with distance, speed, traffic, energy, climate and elevation data
-- Live Trip AI comments with configurable 1 km / 5 km / 10 km intervals
-- Large AI comment reader popup for easier viewing when safe
-- Visual Telegram trip reports
-- Visual charge reports with charging curve and cost comparison
-- Trip Records and Charge Records
-- Monthly trip summaries
-- Route map reports
-- Built-in Telegram bot support
-- Optional OpenAI-powered driving comments and AI trip stories
-- Entity mapping and Auto Find tools
-- Dashboard rebuild tools
-- Debug center and support report tools
-
----
-
 ## Installation
 
 Copy the integration folder into your Home Assistant installation:
