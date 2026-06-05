@@ -7,9 +7,11 @@ It brings together a Tesla-style dashboard, a dedicated in-car Drive Dashboard, 
 > **Disclaimer:** Tesla AI is an independent Home Assistant custom integration. It is not affiliated with, endorsed by, or sponsored by Tesla, Inc.
 
 ---
+
 ## Key Features
 
-Turn Your Tesla Into an AI-Powered Companion
+### Turn Your Tesla Into an AI-Powered Companion
+
 - Transform your vehicle into an AI assistant that talks to you through Telegram, reacts to your messages, and even makes jokes.
 - Ask your car questions, find out where it is, and receive its location directly on a map.
 - View your latest drives, latest charging sessions, totals, costs, and usage summaries.
@@ -23,7 +25,7 @@ Turn Your Tesla Into an AI-Powered Companion
 - See the places you visited in the last 24 hours and mark your family members on the map.
 - Access all driving and charging records from the last month, including full details and costs, through Telegram or the control panel.
 - While driving, see the full address of your current location.
-- All your trips are recorded automatically. You do not need to do anything. In addition, you can manually start a special tracking mode with a button if you want to combine multiple drives. As long as you do not stop manual tracking, everything    continues to be recorded. This is especially useful for long journeys.
+- All your trips are recorded automatically. You do not need to do anything. In addition, you can manually start a special tracking mode with a button if you want to combine multiple drives. As long as you do not stop manual tracking, everything continues to be recorded. This is especially useful for long journeys.
 - Control your smart home directly from the dashboard.
 - Create your own charging station price presets.
 - After leaving a charging station, automatically receive detailed charging information, including charging speed and graphs, without doing anything manually.
@@ -33,6 +35,7 @@ Turn Your Tesla Into an AI-Powered Companion
 - Switch between dark and light map modes.
 - Thanks to full Tessie integration, all entities can be discovered automatically with a single button.
 - Tesla AI can operate its own internal integrations. You do not need to configure separate Telegram or external integration systems manually.
+
 ---
 
 ## Preview
@@ -100,19 +103,47 @@ The built-in Telegram bot can answer contextual questions and, when configured, 
 ![Tesla AI Telegram Chat Multilingual](docs/images/telegram-ai-chat-2.png)
 
 ---
+
 ## Installation
 
-Copy the integration folder into your Home Assistant installation:
+### Recommended: Install from GitHub as a HACS custom repository
+
+Tesla AI is designed to be installed from its GitHub repository through HACS.
+
+1. Open **HACS** in Home Assistant.
+2. Go to **Integrations**.
+3. Open the three-dot menu in the upper-right corner.
+4. Select **Custom repositories**.
+5. Add this repository URL:
+
+```text
+https://github.com/berkansezer77/tesla-ai
+```
+
+6. Set the category to:
+
+```text
+Integration
+```
+
+7. Click **Add**.
+8. Search for **Tesla AI** in HACS.
+9. Install/download the integration.
+10. Restart Home Assistant.
+
+After restart, open **Tesla AI** from the Home Assistant sidebar and complete the first setup.
+
+> The visible app name is **Tesla AI**, but the technical Home Assistant integration domain remains `pom_tesla_report`. This is intentional for Home Assistant compatibility.
+
+### Manual installation
+
+If you do not use HACS, download the repository from GitHub and copy the integration folder manually:
 
 ```text
 custom_components/pom_tesla_report
 ```
 
 Then restart Home Assistant.
-
-After restart, open **Tesla AI** from the Home Assistant sidebar and complete the first setup.
-
-> The visible app name is **Tesla AI**, but the technical Home Assistant integration domain remains `pom_tesla_report`.
 
 ---
 
