@@ -13,6 +13,9 @@ import os
 import gc
 
 import asyncio
+import hashlib
+import hmac
+import secrets
 import base64
 import html
 import json
@@ -26,6 +29,7 @@ from io import BytesIO
 from datetime import datetime
 from pathlib import Path
 from typing import Any
+from urllib.parse import parse_qs, urlparse
 
 from PIL import Image, ImageDraw
 
@@ -274,9 +278,9 @@ from .const import (
 _LOGGER = logging.getLogger(__name__)
 
 PANEL_URL_PATH = "pom-tesla-report"
-PANEL_ELEMENT_NAME = "pom-tesla-report-panel-alpha362"
-PANEL_JS_FILE = "pom-tesla-report-panel-alpha362.js"
-DASHBOARD_PANEL_VERSION = "2.2.0-dashboard-alpha362-tesla-ai-name-cache-hide"
+PANEL_ELEMENT_NAME = "pom-tesla-report-panel-alpha372"
+PANEL_JS_FILE = "pom-tesla-report-panel-alpha372.js"
+DASHBOARD_PANEL_VERSION = "2.2.0-alpha.372"
 
 TELEGRAM_REPORT_COMMANDS_OPTION_KEY = "telegram_report_commands"
 DEFAULT_TELEGRAM_REPORT_COMMANDS = {
@@ -300,6 +304,8 @@ API_YOUTUBE_JSMPEG_PLAYER_URL = f"/{DOMAIN}/youtube_jsmpeg_player"
 API_YOUTUBE_JSMPEG_STREAM_URL = f"/{DOMAIN}/youtube_jsmpeg_stream"
 API_YOUTUBE_JSMPEG_HEALTH_URL = f"/{DOMAIN}/youtube_jsmpeg_health"
 API_YOUTUBE_JSMPEG_WS_URL = f"/{DOMAIN}/youtube_jsmpeg_ws"
+
+YOUTUBE_JSMPEG_TOKEN_SECRET_OPTION = "youtube_jsmpeg_signed_token_secret"
 
 # Dashboard visual option keys are local here so panel registration does not
 # import the dashboard helper package.
@@ -941,6 +947,136 @@ def _telegram_report_commands_payload(data: dict[str, Any]) -> dict[str, str]:
     }
 
 
+def _secret_last4(value: Any) -> str:
+    text = str(value or "").strip()
+    return text[-4:] if len(text) >= 4 else text
+
+
+def _mask_secret_for_panel(value: Any) -> str:
+    text = str(value or "").strip()
+    if not text:
+        return ""
+    return "••••••••" + _secret_last4(text)
+
+
+def _is_masked_secret_from_panel(value: Any) -> bool:
+    text = str(value or "").strip()
+    if not text:
+        return False
+    return text.startswith("•") or text.startswith("*") or text.lower().startswith("configured")
+
+
+def _backup_safe_settings_payload(settings: dict[str, Any]) -> dict[str, Any]:
+    """Return settings suitable for export without live API keys/tokens."""
+    try:
+        safe = json.loads(json.dumps(settings or {}, ensure_ascii=False))
+    except Exception:
+        safe = dict(settings or {})
+    ai = safe.get("ai_settings")
+    if isinstance(ai, dict):
+        ai.pop("openai_api_key", None)
+    telegram = safe.get("telegram")
+    if isinstance(telegram, dict):
+        telegram.pop("builtin_telegram_bot_token", None)
+    dashboard_settings = safe.get("dashboard_settings")
+    if isinstance(dashboard_settings, dict):
+        dashboard_settings.pop(YOUTUBE_JSMPEG_TOKEN_SECRET_OPTION, None)
+    safe.pop(YOUTUBE_JSMPEG_TOKEN_SECRET_OPTION, None)
+    return safe
+
+
+def _youtube_jsmpeg_signed_token(secret: Any, youtube_url: Any, quality: Any) -> str:
+    secret_text = str(secret or "").strip()
+    if not secret_text:
+        return ""
+    url_text = str(youtube_url or "").strip()
+    quality_text = str(quality or "480").strip()
+    message = f"{quality_text}\n{url_text}".encode("utf-8")
+    return hmac.new(secret_text.encode("utf-8"), message, hashlib.sha256).hexdigest()
+
+
+def _youtube_jsmpeg_token_secret(hass: HomeAssistant) -> str:
+    return str(_entry_config(hass).get(YOUTUBE_JSMPEG_TOKEN_SECRET_OPTION) or "").strip()
+
+
+def _ensure_youtube_jsmpeg_token_secret_in_options(hass: HomeAssistant, merged_options: dict[str, Any]) -> dict[str, Any]:
+    """Ensure a per-install internal token secret exists for iframe/WebSocket URLs."""
+    current = dict(merged_options or {})
+    if str(current.get(YOUTUBE_JSMPEG_TOKEN_SECRET_OPTION) or "").strip():
+        return current
+
+    entries = hass.config_entries.async_entries(DOMAIN)
+    if not entries:
+        return current
+
+    entry = entries[0]
+    existing = {
+        **dict(entry.data or {}),
+        **dict(entry.options or {}),
+        **current,
+    }
+    secret_value = str(existing.get(YOUTUBE_JSMPEG_TOKEN_SECRET_OPTION) or "").strip()
+    if not secret_value:
+        secret_value = secrets.token_urlsafe(32)
+        updated_options = dict(entry.options or {})
+        updated_options[YOUTUBE_JSMPEG_TOKEN_SECRET_OPTION] = secret_value
+        try:
+            hass.config_entries.async_update_entry(entry, options=updated_options)
+            hass.data.setdefault(DOMAIN, {})[entry.entry_id] = {
+                **dict(entry.data or {}),
+                **updated_options,
+            }
+        except Exception:
+            _LOGGER.exception("Could not persist YouTube/JSMpeg signed token secret")
+
+    current[YOUTUBE_JSMPEG_TOKEN_SECRET_OPTION] = secret_value
+    return current
+
+
+def _youtube_jsmpeg_validate_signed_token(hass: HomeAssistant, youtube_url: Any, quality: Any, token: Any) -> None:
+    """Validate the signed token used by browser-driven no-auth video endpoints."""
+    secret_value = _youtube_jsmpeg_token_secret(hass)
+    if not secret_value:
+        raise ValueError("YouTube background token is not initialized. Rebuild the Tesla AI dashboard.")
+    expected = _youtube_jsmpeg_signed_token(secret_value, youtube_url, quality)
+    provided = str(token or "").strip()
+    if not expected or not provided or not hmac.compare_digest(provided, expected):
+        raise ValueError("Invalid YouTube background token. Rebuild the Tesla AI dashboard.")
+
+
+def _request_user_is_admin(request: web.Request) -> bool:
+    """Return True only for Home Assistant admin users."""
+    user = None
+    try:
+        user = request.get("hass_user")
+    except Exception:
+        user = None
+    if user is None:
+        try:
+            user = request["hass_user"]
+        except Exception:
+            user = None
+    return bool(getattr(user, "is_admin", False))
+
+
+def _admin_required_response(request: web.Request) -> web.Response | None:
+    if _request_user_is_admin(request):
+        return None
+    return web.json_response(
+        {
+            "success": False,
+            "error": "admin_required",
+            "message": "This Tesla AI management endpoint requires a Home Assistant admin user.",
+        },
+        status=403,
+    )
+
+
+def _redact_youtube_signed_tokens_from_text(text: str) -> str:
+    """Redact dashboard iframe signed tokens before export/debug sharing."""
+    return re.sub(r"([?&]token=)[^&\s\"'<>]+", r"\1REDACTED", str(text or ""))
+
+
 def _telegram_diag_log(hass: HomeAssistant) -> list[dict[str, Any]]:
     return hass.data.setdefault(DOMAIN, {}).setdefault("telegram_diagnostics", [])
 
@@ -1012,6 +1148,12 @@ def _ai_test_config_from_request(hass: HomeAssistant, ai_settings: Any = None) -
     for ui_key, conf_key in mapping.items():
         if ui_key in ai_settings:
             data[conf_key] = ai_settings.get(ui_key)
+    if "openai_api_key" in ai_settings:
+        raw_key = str(ai_settings.get("openai_api_key") or "").strip()
+        if raw_key and not _is_masked_secret_from_panel(raw_key):
+            data[CONF_OPENAI_API_KEY] = raw_key
+        else:
+            data[CONF_OPENAI_API_KEY] = str(_entry_config(hass).get(CONF_OPENAI_API_KEY) or "").strip()
     return data
 
 
@@ -1127,9 +1269,11 @@ def _telegram_test_config_from_request(hass: HomeAssistant, telegram: Any = None
         telegram.get("builtin_telegram_enabled", data.get(CONF_BUILTIN_TELEGRAM_ENABLED)),
         DEFAULT_BUILTIN_TELEGRAM_ENABLED,
     )
-    data[CONF_BUILTIN_TELEGRAM_BOT_TOKEN] = str(
-        telegram.get("builtin_telegram_bot_token", data.get(CONF_BUILTIN_TELEGRAM_BOT_TOKEN, "")) or ""
-    ).strip()
+    raw_bot_token = str(telegram.get("builtin_telegram_bot_token", "") or "").strip()
+    if raw_bot_token and not _is_masked_secret_from_panel(raw_bot_token):
+        data[CONF_BUILTIN_TELEGRAM_BOT_TOKEN] = raw_bot_token
+    else:
+        data[CONF_BUILTIN_TELEGRAM_BOT_TOKEN] = str(_entry_config(hass).get(CONF_BUILTIN_TELEGRAM_BOT_TOKEN) or data.get(CONF_BUILTIN_TELEGRAM_BOT_TOKEN, "") or "").strip()
     data[CONF_BUILTIN_TELEGRAM_POLL_ENABLED] = _to_bool(
         telegram.get("builtin_telegram_poll_enabled", data.get(CONF_BUILTIN_TELEGRAM_POLL_ENABLED)),
         DEFAULT_BUILTIN_TELEGRAM_POLL_ENABLED,
@@ -4359,14 +4503,16 @@ def _ai_settings_payload(data: dict[str, Any]) -> dict[str, Any]:
         "ai_context_mode": str(data.get(CONF_AI_CONTEXT_MODE) or DEFAULT_AI_CONTEXT_MODE),
         "ai_name": str(data.get(CONF_AI_NAME) or DEFAULT_AI_NAME or "").strip(),
         "ai_user_address": str(data.get(CONF_AI_USER_ADDRESS) or DEFAULT_AI_USER_ADDRESS or "").strip(),
-        "openai_api_key": str(data.get(CONF_OPENAI_API_KEY) or "").strip(),
+        "openai_api_key": _mask_secret_for_panel(data.get(CONF_OPENAI_API_KEY)),
+        "openai_api_key_configured": bool(str(data.get(CONF_OPENAI_API_KEY) or "").strip()),
+        "openai_api_key_last4": _secret_last4(data.get(CONF_OPENAI_API_KEY)),
         "openai_model": str(data.get(CONF_OPENAI_MODEL) or DEFAULT_OPENAI_MODEL or "").strip(),
         "reverse_geocoding_enabled": _to_bool(data.get(CONF_REVERSE_GEOCODING_ENABLED), DEFAULT_REVERSE_GEOCODING_ENABLED),
         "reverse_geocoding_cache_minutes": max(5, _positive_int(data.get(CONF_REVERSE_GEOCODING_CACHE_MINUTES), DEFAULT_REVERSE_GEOCODING_CACHE_MINUTES, minimum=5, maximum=1440)),
         "reverse_geocoding_use_in_ai": _to_bool(data.get(CONF_REVERSE_GEOCODING_USE_IN_AI), DEFAULT_REVERSE_GEOCODING_USE_IN_AI),
         "ai_max_output_tokens": _positive_int(data.get(CONF_AI_MAX_OUTPUT_TOKENS), DEFAULT_AI_MAX_OUTPUT_TOKENS, minimum=128, maximum=4096),
         "ai_telegram_include_context": _to_bool(data.get(CONF_AI_TELEGRAM_INCLUDE_CONTEXT), DEFAULT_AI_TELEGRAM_INCLUDE_CONTEXT),
-        "ai_confirm_optional_controls": _to_bool(data.get(CONF_AI_CONFIRM_OPTIONAL_CONTROLS), DEFAULT_AI_CONFIRM_OPTIONAL_CONTROLS),
+        "ai_confirm_optional_controls": True,
         "ai_alerts_enabled": _to_bool(data.get(CONF_AI_ALERTS_ENABLED), DEFAULT_AI_ALERTS_ENABLED),
         "ai_alert_style": str(data.get(CONF_AI_ALERT_STYLE) or DEFAULT_AI_ALERT_STYLE),
         "ai_alert_cooldown_minutes": _positive_int(data.get(CONF_AI_ALERT_COOLDOWN_MINUTES), DEFAULT_AI_ALERT_COOLDOWN_MINUTES, minimum=1, maximum=240),
@@ -4539,7 +4685,9 @@ def _settings_payload(hass: HomeAssistant) -> dict[str, Any]:
         "dashboard_settings": _dashboard_settings_payload(hass),
         "telegram": {
             "builtin_telegram_enabled": _to_bool(data.get(CONF_BUILTIN_TELEGRAM_ENABLED), DEFAULT_BUILTIN_TELEGRAM_ENABLED),
-            "builtin_telegram_bot_token": str(data.get(CONF_BUILTIN_TELEGRAM_BOT_TOKEN) or "").strip(),
+            "builtin_telegram_bot_token": _mask_secret_for_panel(data.get(CONF_BUILTIN_TELEGRAM_BOT_TOKEN)),
+            "builtin_telegram_bot_token_configured": bool(str(data.get(CONF_BUILTIN_TELEGRAM_BOT_TOKEN) or "").strip()),
+            "builtin_telegram_bot_token_last4": _secret_last4(data.get(CONF_BUILTIN_TELEGRAM_BOT_TOKEN)),
             "builtin_telegram_poll_enabled": _to_bool(data.get(CONF_BUILTIN_TELEGRAM_POLL_ENABLED), DEFAULT_BUILTIN_TELEGRAM_POLL_ENABLED),
             "builtin_telegram_poll_interval_seconds": _positive_int(
                 data.get(CONF_BUILTIN_TELEGRAM_POLL_INTERVAL_SECONDS),
@@ -4644,7 +4792,9 @@ def _settings_payload_fast(hass: HomeAssistant) -> dict[str, Any]:
         "dashboard_settings": _dashboard_settings_payload_fast(hass, data),
         "telegram": {
             "builtin_telegram_enabled": _to_bool(data.get(CONF_BUILTIN_TELEGRAM_ENABLED), DEFAULT_BUILTIN_TELEGRAM_ENABLED),
-            "builtin_telegram_bot_token": str(data.get(CONF_BUILTIN_TELEGRAM_BOT_TOKEN) or "").strip(),
+            "builtin_telegram_bot_token": _mask_secret_for_panel(data.get(CONF_BUILTIN_TELEGRAM_BOT_TOKEN)),
+            "builtin_telegram_bot_token_configured": bool(str(data.get(CONF_BUILTIN_TELEGRAM_BOT_TOKEN) or "").strip()),
+            "builtin_telegram_bot_token_last4": _secret_last4(data.get(CONF_BUILTIN_TELEGRAM_BOT_TOKEN)),
             "builtin_telegram_poll_enabled": _to_bool(data.get(CONF_BUILTIN_TELEGRAM_POLL_ENABLED), DEFAULT_BUILTIN_TELEGRAM_POLL_ENABLED),
             "builtin_telegram_poll_interval_seconds": _positive_int(
                 data.get(CONF_BUILTIN_TELEGRAM_POLL_INTERVAL_SECONDS),
@@ -5911,7 +6061,7 @@ def _dashboard_settings_payload_fast(hass: HomeAssistant, data: dict[str, Any]) 
             "start_seconds": _positive_int(data.get("youtube_driving_bg_start_seconds"), 0, minimum=0, maximum=86400),
             "mute": _to_bool(data.get("youtube_driving_bg_mute"), True),
             "loop": _to_bool(data.get("youtube_driving_bg_loop"), True),
-            "quality": str(data.get("youtube_driving_bg_quality") or "480").strip() if str(data.get("youtube_driving_bg_quality") or "480").strip() in ("360", "480", "720", "1080_lite", "1080") else "480",
+            "quality": str(data.get("youtube_driving_bg_quality") or "480").strip() if str(data.get("youtube_driving_bg_quality") or "480").strip() in ("360", "480", "720", "1080_lite", "1080", "1080_high") else "480",
         },
         "drive_dashboard": {
             "vehicle_image": str(data.get(DASHBOARD_DRIVE_VEHICLE_IMAGE_KEY) or "").strip(),
@@ -6419,6 +6569,7 @@ async def _run_dashboard_rebuild_from_panel(
     This runs as a background task so the settings POST returns immediately.
     """
     try:
+        merged_options = _ensure_youtube_jsmpeg_token_secret_in_options(hass, dict(merged_options or {}))
         dashboard_options = merged_dashboard_options_from_report_config(dict(merged_options or {}))
         path = await async_write_tesla_dashboard(hass, dashboard_options)
         drive_path = await _async_write_drive_dashboard_from_panel(hass, merged_options)
@@ -6448,6 +6599,9 @@ class PomTeslaSettingsView(HomeAssistantView):
         self.hass = hass
 
     async def get(self, request: web.Request) -> web.Response:
+        admin_response = _admin_required_response(request)
+        if admin_response is not None:
+            return admin_response
         mode = str(request.query.get("mode") or request.query.get("payload") or "fast").strip().lower()
         try:
             if mode in {"full", "heavy", "legacy"}:
@@ -6511,6 +6665,9 @@ class PomTeslaSettingsView(HomeAssistantView):
         return web.json_response(payload)
 
     async def post(self, request: web.Request) -> web.Response:
+        admin_response = _admin_required_response(request)
+        if admin_response is not None:
+            return admin_response
         entry = _first_config_entry(self.hass)
         if entry is None:
             return web.json_response({"success": False, "error": "config_entry_not_found"}, status=404)
@@ -6633,14 +6790,16 @@ class PomTeslaSettingsView(HomeAssistantView):
             merged_options[CONF_AI_NAME] = str(ai_settings.get("ai_name") or DEFAULT_AI_NAME or "").strip() or DEFAULT_AI_NAME
             merged_options[CONF_AI_USER_ADDRESS] = str(ai_settings.get("ai_user_address") or "").strip()[:80]
             if "openai_api_key" in ai_settings:
-                merged_options[CONF_OPENAI_API_KEY] = str(ai_settings.get("openai_api_key") or "").strip()
+                raw_openai_key = str(ai_settings.get("openai_api_key") or "").strip()
+                if raw_openai_key and not _is_masked_secret_from_panel(raw_openai_key):
+                    merged_options[CONF_OPENAI_API_KEY] = raw_openai_key
             merged_options[CONF_OPENAI_MODEL] = str(ai_settings.get("openai_model") or DEFAULT_OPENAI_MODEL or "").strip() or DEFAULT_OPENAI_MODEL
             merged_options[CONF_REVERSE_GEOCODING_ENABLED] = _to_bool(ai_settings.get("reverse_geocoding_enabled"), DEFAULT_REVERSE_GEOCODING_ENABLED)
             merged_options[CONF_REVERSE_GEOCODING_CACHE_MINUTES] = max(5, _positive_int(ai_settings.get("reverse_geocoding_cache_minutes"), DEFAULT_REVERSE_GEOCODING_CACHE_MINUTES, minimum=5, maximum=1440))
             merged_options[CONF_REVERSE_GEOCODING_USE_IN_AI] = _to_bool(ai_settings.get("reverse_geocoding_use_in_ai"), DEFAULT_REVERSE_GEOCODING_USE_IN_AI)
             merged_options[CONF_AI_MAX_OUTPUT_TOKENS] = _positive_int(ai_settings.get("ai_max_output_tokens"), DEFAULT_AI_MAX_OUTPUT_TOKENS, minimum=128, maximum=4096)
             merged_options[CONF_AI_TELEGRAM_INCLUDE_CONTEXT] = _to_bool(ai_settings.get("ai_telegram_include_context"), DEFAULT_AI_TELEGRAM_INCLUDE_CONTEXT)
-            merged_options[CONF_AI_CONFIRM_OPTIONAL_CONTROLS] = _to_bool(ai_settings.get("ai_confirm_optional_controls"), DEFAULT_AI_CONFIRM_OPTIONAL_CONTROLS)
+            merged_options[CONF_AI_CONFIRM_OPTIONAL_CONTROLS] = True
             merged_options[CONF_AI_ALERTS_ENABLED] = _to_bool(ai_settings.get("ai_alerts_enabled"), DEFAULT_AI_ALERTS_ENABLED)
             merged_options[CONF_AI_ALERT_STYLE] = str(ai_settings.get("ai_alert_style") or DEFAULT_AI_ALERT_STYLE)
             merged_options[CONF_AI_ALERT_COOLDOWN_MINUTES] = _positive_int(ai_settings.get("ai_alert_cooldown_minutes"), DEFAULT_AI_ALERT_COOLDOWN_MINUTES, minimum=1, maximum=240)
@@ -6689,9 +6848,9 @@ class PomTeslaSettingsView(HomeAssistantView):
                 telegram.get("builtin_telegram_enabled", merged_options.get(CONF_BUILTIN_TELEGRAM_ENABLED)),
                 DEFAULT_BUILTIN_TELEGRAM_ENABLED,
             )
-            merged_options[CONF_BUILTIN_TELEGRAM_BOT_TOKEN] = str(
-                telegram.get("builtin_telegram_bot_token", merged_options.get(CONF_BUILTIN_TELEGRAM_BOT_TOKEN, "")) or ""
-            ).strip()
+            raw_bot_token = str(telegram.get("builtin_telegram_bot_token", "") or "").strip()
+            if raw_bot_token and not _is_masked_secret_from_panel(raw_bot_token):
+                merged_options[CONF_BUILTIN_TELEGRAM_BOT_TOKEN] = raw_bot_token
             merged_options[CONF_BUILTIN_TELEGRAM_POLL_ENABLED] = _to_bool(
                 telegram.get("builtin_telegram_poll_enabled", merged_options.get(CONF_BUILTIN_TELEGRAM_POLL_ENABLED)),
                 DEFAULT_BUILTIN_TELEGRAM_POLL_ENABLED,
@@ -6843,7 +7002,7 @@ class PomTeslaSettingsView(HomeAssistantView):
                 merged_options["youtube_driving_bg_start_seconds"] = _positive_int(youtube_bg.get("start_seconds"), 0, minimum=0, maximum=86400)
                 merged_options["youtube_driving_bg_mute"] = _to_bool(youtube_bg.get("mute"), True)
                 merged_options["youtube_driving_bg_loop"] = _to_bool(youtube_bg.get("loop"), True)
-                merged_options["youtube_driving_bg_quality"] = str(youtube_bg.get("quality") or "480").strip() if str(youtube_bg.get("quality") or "480").strip() in ("360", "480", "720", "1080_lite", "1080") else "480"
+                merged_options["youtube_driving_bg_quality"] = str(youtube_bg.get("quality") or "480").strip() if str(youtube_bg.get("quality") or "480").strip() in ("360", "480", "720", "1080_lite", "1080", "1080_high") else "480"
 
             drive_dashboard = dashboard_settings.get("drive_dashboard") if isinstance(dashboard_settings.get("drive_dashboard"), dict) else {}
             if "vehicle_image" in drive_dashboard:
@@ -7288,7 +7447,7 @@ def _dashboard_settings_payload(hass: HomeAssistant) -> dict[str, Any]:
             "start_seconds": _positive_int(data.get("youtube_driving_bg_start_seconds"), 0, minimum=0, maximum=86400),
             "mute": _to_bool(data.get("youtube_driving_bg_mute"), True),
             "loop": _to_bool(data.get("youtube_driving_bg_loop"), True),
-            "quality": str(data.get("youtube_driving_bg_quality") or "480").strip() if str(data.get("youtube_driving_bg_quality") or "480").strip() in ("360", "480", "720", "1080_lite", "1080") else "480",
+            "quality": str(data.get("youtube_driving_bg_quality") or "480").strip() if str(data.get("youtube_driving_bg_quality") or "480").strip() in ("360", "480", "720", "1080_lite", "1080", "1080_high") else "480",
         },
         "drive_dashboard": {
             "vehicle_image": str(data.get(DASHBOARD_DRIVE_VEHICLE_IMAGE_KEY) or "").strip(),
@@ -8879,7 +9038,7 @@ def _collect_dashboard_background_files(hass: HomeAssistant) -> list[dict[str, A
 
 def _build_full_backup_payload(hass: HomeAssistant) -> dict[str, Any]:
     """Build a complete user-data backup payload for export."""
-    settings_payload = _settings_payload(hass)
+    settings_payload = _backup_safe_settings_payload(_settings_payload(hass))
     charge_ledger = _load_charge_ledger(hass)
     trip_ledger = _load_trip_ledger(hass)
     trip_records = [item for item in list(trip_ledger.get("records") or []) if isinstance(item, dict)]
@@ -8937,7 +9096,8 @@ def _write_backup_zip_to_bytes(hass: HomeAssistant, payload: dict[str, Any]) -> 
             path = Path(hass.config.path(filename))
             if path.exists() and path.is_file():
                 try:
-                    zf.writestr(f"dashboard_yaml/{filename}", path.read_text(encoding="utf-8"))
+                    yaml_text = path.read_text(encoding="utf-8")
+                    zf.writestr(f"dashboard_yaml/{filename}", _redact_youtube_signed_tokens_from_text(yaml_text))
                 except Exception as err:
                     zf.writestr(f"dashboard_yaml/{filename}.error.txt", str(err))
 
@@ -8963,6 +9123,9 @@ class PomTeslaBackupExportView(HomeAssistantView):
         self.hass = hass
 
     async def get(self, request: web.Request) -> web.Response:
+        admin_response = _admin_required_response(request)
+        if admin_response is not None:
+            return admin_response
         fmt = str(request.query.get("format") or "zip").strip().lower()
         try:
             payload = await asyncio.to_thread(_build_full_backup_payload, self.hass)
@@ -8997,6 +9160,9 @@ class PomTeslaSystemLogsView(HomeAssistantView):
         self.hass = hass
 
     async def get(self, request: web.Request) -> web.Response:
+        admin_response = _admin_required_response(request)
+        if admin_response is not None:
+            return admin_response
         try:
             payload = await self.hass.async_add_executor_job(_system_logs_payload_blocking, self.hass, 500)
             return web.json_response(payload, status=200)
@@ -9005,6 +9171,9 @@ class PomTeslaSystemLogsView(HomeAssistantView):
             return web.json_response({"success": False, "error": str(err)}, status=500)
 
     async def post(self, request: web.Request) -> web.Response:
+        admin_response = _admin_required_response(request)
+        if admin_response is not None:
+            return admin_response
         return await self.get(request)
 
 
@@ -9019,6 +9188,9 @@ class PomTeslaLiveTripDebugView(HomeAssistantView):
         self.hass = hass
 
     async def get(self, request: web.Request) -> web.Response:
+        admin_response = _admin_required_response(request)
+        if admin_response is not None:
+            return admin_response
         try:
             return web.json_response(_live_trip_debug_payload(self.hass))
         except Exception as err:
@@ -9026,6 +9198,9 @@ class PomTeslaLiveTripDebugView(HomeAssistantView):
             return web.json_response({"success": False, "error": str(err)}, status=500)
 
     async def post(self, request: web.Request) -> web.Response:
+        admin_response = _admin_required_response(request)
+        if admin_response is not None:
+            return admin_response
         return await self.get(request)
 
 
@@ -9049,6 +9224,9 @@ class PomTeslaDashboardResourcesView(HomeAssistantView):
         })
 
     async def post(self, request: web.Request) -> web.Response:
+        admin_response = _admin_required_response(request)
+        if admin_response is not None:
+            return admin_response
         try:
             body = await request.json()
         except Exception:
@@ -9090,6 +9268,9 @@ class PomTeslaDashboardMediaView(HomeAssistantView):
         self.hass = hass
 
     async def post(self, request: web.Request) -> web.Response:
+        admin_response = _admin_required_response(request)
+        if admin_response is not None:
+            return admin_response
         entry = _first_config_entry(self.hass)
         if entry is None:
             return web.json_response({"success": False, "error": "config_entry_not_found"}, status=404)
@@ -9239,6 +9420,8 @@ YOUTUBE_JSMPEG_QUALITY_MAP = {
     "1080_lite": ("1600:-2", "3000k", "4200k", "1800k"),
     # Full 1080p; heavier CPU and can stutter on VM/N100/Tesla browser.
     "1080": ("1920:-2", "4500k", "6000k", "2500k"),
+    # Sharper 1080p profile; much heavier CPU/network, intended for capable hosts.
+    "1080_high": ("1920:-2", "8500k", "12000k", "6000k"),
 }
 
 YOUTUBE_JSMPEG_FORMATS = {
@@ -9247,7 +9430,111 @@ YOUTUBE_JSMPEG_FORMATS = {
     "720": "bestvideo[height<=720][vcodec^=avc1]/best[height<=720][ext=mp4]/best[height<=720]/best",
     "1080_lite": "bestvideo[height<=1080][vcodec^=avc1]/bestvideo[height<=1080]/best[height<=1080][ext=mp4]/best[height<=1080]/best",
     "1080": "bestvideo[height<=1080][vcodec^=avc1]/bestvideo[height<=1080]/best[height<=1080][ext=mp4]/best[height<=1080]/best",
+    "1080_high": "bestvideo[height<=1080][vcodec^=avc1]/bestvideo[height<=1080]/best[height<=1080][ext=mp4]/best[height<=1080]/best",
 }
+
+YOUTUBE_JSMPEG_ALLOWED_HOSTS = {
+    "youtube.com",
+    "www.youtube.com",
+    "m.youtube.com",
+    "music.youtube.com",
+    "youtu.be",
+    "www.youtu.be",
+    "youtube-nocookie.com",
+    "www.youtube-nocookie.com",
+}
+YOUTUBE_JSMPEG_ALLOWED_HOST_SUFFIXES = (
+    ".youtube.com",
+    ".youtube-nocookie.com",
+)
+YOUTUBE_JSMPEG_DIRECT_MEDIA_ALLOWED_HOSTS = {
+    "googlevideo.com",
+    "youtube.com",
+    "www.youtube.com",
+    "m.youtube.com",
+    "music.youtube.com",
+    "youtube-nocookie.com",
+    "www.youtube-nocookie.com",
+    "ytimg.com",
+    "i.ytimg.com",
+}
+YOUTUBE_JSMPEG_DIRECT_MEDIA_ALLOWED_HOST_SUFFIXES = (
+    ".googlevideo.com",
+    ".youtube.com",
+    ".youtube-nocookie.com",
+    ".ytimg.com",
+)
+YOUTUBE_JSMPEG_MAX_FFMPEG_PROCESSES = 2
+YOUTUBE_JSMPEG_FFMPEG_PROTOCOL_WHITELIST = "file,pipe,fd,http,https,tcp,tls,crypto,httpproxy,data"
+
+
+def _youtube_jsmpeg_host_allowed(host: str) -> bool:
+    host = str(host or "").strip().lower().rstrip(".")
+    return bool(host and (host in YOUTUBE_JSMPEG_ALLOWED_HOSTS or any(host.endswith(suffix) for suffix in YOUTUBE_JSMPEG_ALLOWED_HOST_SUFFIXES)))
+
+
+def _youtube_jsmpeg_validate_youtube_url(value: Any) -> str:
+    text = str(value or "").strip()
+    if not text:
+        raise ValueError("Missing YouTube URL.")
+    parsed = urlparse(text)
+    if parsed.scheme not in {"http", "https"}:
+        raise ValueError("Only http/https YouTube URLs are allowed.")
+    if not _youtube_jsmpeg_host_allowed(parsed.hostname or ""):
+        raise ValueError("Only YouTube URLs are allowed for the driving background.")
+    return text
+
+
+def _youtube_jsmpeg_direct_media_host_allowed(host: str) -> bool:
+    host = str(host or "").strip().lower().rstrip(".")
+    return bool(
+        host
+        and (
+            host in YOUTUBE_JSMPEG_DIRECT_MEDIA_ALLOWED_HOSTS
+            or any(host.endswith(suffix) for suffix in YOUTUBE_JSMPEG_DIRECT_MEDIA_ALLOWED_HOST_SUFFIXES)
+        )
+    )
+
+
+def _youtube_jsmpeg_validate_direct_media_url(value: Any) -> str:
+    text = str(value or "").strip()
+    parsed = urlparse(text)
+    if parsed.scheme not in {"http", "https"}:
+        raise ValueError("yt-dlp returned a non-http media URL, which is blocked.")
+    if not _youtube_jsmpeg_direct_media_host_allowed(parsed.hostname or ""):
+        raise ValueError("yt-dlp returned a non-YouTube/Google media host, which is blocked.")
+    return text
+
+
+def _youtube_jsmpeg_active_producer_count(hass: HomeAssistant) -> int:
+    producers = hass.data.setdefault(DOMAIN, {}).setdefault("youtube_jsmpeg_producers", {})
+    for key, producer in list(producers.items()):
+        try:
+            if getattr(producer, "_stopped", True):
+                producers.pop(key, None)
+        except Exception:
+            producers.pop(key, None)
+    return len(producers)
+
+
+def _youtube_jsmpeg_active_process_count(hass: HomeAssistant) -> int:
+    data = hass.data.setdefault(DOMAIN, {})
+    legacy_count = int(data.get("youtube_jsmpeg_legacy_process_count") or 0)
+    return _youtube_jsmpeg_active_producer_count(hass) + max(0, legacy_count)
+
+
+def _youtube_jsmpeg_acquire_legacy_process_slot(hass: HomeAssistant) -> bool:
+    data = hass.data.setdefault(DOMAIN, {})
+    if _youtube_jsmpeg_active_process_count(hass) >= YOUTUBE_JSMPEG_MAX_FFMPEG_PROCESSES:
+        return False
+    data["youtube_jsmpeg_legacy_process_count"] = max(0, int(data.get("youtube_jsmpeg_legacy_process_count") or 0)) + 1
+    return True
+
+
+def _youtube_jsmpeg_release_legacy_process_slot(hass: HomeAssistant) -> None:
+    data = hass.data.setdefault(DOMAIN, {})
+    data["youtube_jsmpeg_legacy_process_count"] = max(0, int(data.get("youtube_jsmpeg_legacy_process_count") or 0) - 1)
+
 
 
 def _youtube_jsmpeg_quality(value: Any) -> str:
@@ -9257,10 +9544,14 @@ def _youtube_jsmpeg_quality(value: Any) -> str:
 
 def _youtube_jsmpeg_ffmpeg_cmd(input_url: str, quality: str, headers: dict[str, str] | None = None, start_offset: int = 0) -> list[str]:
     scale, bitrate, maxrate, bufsize = YOUTUBE_JSMPEG_QUALITY_MAP.get(quality, YOUTUBE_JSMPEG_QUALITY_MAP["480"])
-    fps = "24" if quality in ("1080", "1080_lite") else "25"
+    if quality == "1080_high":
+        fps = "30"
+    else:
+        fps = "24" if quality in ("1080", "1080_lite") else "25"
     headers = headers or {}
     cmd = [
         "ffmpeg", "-hide_banner", "-loglevel", "warning",
+        "-protocol_whitelist", YOUTUBE_JSMPEG_FFMPEG_PROTOCOL_WHITELIST,
         "-threads", "0",
         "-reconnect", "1", "-reconnect_streamed", "1", "-reconnect_at_eof", "1", "-reconnect_delay_max", "5",
     ]
@@ -9329,7 +9620,6 @@ def _youtube_jsmpeg_parse_time(value: Any) -> int:
 def _youtube_jsmpeg_start_from_url(youtube_url: str) -> int:
     """Extract start offset from YouTube URL query params like t=102 or start=102."""
     try:
-        from urllib.parse import parse_qs, urlparse
         parsed = urlparse(str(youtube_url or ""))
         params = parse_qs(parsed.query)
         for key in ("start", "t"):
@@ -9414,7 +9704,7 @@ def _youtube_jsmpeg_session_offset(
     return elapsed if elapsed > 2 else 0
 
 
-def _youtube_jsmpeg_player_html(*, youtube_url: str = "", quality: str = "480", fit: str = "cover", hide: bool = False, session: str = "", resume: bool = False, loop: bool = True, start: int = 0, nocache: bool = False) -> str:
+def _youtube_jsmpeg_player_html(*, youtube_url: str = "", quality: str = "480", fit: str = "cover", hide: bool = False, session: str = "", resume: bool = False, loop: bool = True, start: int = 0, nocache: bool = False, token: str = "") -> str:
     safe_url = html.escape(youtube_url or "", quote=True)
     safe_quality = html.escape(_youtube_jsmpeg_quality(quality), quote=True)
     fit = "contain" if str(fit or "cover").strip().lower() == "contain" else "cover"
@@ -9434,6 +9724,8 @@ def _youtube_jsmpeg_player_html(*, youtube_url: str = "", quality: str = "480", 
             stream_params["start"] = str(start)
         if nocache:
             stream_params["nocache"] = "1"
+        if token:
+            stream_params["token"] = token
         stream_url = API_YOUTUBE_JSMPEG_WS_URL + "?" + urlencode(stream_params)
     stream_url_json = json.dumps(stream_url)
     safe_body = html.escape(body_class, quote=True)
@@ -9558,6 +9850,7 @@ async def _async_youtube_direct_url(hass: HomeAssistant, youtube_url: str, quali
 
     Repeated dashboard/WebSocket reconnects should not run yt-dlp every time.
     """
+    youtube_url = _youtube_jsmpeg_validate_youtube_url(youtube_url)
     fmt = YOUTUBE_JSMPEG_FORMATS.get(quality, YOUTUBE_JSMPEG_FORMATS["480"])
     cache_key = f"{quality}|{youtube_url}"
     now = time.monotonic()
@@ -9615,6 +9908,7 @@ async def _async_youtube_direct_url(hass: HomeAssistant, youtube_url: str, quali
         if not direct_url:
             raise RuntimeError("yt-dlp did not return a direct video URL")
 
+        direct_url = _youtube_jsmpeg_validate_direct_media_url(direct_url)
         return direct_url, headers, duration
 
     direct_url, headers, duration = await hass.async_add_executor_job(_resolve)
@@ -9632,7 +9926,7 @@ class PomTeslaYoutubeJSMpegHealthView(HomeAssistantView):
 
     url = API_YOUTUBE_JSMPEG_HEALTH_URL
     name = f"{DOMAIN}:youtube_jsmpeg_health"
-    requires_auth = False
+    requires_auth = True
 
     def __init__(self, hass: HomeAssistant) -> None:
         self.hass = hass
@@ -9679,7 +9973,14 @@ class PomTeslaYoutubeJSMpegPlayerView(HomeAssistantView):
         loop = str(request.query.get("loop") or "1").strip() != "0"
         start = _youtube_jsmpeg_parse_time(request.query.get("start")) or _youtube_jsmpeg_start_from_url(youtube_url)
         nocache = str(request.query.get("nocache") or "0").strip() == "1"
-        return web.Response(text=_youtube_jsmpeg_player_html(youtube_url=youtube_url, quality=quality, fit=fit, hide=hide, session=session, resume=resume, loop=loop, start=start, nocache=nocache), content_type="text/html", charset="utf-8", headers={"Cache-Control": "no-store"})
+        token = str(request.query.get("token") or "").strip()
+        if youtube_url:
+            try:
+                youtube_url = _youtube_jsmpeg_validate_youtube_url(youtube_url)
+                _youtube_jsmpeg_validate_signed_token(self.hass, youtube_url, quality, token)
+            except ValueError as err:
+                return web.Response(text=str(err), status=403)
+        return web.Response(text=_youtube_jsmpeg_player_html(youtube_url=youtube_url, quality=quality, fit=fit, hide=hide, session=session, resume=resume, loop=loop, start=start, nocache=nocache, token=token), content_type="text/html", charset="utf-8", headers={"Cache-Control": "no-store"})
 
 
 
@@ -9735,7 +10036,7 @@ class _PomYoutubeJSMpegProducer:
             "realtime_input": True,
             "seek_mode": "input_fast" if self.start_offset > 2 else "none",
             "threads": "auto",
-            "fps": "24" if self.quality in ("1080", "1080_lite") else "25",
+            "fps": "30" if self.quality == "1080_high" else ("24" if self.quality in ("1080", "1080_lite") else "25"),
             "profile": "1080_lite" if self.quality == "1080_lite" else self.quality,
             "key": self.key[:160],
             "duration": self.duration,
@@ -9899,11 +10200,15 @@ async def _async_get_youtube_jsmpeg_producer(
         start_base = max(0, int(start_base or 0))
     except Exception:
         start_base = 0
+    youtube_url = _youtube_jsmpeg_validate_youtube_url(youtube_url)
     key = f"{quality}|{start_base}|{youtube_url}"
     producers = hass.data.setdefault(DOMAIN, {}).setdefault("youtube_jsmpeg_producers", {})
     existing = producers.get(key)
     if isinstance(existing, _PomYoutubeJSMpegProducer) and not existing._stopped:
         return existing
+
+    if _youtube_jsmpeg_active_process_count(hass) >= YOUTUBE_JSMPEG_MAX_FFMPEG_PROCESSES:
+        raise RuntimeError(f"YouTube background process limit reached ({YOUTUBE_JSMPEG_MAX_FFMPEG_PROCESSES}).")
 
     hass.data.setdefault(DOMAIN, {})["youtube_jsmpeg_last_status"] = {
         "stage": "producer_resolving",
@@ -9923,7 +10228,11 @@ async def _async_get_youtube_jsmpeg_producer(
         start_offset=start_base,
     )
     producers[key] = producer
-    await producer.start()
+    try:
+        await producer.start()
+    except Exception:
+        producers.pop(key, None)
+        raise
     hass.data.setdefault(DOMAIN, {})["youtube_jsmpeg_last_status"] = {
         "stage": "producer_started",
         "quality": quality,
@@ -9961,6 +10270,12 @@ class PomTeslaYoutubeJSMpegWebSocketView(HomeAssistantView):
         start_base = _youtube_jsmpeg_parse_time(request.query.get("start")) or _youtube_jsmpeg_start_from_url(youtube_url)
         if nocache:
             start_base = 0
+        token = str(request.query.get("token") or "").strip()
+        try:
+            youtube_url = _youtube_jsmpeg_validate_youtube_url(youtube_url)
+            _youtube_jsmpeg_validate_signed_token(self.hass, youtube_url, quality, token)
+        except ValueError as err:
+            return web.Response(text=str(err), status=403)
         ws = web.WebSocketResponse(autoping=True, heartbeat=30)
         await ws.prepare(request)
 
@@ -10031,6 +10346,12 @@ class PomTeslaYoutubeJSMpegWebSocketView(HomeAssistantView):
             start_offset = (start_offset % duration) if loop else max(duration - 5, 0)
         if start_offset > 0:
             status_store["youtube_jsmpeg_last_status"] = {"stage": "ws_resume_offset", "quality": quality, "session": session, "resume_offset": resume_offset, "start_base": start_base, "start_offset": start_offset, "duration": duration, "ts": dt_util.utcnow().isoformat()}
+        legacy_slot_acquired = False
+        if not _youtube_jsmpeg_acquire_legacy_process_slot(self.hass):
+            status_store["youtube_jsmpeg_last_status"] = {"stage": "ws_process_limit", "quality": quality, "limit": YOUTUBE_JSMPEG_MAX_FFMPEG_PROCESSES, "ts": dt_util.utcnow().isoformat()}
+            await ws.close(message=b"YouTube background process limit reached")
+            return ws
+        legacy_slot_acquired = True
         cmd = _youtube_jsmpeg_ffmpeg_cmd(direct_url, quality, direct_headers, start_offset)
         status_store["youtube_jsmpeg_last_status"] = {"stage": "ws_ffmpeg_starting", "quality": quality, "session": session, "start_offset": start_offset, "duration": duration, "cache_hit": cache_hit, "ts": dt_util.utcnow().isoformat()}
         try:
@@ -10038,6 +10359,8 @@ class PomTeslaYoutubeJSMpegWebSocketView(HomeAssistantView):
         except Exception as err:
             _LOGGER.exception("Could not start ffmpeg for YouTube JSMpeg WebSocket")
             status_store["youtube_jsmpeg_last_status"] = {"stage": "ws_ffmpeg_start_error", "quality": quality, "error": str(err)[:1000], "ts": dt_util.utcnow().isoformat()}
+            if legacy_slot_acquired:
+                _youtube_jsmpeg_release_legacy_process_slot(self.hass)
             await ws.close(message=str(err).encode("utf-8", "replace")[:500])
             return ws
 
@@ -10087,6 +10410,8 @@ class PomTeslaYoutubeJSMpegWebSocketView(HomeAssistantView):
                 status_store["youtube_jsmpeg_last_status"] = {"stage": "ws_no_output", "quality": quality, "returncode": proc.returncode, "ts": dt_util.utcnow().isoformat()}
             else:
                 status_store["youtube_jsmpeg_last_status"] = {"stage": "ws_finished", "quality": quality, "bytes_sent": bytes_sent, "returncode": proc.returncode, "ts": dt_util.utcnow().isoformat()}
+            if legacy_slot_acquired:
+                _youtube_jsmpeg_release_legacy_process_slot(self.hass)
             if not ws.closed:
                 await ws.close()
         return ws
@@ -10107,6 +10432,12 @@ class PomTeslaYoutubeJSMpegStreamView(HomeAssistantView):
         quality = _youtube_jsmpeg_quality(request.query.get("quality"))
         if not youtube_url:
             return web.Response(text="Missing url parameter", status=400)
+        token = str(request.query.get("token") or "").strip()
+        try:
+            youtube_url = _youtube_jsmpeg_validate_youtube_url(youtube_url)
+            _youtube_jsmpeg_validate_signed_token(self.hass, youtube_url, quality, token)
+        except ValueError as err:
+            return web.Response(text=str(err), status=403)
         if shutil.which("ffmpeg") is None:
             return web.Response(text="ffmpeg binary not found in Home Assistant environment", status=500)
         status_store = self.hass.data.setdefault(DOMAIN, {})
@@ -10118,11 +10449,18 @@ class PomTeslaYoutubeJSMpegStreamView(HomeAssistantView):
             _LOGGER.exception("Could not resolve YouTube URL for JSMpeg stream")
             status_store["youtube_jsmpeg_last_status"] = {"stage": "yt_dlp_error", "quality": quality, "error": str(err)[:1000], "ts": dt_util.utcnow().isoformat()}
             return web.Response(text=f"yt-dlp error: {err}", status=500)
+        stream_slot_acquired = False
+        if not _youtube_jsmpeg_acquire_legacy_process_slot(self.hass):
+            status_store["youtube_jsmpeg_last_status"] = {"stage": "stream_process_limit", "quality": quality, "limit": YOUTUBE_JSMPEG_MAX_FFMPEG_PROCESSES, "ts": dt_util.utcnow().isoformat()}
+            return web.Response(text="YouTube background process limit reached", status=429)
+        stream_slot_acquired = True
         cmd = _youtube_jsmpeg_ffmpeg_cmd(direct_url, quality, direct_headers)
         try:
             proc = await asyncio.create_subprocess_exec(*cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE, stdin=asyncio.subprocess.DEVNULL)
         except Exception as err:
             _LOGGER.exception("Could not start ffmpeg for YouTube JSMpeg stream")
+            if stream_slot_acquired:
+                _youtube_jsmpeg_release_legacy_process_slot(self.hass)
             return web.Response(text=f"ffmpeg start error: {err}", status=500)
 
         async def _log_stderr() -> None:
@@ -10170,6 +10508,8 @@ class PomTeslaYoutubeJSMpegStreamView(HomeAssistantView):
                 status_store["youtube_jsmpeg_last_status"] = {"stage": "no_output", "quality": quality, "returncode": proc.returncode, "ts": dt_util.utcnow().isoformat()}
             else:
                 status_store["youtube_jsmpeg_last_status"] = {"stage": "finished", "quality": quality, "bytes_sent": bytes_sent, "returncode": proc.returncode, "ts": dt_util.utcnow().isoformat()}
+            if stream_slot_acquired:
+                _youtube_jsmpeg_release_legacy_process_slot(self.hass)
             try:
                 await response.write_eof()
             except Exception:

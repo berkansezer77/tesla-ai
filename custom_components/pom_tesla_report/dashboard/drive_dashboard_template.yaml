@@ -69,6 +69,8 @@ views:
                   };
                   roots.forEach((root) => {
                   ['app-header','app-toolbar','ha-top-app-bar-fixed','ha-top-app-bar','ha-header-bar','.toolbar[slot="toolbar"]','[slot="toolbar"]','.top-app-bar'].forEach((sel) => { try { root.querySelectorAll(sel).forEach(hide); } catch(e) {} });
+                  ['ha-sidebar','.sidebar','[data-panel="sidebar"]','[slot="sidebar"]','ha-navigation-list'].forEach((sel) => { try { root.querySelectorAll(sel).forEach(hide); } catch(e) {} });
+                  ['home-assistant-main','app-drawer-layout','ha-drawer','mwc-drawer','sl-drawer','ha-panel-lovelace','hui-root','hui-view','#view'].forEach((sel) => { try { root.querySelectorAll(sel).forEach((el) => { ['--ha-sidebar-width','--ha-drawer-width','--mdc-drawer-width','--app-drawer-width','--sidebar-width','--drawer-width','--mdc-drawer-modal-width'].forEach((prop) => el.style.setProperty(prop, '0px', 'important')); ['margin-left','padding-left','left'].forEach((prop) => el.style.setProperty(prop, '0px', 'important')); }); } catch(e) {} });
                   try { root.querySelectorAll('*').forEach((el) => { if (isTopRight(el) && looksChrome(el)) hide(el); }); } catch(e) {}
                   });
                   } catch(e) {}

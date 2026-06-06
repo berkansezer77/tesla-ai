@@ -12,5 +12,5 @@
     "Pillow==12.2.0",
     "yt-dlp"
   ],
-  "version": "2.2.0-dashboard-alpha362-tesla-ai-name-cache-hide"
+  "version": "2.2.0-alpha.372"
 }

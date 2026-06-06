@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from pathlib import Path
 from typing import Any
+import hashlib
+import hmac
 import json
 import re
 import time
@@ -18,6 +20,20 @@ try:
     STATIC_ASSET_URL_PATH
 except NameError:
     STATIC_ASSET_URL_PATH = "/pom_tesla_report/dashboard/png"
+
+YOUTUBE_JSMPEG_TOKEN_SECRET_OPTION = "youtube_jsmpeg_signed_token_secret"
+
+
+def _youtube_jsmpeg_signed_token(secret: Any, youtube_url: Any, quality: Any) -> str:
+    """Return an HMAC token for the browser-driven YouTube/JSMpeg endpoints."""
+    secret_text = str(secret or "").strip()
+    if not secret_text:
+        return ""
+    url_text = str(youtube_url or "").strip()
+    quality_text = str(quality or "480").strip()
+    message = f"{quality_text}\n{url_text}".encode("utf-8")
+    return hmac.new(secret_text.encode("utf-8"), message, hashlib.sha256).hexdigest()
+
 
 PANEL_DASHBOARD_ROLE_TO_OPTION = {
     "dashboard_top_power": "entity_power",
@@ -209,20 +225,21 @@ def _youtube_wrapper_url(video_value: Any, start_seconds: Any = 0, *, mute: bool
     return "/pom_tesla_report/dashboard/png/youtube_background.html?" + "&".join(params)
 
 
-def _youtube_canvas_player_url(video_value: Any, quality: Any = "480", fit: str = "cover", start_seconds: Any = 0, loop: bool = True) -> str:
+def _youtube_canvas_player_url(video_value: Any, quality: Any = "480", fit: str = "cover", start_seconds: Any = 0, loop: bool = True, token_secret: Any = "") -> str:
     """Build the internal HA YouTube -> JSMpeg Canvas player URL for dashboard background."""
     raw = str(video_value or "").strip()
     if not raw:
         return ""
     q = str(quality or "480").strip()
-    if q not in ("360", "480", "720", "1080_lite", "1080"):
+    if q not in ("360", "480", "720", "1080_lite", "1080", "1080_high"):
         q = "480"
     player_id = str(abs(hash(raw + "|" + q)) % 100000000)
     try:
         start_seconds = max(0, int(float(start_seconds or 0)))
     except Exception:
         start_seconds = 0
-    query = urlencode({
+    token = _youtube_jsmpeg_signed_token(token_secret, raw, q)
+    params = {
         "url": raw,
         "quality": q,
         "fit": "cover" if str(fit or "cover").strip().lower() != "contain" else "contain",
@@ -233,7 +250,10 @@ def _youtube_canvas_player_url(video_value: Any, quality: Any = "480", fit: str 
         "producer": "1",
         "nocache": "0",
         "resume": "0",
-    })
+    }
+    if token:
+        params["token"] = token
+    query = urlencode(params)
     return f"/pom_tesla_report/youtube_jsmpeg_player?{query}"
 
 
@@ -252,6 +272,7 @@ def apply_youtube_driving_background(template: str, options: dict[str, Any]) -> 
         "cover",
         options.get(CONF_YOUTUBE_DRIVING_BG_START_SECONDS, 0),
         bool(options.get(CONF_YOUTUBE_DRIVING_BG_LOOP, True)),
+        options.get(YOUTUBE_JSMPEG_TOKEN_SECRET_OPTION, ""),
     )
     if not enabled or not player_url:
         return template
@@ -2546,13 +2567,39 @@ def _build_fullscreen_controller(options: dict[str, Any]) -> str:
                 setImportant(document.body, 'height', '100vh');
                 setImportant(document.body, 'margin', '0');
               }}
+              [
+                document.documentElement,
+                document.body
+              ].forEach((el) => {{
+                setImportant(el, '--ha-sidebar-width', '0px');
+                setImportant(el, '--ha-drawer-width', '0px');
+                setImportant(el, '--mdc-drawer-width', '0px');
+                setImportant(el, '--app-drawer-width', '0px');
+                setImportant(el, '--sidebar-width', '0px');
+                setImportant(el, '--mdc-drawer-modal-width', '0px');
+                setImportant(el, '--ha-top-app-bar-width', '100vw');
+                setImportant(el, '--mdc-top-app-bar-width', '100vw');
+              }});
               roots.forEach((root) => {{
-                ['ha-panel-lovelace', 'hui-root', 'hui-view', '#view'].forEach((sel) => {{
+                ['home-assistant-main', 'app-drawer-layout', 'ha-drawer', 'ha-panel-lovelace', 'hui-root', 'hui-view', 'hui-panel-view', '#view', '.view'].forEach((sel) => {{
                   try {{
                     root.querySelectorAll(sel).forEach((el) => {{
+                      setImportant(el, '--ha-sidebar-width', '0px');
+                      setImportant(el, '--ha-drawer-width', '0px');
+                      setImportant(el, '--mdc-drawer-width', '0px');
+                      setImportant(el, '--app-drawer-width', '0px');
+                      setImportant(el, '--sidebar-width', '0px');
+                      setImportant(el, '--mdc-drawer-modal-width', '0px');
+                      setImportant(el, '--ha-top-app-bar-width', '100vw');
+                      setImportant(el, '--mdc-top-app-bar-width', '100vw');
                       setImportant(el, 'height', '100vh');
                       setImportant(el, 'min-height', '100vh');
+                      setImportant(el, 'width', '100vw');
+                      setImportant(el, 'max-width', '100vw');
                       setImportant(el, 'margin-top', '0px');
+                      setImportant(el, 'margin-left', '0px');
+                      setImportant(el, 'padding-left', '0px');
+                      setImportant(el, 'left', '0px');
                     }});
                   }} catch(e) {{}}
                 }});
@@ -2610,24 +2657,52 @@ def _build_fullscreen_controller(options: dict[str, Any]) -> str:
               }});
               setImportant(document.documentElement, '--header-height', '0px');
               setImportant(document.documentElement, '--app-toolbar-height', '0px');
+              setImportant(document.documentElement, '--ha-top-app-bar-width', '100vw');
+              setImportant(document.documentElement, '--mdc-top-app-bar-width', '100vw');
               setImportant(document.body, '--header-height', '0px');
               setImportant(document.body, '--app-toolbar-height', '0px');
+              setImportant(document.body, '--ha-top-app-bar-width', '100vw');
+              setImportant(document.body, '--mdc-top-app-bar-width', '100vw');
             }};
 
             const applySidebar = (roots, active) => {{
               if (!active) return;
-              const selectors = ['ha-sidebar', '.sidebar', '[data-panel="sidebar"]'];
+              const selectors = [
+                'ha-sidebar',
+                '.sidebar',
+                '[data-panel="sidebar"]',
+                '[slot="sidebar"]',
+                '[slot="drawer"]',
+                'ha-navigation-list',
+                'nav.sidebar',
+                'aside.sidebar'
+              ];
+              [document.documentElement, document.body].forEach((el) => {{
+                setImportant(el, '--ha-sidebar-width', '0px');
+                setImportant(el, '--ha-drawer-width', '0px');
+                setImportant(el, '--mdc-drawer-width', '0px');
+                setImportant(el, '--app-drawer-width', '0px');
+                setImportant(el, '--sidebar-width', '0px');
+                setImportant(el, '--drawer-width', '0px');
+                setImportant(el, '--mdc-drawer-modal-width', '0px');
+              }});
               roots.forEach((root) => {{
                 selectors.forEach((sel) => {{
                   try {{ root.querySelectorAll(sel).forEach(hideEl); }} catch(e) {{}}
                 }});
-                ['home-assistant-main', 'app-drawer-layout', 'ha-drawer', 'mwc-drawer'].forEach((sel) => {{
+                ['home-assistant', 'home-assistant-main', 'app-drawer-layout', 'ha-drawer', 'mwc-drawer', 'sl-drawer', 'ha-panel-lovelace', 'hui-root', 'hui-view', 'hui-panel-view', '#view'].forEach((sel) => {{
                   try {{
                     root.querySelectorAll(sel).forEach((el) => {{
+                      setImportant(el, '--ha-sidebar-width', '0px');
+                      setImportant(el, '--ha-drawer-width', '0px');
                       setImportant(el, '--mdc-drawer-width', '0px');
                       setImportant(el, '--app-drawer-width', '0px');
                       setImportant(el, '--sidebar-width', '0px');
+                      setImportant(el, '--drawer-width', '0px');
                       setImportant(el, '--mdc-drawer-modal-width', '0px');
+                      setImportant(el, 'margin-left', '0px');
+                      setImportant(el, 'padding-left', '0px');
+                      setImportant(el, 'left', '0px');
                     }});
                   }} catch(e) {{}}
                 }});
@@ -2687,6 +2762,18 @@ def _build_fullscreen_controller(options: dict[str, Any]) -> str:
               const activeScrollLock = Boolean(opts.disableScroll && immersive);
 
               restoreTouched();
+
+              // alpha364:
+              // When the fullscreen helper is OFF, stop here after restoring every
+              // style touched by the fullscreen controller. In alpha363 the sizing
+              // pass still ran while OFF and re-applied --ha-sidebar-width: 0px,
+              // which made Home Assistant 2026.6 show the top bar but keep the
+              // sidebar hidden after leaving fullscreen.
+              if (!immersive) {{
+                ensureFullscreenButton();
+                return;
+              }}
+
               const roots = collectRoots();
               applySizing(roots, activeScrollLock);
               applyHeader(roots, activeHeader);

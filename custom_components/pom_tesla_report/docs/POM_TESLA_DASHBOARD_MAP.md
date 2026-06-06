@@ -1,7 +1,7 @@
-Current active package: `2.2.0-dashboard-alpha362-tesla-ai-name-cache-hide`. Active panel: `pom-tesla-report-panel-alpha362.js` / `pom-tesla-report-panel-alpha362`. Alpha360 fixes Proactive Automations / AI Alerts sending through the built-in POM Telegram path and dynamic listener registration; it preserves dashboard calculations, Live Trip, Charge popup layout, Telegram/AI trip report logic, candidate filter behavior, entity mapping, and Trip Records.
+Current active package: `2.2.0-alpha.372`. Active panel: `pom-tesla-report-panel-alpha372.js` / `pom-tesla-report-panel-alpha372`. Alpha360 fixes Proactive Automations / AI Alerts sending through the built-in POM Telegram path and dynamic listener registration; it preserves dashboard calculations, Live Trip, Charge popup layout, Telegram/AI trip report logic, candidate filter behavior, entity mapping, and Trip Records.
 
 # Alpha356 note
-Current active package: `2.2.0-dashboard-alpha362-tesla-ai-name-cache-hide`. Active panel: `pom-tesla-report-panel-alpha362.js` / `pom-tesla-report-panel-alpha362`. Alpha359 only fixes top-area dashboard label language during dashboard rebuild; it preserves Charge popup tap-to-close behavior, Live Trip calculations, Telegram/AI report logic, candidate filter behavior, entity mapping, and Trip Records.
+Current active package: `2.2.0-alpha.372`. Active panel: `pom-tesla-report-panel-alpha372.js` / `pom-tesla-report-panel-alpha372`. Alpha359 only fixes top-area dashboard label language during dashboard rebuild; it preserves Charge popup tap-to-close behavior, Live Trip calculations, Telegram/AI report logic, candidate filter behavior, entity mapping, and Trip Records.
 
 ## alpha355 – Charge popup centering and close button alignment
 

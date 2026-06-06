@@ -1,3 +1,94 @@
+## alpha372 – Admin API hardening, direct media allowlist, cleanup
+
+- Backup export, system logs, Live Trip debug, settings GET/POST, dashboard media upload, and dashboard resources POST now require a Home Assistant admin user.
+- YouTube/JSMpeg direct media URLs returned by yt-dlp are now restricted to YouTube/Google media hosts such as `*.googlevideo.com`, `*.youtube.com`, `*.youtube-nocookie.com`, and `*.ytimg.com`.
+- Dashboard YAML files included in backup exports now redact signed YouTube background `token=` values.
+- Removed packaged `__pycache__` and `.pyc` files.
+- Removed unreferenced old alpha panel/trip-card JavaScript files after runtime reference analysis.
+- Kept the active panel, dashboard card, drive dashboard card, stable trip report card, live trip alias card, and alpha346 trip-card fallback.
+- No Live Trip, AI comments, Telegram reports, records, entity mapping, calculations, or dashboard metrics changed.
+
+## alpha371 – YouTube 1080 High quality option
+
+- Adds a new `1080 High` YouTube/JSMpeg background quality option.
+- Existing 360p, 480p, 720p, 1080 Lite and 1080 Max profiles are unchanged.
+- 1080 High keeps 1920-wide output but raises the MPEG-1 encode target to about 8.5 Mbps, maxrate 12 Mbps, bufsize 6 Mbps and 30 fps.
+- YouTube signed-token protection from alpha370 is preserved.
+- The panel top-right build pill shows the exact version as `v2.2.0-alpha.372`.
+- No Live Trip, AI comments, Telegram reports, records, entity mapping, calculations, or dashboard metrics changed.
+
+## alpha370 – Signed YouTube background token + visible version
+
+- Adds a per-install signed token for the YouTube/JSMpeg player, WebSocket and stream endpoints.
+- The endpoints remain Lovelace iframe/WebSocket-compatible without HA Authorization headers, but reject unsigned or mismatched URLs.
+- The token secret is generated and stored locally in Home Assistant config entry options before dashboard YAML generation.
+- The dashboard iframe URL includes a signed token for the configured YouTube URL and quality.
+- YouTube host allowlist, direct media URL validation, ffmpeg protocol whitelist and process limit remain active.
+- The panel top-right build pill now shows the exact version as `v2.2.0-alpha.372`.
+- No Live Trip, AI comments, Telegram reports, records, entity mapping, calculations, or dashboard metrics changed.
+
+## alpha369 – YouTube player auth fix
+
+- Fixes alpha368 remaining black YouTube background issue.
+- `youtube_jsmpeg_player` is now correctly restored to `requires_auth = False` for Lovelace iframe compatibility.
+- `youtube_jsmpeg_ws` and `youtube_jsmpeg_stream` remain iframe/WebSocket compatible.
+- `youtube_jsmpeg_health` remains Home Assistant-authenticated.
+- YouTube host allowlist, direct media URL http/https validation, ffmpeg process cap, secret masking and backup secret exclusion remain active.
+- ffmpeg protocol whitelist was expanded with `pipe`, `fd`, `httpproxy`, and `data` for compatibility.
+- No Live Trip, AI comments, Telegram reports, records, entity mapping, calculations, or dashboard metrics changed.
+
+## alpha368 – Restore YouTube driving background playback
+
+- Restores YouTube/JSMpeg background playback in Lovelace iframe/WebSocket mode.
+- The player, WebSocket and stream endpoints are browser-driven by an iframe and cannot reliably send Home Assistant Authorization headers, so they are restored to no HA-auth while keeping alpha365 safety guards.
+- YouTube URL host allowlist, http/https media URL validation, ffmpeg protocol whitelist and max process/concurrency limit remain active.
+- YouTube/JSMpeg health endpoint remains Home Assistant-authenticated.
+- Keeps alpha367 map top-fill fix, alpha366 AI context menu hide, and alpha365 secret masking / backup hardening.
+- No calculations, Live Trip, Telegram reports, AI comments, records, entity mapping, or dashboard metrics changed.
+
+## alpha367 – Tesla dashboard map top fill
+
+- Map dashboard layer is now pinned to the viewport with `position: fixed` and `inset: 0`.
+- Removes the old negative-margin map positioning that could leave a thin grey/background strip at the top on HA 2026.6 frontend layouts.
+- Inner map containers and HA map host are also forced to `100vw` / `100vh` from top-left.
+- No calculations, Live Trip, Telegram, AI, records, entity mapping, charge reports, or dashboard metrics changed.
+
+## alpha366 – Hide AI context mode selector
+
+- AI context mode dropdown was hidden from the panel.
+- Existing stored AI context mode is preserved exactly when saving AI settings.
+- No AI backend/context collection behavior changed.
+- Removed the unnecessary top currency pill from the panel header.
+- alpha365 public security hardening is preserved.
+
+## alpha365 – Public security hardening
+
+- Version changed to HACS-friendly `2.2.0-alpha.372`.
+- YouTube/JSMpeg endpoints now require Home Assistant authentication.
+- YouTube/JSMpeg input is restricted to YouTube hostnames and http/https media URLs.
+- ffmpeg now uses a protocol whitelist and a process/concurrency cap.
+- OpenAI API key and built-in Telegram bot token are masked in settings API responses.
+- Backup export no longer includes live OpenAI API key or Telegram bot token fields.
+- Physical vehicle-control actions routed through AI now always require explicit confirmation.
+- Telegram listener default/allowed-user behavior and old alpha JS cleanup were intentionally not changed in this package.
+
+## alpha364 – Restore HA sidebar when fullscreen is turned off
+
+- Fixes HA 2026.6 fullscreen exit behavior after alpha363.
+- When fullscreen helper is OFF, the controller now restores touched styles and stops before applying fullscreen sizing.
+- Prevents `--ha-sidebar-width: 0px` from being re-applied after leaving fullscreen.
+- Keeps alpha363 HA 2026.6 fullscreen compatibility while fullscreen is ON.
+- No Live Trip calculations, Telegram pipeline, AI comments, records, entity mapping, or dashboard math changed.
+
+## alpha363 – HA 2026.6 fullscreen sidebar compatibility
+
+- Fullscreen shell cleanup updated for Home Assistant 2026.6 frontend changes.
+- Adds support for the new `--ha-sidebar-width` drawer token while preserving old `--mdc-drawer-width` fallback.
+- Adds support for `--ha-top-app-bar-width` while preserving old `--mdc-top-app-bar-width` fallback.
+- Strengthens fullscreen layout reset for `ha-drawer`, `app-drawer-layout`, `home-assistant-main`, `ha-panel-lovelace`, and Lovelace view containers.
+- Drive dashboard early chrome guard now uses the same HA 2026.6 sidebar/topbar variables.
+- No Live Trip calculations, Telegram pipeline, AI comments, records, entity mapping, or dashboard math changed.
+
 ## alpha362 – Tesla AI name and address cache UI cleanup
 
 - UI-only cleanup: visible app/panel name is now Tesla AI instead of POM Tesla Report.
@@ -12,7 +103,7 @@
 - Alert interval/state listeners are now registered unconditionally and read current panel options dynamically, so enabling Automations from the panel does not require a full HA restart just to register listeners.
 - Low-battery state listener now resolves the current configured battery entity dynamically and includes trigger diagnostics.
 - Preserves alpha359 top-area language fix, alpha358 Charge popup tap-close, alpha357 Live AI popup reader, alpha346 stable Live Trip card, Telegram/AI trip pipeline, candidate filter behavior, and all dashboard calculations.
-- Active panel: `pom-tesla-report-panel-alpha362.js` / `pom-tesla-report-panel-alpha362`.
+- Active panel: `pom-tesla-report-panel-alpha372.js` / `pom-tesla-report-panel-alpha372`.
 
 ## alpha359 – Top-area language fix
 
@@ -20,7 +111,7 @@
 - Top slot labels such as `EĞİM`, `BATARYA`, `MENZİL`, `ENERJİ`, temperature and battery-heater labels now render in English during dashboard rebuild when `app_language` is English.
 - No Live Trip calculations, Telegram/AI sending, Trip Records, candidate filter logic, Charge popup layout, entity mapping, or dashboard measurements were changed.
 - Stable Live Trip card type remains `custom:pom-tesla-trip-report-card`.
-- Active panel: `pom-tesla-report-panel-alpha362.js` / `pom-tesla-report-panel-alpha362`.
+- Active panel: `pom-tesla-report-panel-alpha372.js` / `pom-tesla-report-panel-alpha372`.
 
 ## alpha358 – Charge popup tap-to-close
 

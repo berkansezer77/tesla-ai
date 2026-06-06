@@ -7,6 +7,7 @@ import copy
 import json
 import logging
 import re
+import secrets
 import uuid
 from datetime import datetime, timedelta
 from pathlib import Path
@@ -300,7 +301,8 @@ from .dashboard.helpers import (
 )
 
 _LOGGER = logging.getLogger(__name__)
-DASHBOARD_FRONTEND_VERSION = "2.2.0-dashboard-alpha362-tesla-ai-name-cache-hide"
+DASHBOARD_FRONTEND_VERSION = "2.2.0-alpha.372"
+YOUTUBE_JSMPEG_TOKEN_SECRET_OPTION = "youtube_jsmpeg_signed_token_secret"
 
 PLATFORMS: list[Platform] = [Platform.SWITCH, Platform.SENSOR, Platform.SELECT, Platform.BINARY_SENSOR]
 
@@ -736,6 +738,27 @@ def get_entry_config(entry: ConfigEntry) -> dict[str, Any]:
         **dict(entry.data),
         **dict(entry.options),
     })
+
+
+def ensure_youtube_jsmpeg_token_secret_for_entry(hass: HomeAssistant, entry: ConfigEntry) -> dict[str, Any]:
+    """Ensure a per-install signed-token secret exists before dashboard YAML generation."""
+    current = get_entry_config(entry)
+    if str(current.get(YOUTUBE_JSMPEG_TOKEN_SECRET_OPTION) or "").strip():
+        return current
+
+    token_secret = secrets.token_urlsafe(32)
+    updated_options = dict(entry.options or {})
+    updated_options[YOUTUBE_JSMPEG_TOKEN_SECRET_OPTION] = token_secret
+    try:
+        hass.config_entries.async_update_entry(entry, options=updated_options)
+    except Exception:
+        _LOGGER.exception("Could not persist YouTube/JSMpeg signed token secret")
+    current = bind_report_options_from_vehicle_map({
+        **dict(entry.data),
+        **updated_options,
+    })
+    hass.data.setdefault(DOMAIN, {})[entry.entry_id] = current
+    return current
 
 
 def get_first_entry_config(hass: HomeAssistant) -> dict[str, Any] | None:
@@ -4113,22 +4136,12 @@ def _message_mentions_capability(message: str, cap: dict[str, Any]) -> bool:
 
 def _confirmation_required(cap: dict[str, Any], *, service: str, data: dict[str, Any] | None = None) -> bool:
     conf = str(cap.get("confirmation") or "required").strip().lower()
-    capability = str(cap.get("capability") or "")
-    force_confirmation = bool((data or {}).get(CONF_AI_CONFIRM_OPTIONAL_CONTROLS, DEFAULT_AI_CONFIRM_OPTIONAL_CONTROLS))
-    if force_confirmation and conf != "not_applicable":
-        return True
-    if conf == "none":
+    if conf == "not_applicable":
         return False
-    if conf == "required":
-        return True
-    if conf == "mixed":
-        # Vehicle lock: locking is normally safe, unlocking requires confirmation.
-        if capability == "vehicle_lock" and service == "lock":
-            return False
-        return True
-    if conf == "optional":
-        # Optional controls only ask when the user enables this checkbox in POM AI Basic.
-        return bool((data or {}).get(CONF_AI_CONFIRM_OPTIONAL_CONTROLS, DEFAULT_AI_CONFIRM_OPTIONAL_CONTROLS))
+    # alpha365 public-safety hardening:
+    # all physical vehicle-control actions routed through the AI control manifest
+    # require explicit Telegram confirmation. Read-only status answers are handled
+    # before this router and are not affected.
     return True
 
 
@@ -13401,7 +13414,7 @@ async def async_setup(hass: HomeAssistant, config: dict[str, Any]) -> bool:
                 )
                 return
             entry = entries[0]
-            current_config = {**dict(entry.data or {}), **dict(entry.options or {})}
+            current_config = ensure_youtube_jsmpeg_token_secret_for_entry(hass, entry)
             dashboard_options = merged_dashboard_options_from_report_config(current_config)
             await async_install_dashboard_lovelace_resources(hass, notify=False)
             path = await async_write_tesla_dashboard(hass, dashboard_options)
@@ -15510,9 +15523,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Set up Tesla AI from a config entry."""
     hass.data.setdefault(DOMAIN, {})
 
-    hass.data[DOMAIN][entry.entry_id] = get_entry_config(entry)
+    hass.data[DOMAIN][entry.entry_id] = ensure_youtube_jsmpeg_token_secret_for_entry(hass, entry)
 
-    _LOGGER.warning("Tesla AI alpha283 Drive Dashboard entity bindings build loaded. version=2.2.0-dashboard-alpha362-tesla-ai-name-cache-hide entry=%s", entry.entry_id)
+    _LOGGER.warning("Tesla AI alpha372 admin API and JS cleanup build loaded. version=2.2.0-alpha.372 entry=%s", entry.entry_id)
 
     entry.async_on_unload(entry.add_update_listener(async_update_options))
 
@@ -16697,6 +16710,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
 
     try:
+        config_data = ensure_youtube_jsmpeg_token_secret_for_entry(hass, entry)
         dashboard_options = merged_dashboard_options_from_report_config(config_data)
         path = await async_write_tesla_dashboard(hass, dashboard_options)
         await async_show_dashboard_install_notification(hass, dashboard_options)

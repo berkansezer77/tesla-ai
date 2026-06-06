@@ -1,0 +1,15 @@
+{
+  "version": "2.2.0-alpha.372",
+  "kept_js": [
+    "pom-tesla-dashboard-card.js",
+    "pom-tesla-drive-dashboard-card.js",
+    "pom-tesla-live-trip-card.js",
+    "pom-tesla-report-panel-alpha372.js",
+    "pom-tesla-report-panel.js",
+    "pom-tesla-trip-report-card-alpha346.js",
+    "pom-tesla-trip-report-card.js"
+  ],
+  "removed_js_count_estimate_from_alpha371": 182,
+  "current_js_count": 7,
+  "note": "Old alpha JavaScript cleanup kept only runtime-referenced files: active panel alpha372, dashboard card, drive dashboard card, stable trip report card, live-trip alias card, alpha346 trip-card fallback, and the legacy generic panel cache fallback."
+}

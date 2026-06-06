@@ -118,6 +118,8 @@ card:
                 };
                 roots.forEach((root) => {
                   ['app-header','app-toolbar','ha-top-app-bar-fixed','ha-top-app-bar','ha-header-bar','.toolbar[slot="toolbar"]','[slot="toolbar"]','.top-app-bar'].forEach((sel) => { try { root.querySelectorAll(sel).forEach(hide); } catch(e) {} });
+                  ['ha-sidebar','.sidebar','[data-panel="sidebar"]','[slot="sidebar"]','ha-navigation-list'].forEach((sel) => { try { root.querySelectorAll(sel).forEach(hide); } catch(e) {} });
+                  ['home-assistant-main','app-drawer-layout','ha-drawer','mwc-drawer','sl-drawer','ha-panel-lovelace','hui-root','hui-view','#view'].forEach((sel) => { try { root.querySelectorAll(sel).forEach((el) => { ['--ha-sidebar-width','--ha-drawer-width','--mdc-drawer-width','--app-drawer-width','--sidebar-width','--drawer-width','--mdc-drawer-modal-width'].forEach((prop) => el.style.setProperty(prop, '0px', 'important')); ['margin-left','padding-left','left'].forEach((prop) => el.style.setProperty(prop, '0px', 'important')); }); } catch(e) {} });
                   try { root.querySelectorAll('*').forEach((el) => { if (isTopRight(el) && looksChrome(el)) hide(el); }); } catch(e) {}
                 });
               } catch(e) {}
@@ -444,16 +446,37 @@ card:
     - type: custom:mod-card
       card_mod:
         style: |
-          ha-card {
+          :host {
+            position: fixed !important;
+            inset: 0 !important;
+            top: 0 !important;
+            left: 0 !important;
+            width: 100vw !important;
             height: 100vh !important;
+            min-width: 100vw !important;
             min-height: 100vh !important;
-            margin-top: -325px !important;
+            margin: 0 !important;
+            padding: 0 !important;
+            background: transparent !important;
+            overflow: hidden !important;
+            z-index: 0 !important;
+          }
+          ha-card {
+            position: fixed !important;
+            inset: 0 !important;
+            top: 0 !important;
+            left: 0 !important;
+            width: 100vw !important;
+            height: 100vh !important;
+            min-width: 100vw !important;
+            min-height: 100vh !important;
+            margin: 0 !important;
+            padding: 0 !important;
             background: transparent !important;
             box-shadow: none !important;        
             border: 0 !important;
             border-radius: 0 !important;
             overflow: hidden !important;
-            position: relative !important;
           }
       card:
         type: conditional
@@ -464,10 +487,27 @@ card:
           type: custom:mod-card
           card_mod:
             style: |
-              ha-card {
-                position: relative !important;
-                width: 100% !important;
+              :host {
+                position: fixed !important;
+                inset: 0 !important;
+                top: 0 !important;
+                left: 0 !important;
+                width: 100vw !important;
                 height: 100vh !important;
+                min-width: 100vw !important;
+                min-height: 100vh !important;
+                margin: 0 !important;
+                padding: 0 !important;
+                overflow: hidden !important;
+              }
+              ha-card {
+                position: fixed !important;
+                inset: 0 !important;
+                top: 0 !important;
+                left: 0 !important;
+                width: 100vw !important;
+                height: 100vh !important;
+                min-width: 100vw !important;
                 min-height: 100vh !important;
                 margin: 0 !important;
                 padding: 0 !important;
@@ -582,9 +622,15 @@ card:
                       .: |
                         :host {
                           display: block !important;
-                          position: relative !important;
+                          position: fixed !important;
+                          inset: 0 !important;
+                          top: 0 !important;
+                          left: 0 !important;
                           z-index: 0 !important;
-                          height: 100%;
+                          width: 100vw !important;
+                          height: 100vh !important;
+                          min-width: 100vw !important;
+                          min-height: 100vh !important;
                           {% if is_state('input_boolean.tesla_interactive_map', 'on') %}
                             pointer-events: none !important;
                           {% else %}

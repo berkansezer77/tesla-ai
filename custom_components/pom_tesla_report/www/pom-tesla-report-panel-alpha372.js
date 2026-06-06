@@ -2,7 +2,7 @@ class PomTeslaReportPanel extends HTMLElement {
   constructor() {
     super();
     this.attachShadow({ mode: "open" });
-    this._frontendBuild = "alpha211-clear-all-entities-buttons";
+    this._frontendBuild = "v2.2.0-alpha.372";
     this._manualDebugSnapshot = null;
     this._panelMigrationOutput = null;
     this._lastClickDebug = {};
@@ -28,6 +28,7 @@ class PomTeslaReportPanel extends HTMLElement {
     this._reportEntityDraft = null;
     this._entityPickerTarget = "";
     this._entityPickerSearch = "";
+    this._autoFindNotice = null;
     this._chargeData = null;
     this._tripData = null;
     this._settingsData = null;
@@ -70,11 +71,27 @@ class PomTeslaReportPanel extends HTMLElement {
     this._status = "";
     this._error = "";
     this._loading = false;
+    this._backupBusy = false;
+    this._backupBusyTitle = "";
+    this._backupBusySub = "";
+    this._backupBusyFooter = "";
+    this._backupBusyPercent = null;
+    this._backupBusyStartedAt = 0;
+    this._backupBusyTimer = null;
     this._debugEvents = [];
     this._lastApiResults = [];
     this._lastSettingsSaveSummary = {};
     this._initialActiveLoadStarted = false;
     this._lazyLoadMode = true;
+    this._healthRefreshTimer = null;
+    this._lastHealthFetchTs = 0;
+    this._systemControlSnapshot = null;
+    this._lastHealthEventSignature = "";
+    this._lastHealthEventAt = 0;
+    this._lastHealthSeverity = "normal";
+    this._pomJournalExpanded = false;
+    this._pomEvents = this._loadPomEvents();
+    this._seedPomJournalSession();
   }
 
   set hass(hass) {
@@ -94,6 +111,24 @@ class PomTeslaReportPanel extends HTMLElement {
 
   connectedCallback() {
     this._render();
+    this._startHealthRefreshTimer();
+  }
+
+  disconnectedCallback() {
+    if (this._healthRefreshTimer) {
+      window.clearInterval(this._healthRefreshTimer);
+      this._healthRefreshTimer = null;
+    }
+  }
+
+  _startHealthRefreshTimer() {
+    if (this._healthRefreshTimer) return;
+    this._healthRefreshTimer = window.setInterval(() => {
+      if (this._activeTab === "settings" && this._activeSettingsTab === "general" && this._settingsData && this._hass && !this._loading) {
+        this._loadHealth(false);
+        this._loadLiveTripDebug(false);
+      }
+    }, 10000);
   }
 
   get _data() {
@@ -114,7 +149,7 @@ class PomTeslaReportPanel extends HTMLElement {
   _t(key) {
     const dict = {
       tr: {
-        title: "POM Tesla Report",
+        title: "Tesla AI",
         subtitle: "Şarj, sürüş ve rapor ayarlarını Options menüsüne girmeden canlı yönet.",
         chargeTab: "Şarj Kayıtları",
         tripTab: "Sürüş Kayıtları",
@@ -157,6 +192,8 @@ class PomTeslaReportPanel extends HTMLElement {
         unitPrice: "Birim fiyat",
         currency: "Para birimi",
         source: "Kaynak",
+        sourceBadge: "Kaynak",
+        sourceLock: "Kaynak kilidi",
         selectChargeHint: "Soldaki listeden bir şarj kaydı seç. Alanlar anında dolar.",
         selectTripHint: "Soldaki listeden bir sürüş kaydı seç. Alanlar anında dolar.",
         empty: "Kayıt yok.",
@@ -277,6 +314,25 @@ class PomTeslaReportPanel extends HTMLElement {
         importSettingsPlaceholder: "İçe aktarma hazırlık alanı. Şimdilik sadece dosya seçimini doğrular.",
         selectedImportFile: "Seçilen import dosyası",
         systemSummary: "Sistem özeti",
+        systemHealth: "System Health / Diagnostics",
+        systemHealthSub: "HA Core RAM, Auto Find ve self-reference risklerini canlı gösterir.",
+        healthStatus: "Durum",
+        healthMemory: "RAM",
+        healthAvailable: "Boş RAM",
+        healthTrend: "RAM trend",
+        healthEntities: "Entity",
+        healthPomEntities: "POM entity",
+        healthSelfReference: "Self-reference",
+        healthAutoFind: "Auto Find",
+        healthWarnings: "Uyarılar",
+        healthCriticalTitle: "Tehlikeli durum algılandı",
+        healthCriticalSub: "Sistem kritik seviyeye geçtiyse bu kutu kırmızı olur. Self-reference, yüksek RAM veya çalışan ağır job burada görünür.",
+        healthDownloadJson: "Diagnostic JSON indir",
+        healthNormal: "Normal",
+        healthWatch: "İzle",
+        healthWarning: "Uyarı",
+        healthCritical: "Kritik",
+        healthWaiting: "Veri bekleniyor",
         resourceSummaryShort: "Resource özeti",
         entityStoreAudit: "Panel entity store audit",
         entityStoreAuditSub: "Rapor, AI ve Dashboard seçimlerinin panel store’dan mı yoksa legacy Flow fallback’ten mi geldiğini gösterir.",
@@ -291,12 +347,12 @@ class PomTeslaReportPanel extends HTMLElement {
         settingsReportNav: "RAPOR",
         settingsDataNav: "VERİ",
         settingsAIConfigNav: "AI",
-        settingsAutomationsNav: "AUTOMATIONS",
+        settingsAutomationsNav: "OTOMASYONLAR",
         settingsDashboardNav: "DASHBOARD",
-        automationSettings: "Automations",
+        automationSettings: "Otomasyonlar",
         automationSettingsSub: "Proaktif AI uyarıları ve her otomasyona ait eşik/gecikme değerleri.",
-        saveAutomationSettings: "Automations ayarlarını kaydet",
-        automationSettingsSaved: "Automations ayarları kaydedildi.",
+        saveAutomationSettings: "Otomasyon ayarlarını kaydet",
+        automationSettingsSaved: "Otomasyon ayarları kaydedildi.",
         dashboardSettings: "Dashboard Ayarları",
         dashboardResourceStorage: "Lovelace resource storage",
         dashboardResourceSummary: "Özet",
@@ -327,68 +383,82 @@ class PomTeslaReportPanel extends HTMLElement {
         dashboardNoFileSelected: "Henüz dosya seçilmedi.",
         dashboardFileReady: "Seçilen dosya",
         dashboardUploadOk: "Dashboard arka planı güncellendi.",
-        dashboardBackgroundParked: "Parked background",
-        dashboardBackgroundCharging: "Charging background",
-        dashboardBackgroundDriving: "Driving background",
-        dashboardYoutubeDrivingTitle: "Tesla Safe YouTube Background",
-        dashboardYoutubeDrivingSub: "Shows a YouTube iframe instead of the normal driving background when the vehicle is in D/drive. Experimental.",
-        dashboardYoutubeDrivingEnabled: "Enable YouTube driving background",
+        dashboardBackgroundParked: "Park arka planı",
+        dashboardBackgroundCharging: "Şarj arka planı",
+        dashboardBackgroundDriving: "Sürüş arka planı",
+        dashboardYoutubeDrivingTitle: "Tesla güvenli YouTube arka planı",
+        dashboardYoutubeDrivingSub: "Araç D/drive durumundayken normal sürüş arka planı yerine YouTube kaynağı gösterir. Deneysel.",
+        dashboardYoutubeDrivingEnabled: "YouTube sürüş arka planını etkinleştir",
         dashboardYoutubeVideo: "YouTube video URL / ID",
-        dashboardYoutubeStartSeconds: "Start second",
+        dashboardDriveVehicleImageTitle: "Drive Dashboard orta araç görseli",
+        dashboardDriveVehicleImageSub: "Drive Dashboard kartının ortasındaki araç görselini değiştirir. Şeffaf PNG/WebP en iyi sonucu verir.",
+        dashboardDriveVehicleImage: "Orta araç görseli",
+        dashboardDriveTireImageTitle: "Drive Dashboard lastik basıncı görseli",
+        dashboardDriveTireImageSub: "Tire Pressure kartının ortasında gösterilecek araç/lastik görselini değiştirir.",
+        dashboardUploadProgress: "Yükleniyor",
+        dashboardUploadPreparing: "Yükleme hazırlanıyor",
+        dashboardFileTooLarge: "Dosya çok büyük. Limit",
+        dashboardYoutubeStartSeconds: "Başlangıç saniyesi",
         dashboardYoutubeMute: "Mute",
         dashboardYoutubeLoop: "Loop",
-        dashboardYoutubeDrivingTitle: "Tesla Safe YouTube Background",
+        dashboardYoutubeDrivingTitle: "Tesla güvenli YouTube arka planı",
         dashboardYoutubeDrivingSub: "Araç D/drive durumundayken YouTube kaynağını HTML5 video yerine Canvas2D/JSMpeg olarak arka planda gösterir.",
         dashboardYoutubeDrivingEnabled: "Tesla Safe YouTube background aktif",
         dashboardYoutubeVideo: "YouTube video URL / ID",
         dashboardYoutubeStartSeconds: "Başlangıç saniyesi",
         dashboardYoutubeMute: "Mute",
         dashboardYoutubeLoop: "Loop",
-        dashboardMenuFullscreen: "Fullscreen",
+        dashboardMenuFullscreen: "Tam ekran",
         dashboardMenuFullscreenSub: "Tam ekran görünüm davranışını yönet.",
         dashboardMenuTopArea: "Üst Alan",
         dashboardMenuTopAreaSub: "Dashboard üst alan slotlarını seç.",
-        dashboardMenuSidebar: "Sidebar",
-        dashboardMenuSidebarSub: "8 adet sidebar aksiyon slotunu seç.",
-        dashboardMenuBackgrounds: "Background",
-        dashboardMenuBackgroundsSub: "Parked, charging ve driving görselleri.",
-        dashboardMenuBottomBar: "Bottom Bar",
-        dashboardMenuBottomBarSub: "Alt bar slotları ve görünürlük switchleri.",
-        dashboardMenuMap: "Map",
-        dashboardMenuMapSub: "Tesla ve person harita geçmiş süresi.",
-        dashboardMenuPersonTrack: "Person Track",
-        dashboardMenuPersonTrackSub: "Person takip popup ve kişi ayarları.",
-        dashboardBottomBarSettings: "Bottom Bar Ayarları",
-        dashboardMapSettings: "Map Ayarları",
-        dashboardPersonTrackSettings: "Person Track Ayarları",
+        dashboardMenuSidebar: "Yan menü",
+        dashboardMenuSidebarSub: "8 adet yan menü aksiyon slotunu seç.",
+        dashboardMenuBackgrounds: "Arka plan",
+        dashboardMenuBackgroundsSub: "Park, şarj ve sürüş arka plan görselleri.",
+        dashboardMenuBottomBar: "Alt Bar",
+        dashboardMenuBottomBarSub: "Alt bar görünürlük anahtarları. Alt bardaki 3 veri alanı artık dashboard ekranından tıklanarak canlı değişir.",
+        bottomSlotsLiveNote: "Bottom slot 1/2/3 artık bu ayar sayfasından değil, Tesla dashboard ekranındaki ilgili alt bar alanına tıklanarak canlı değiştirilir.",
+        dashboardMenuMap: "Harita",
+        dashboardMenuMapSub: "Tesla ve kişi harita geçmiş süresi.",
+        dashboardMenuPersonTrack: "Kişi Takibi",
+        dashboardMenuPersonTrackSub: "Kişi takip popup ve kişi ayarları.",
+        dashboardBottomBarSettings: "Alt Bar Ayarları",
+        dashboardMapSettings: "Harita Ayarları",
+        dashboardPersonTrackSettings: "Kişi Takibi Ayarları",
         location_display_mode: "Konum gösterim modu",
         bottom_slot_1: "Bottom slot 1",
         bottom_slot_2: "Bottom slot 2",
         bottom_slot_3: "Bottom slot 3",
         tesla_map_hours_to_show: "Tesla harita geçmişi",
         person_map_hours_to_show: "Person harita geçmişi",
-        person_track_enabled: "Person track etkin",
-        person_track_show_button: "Person track butonunu göster",
-        person_track_hours_to_show: "Person track geçmiş saati",
-        person_track_1_entity: "Person Track 1 entity",
-        person_track_1_name: "Person Track 1 adı",
-        person_track_1_enabled: "Person Track 1 etkin",
-        person_track_2_entity: "Person Track 2 entity",
-        person_track_2_name: "Person Track 2 adı",
-        person_track_2_enabled: "Person Track 2 etkin",
-        person_track_3_entity: "Person Track 3 entity",
-        person_track_3_name: "Person Track 3 adı",
-        person_track_3_enabled: "Person Track 3 etkin",
-        dashboardFullscreenSettings: "Fullscreen ayarları",
+        dashboardMapThemeMode: "Dashboard harita modu",
+        dashboardMapThemeDark: "Dark / eski okunabilir dashboard haritası",
+        dashboardMapThemeLight: "Light / gündüz haritası",
+        dashboardMapThemeNote: "Dark mod eski okunabilir dashboard haritası gibi çalışır; zorla koyu filtre uygulanmaz. Light mod gündüz haritasını kullanır. Harita saydamlık butonu seçili arka plan görselini daha fazla gösterir.",
+        person_track_enabled: "Kişi takibi etkin",
+        person_track_show_button: "Kişi takip butonunu göster",
+        person_track_hours_to_show: "Kişi takip geçmiş saati",
+        person_track_1_entity: "Kişi Takibi 1 entity",
+        person_track_1_name: "Kişi Takibi 1 adı",
+        person_track_1_enabled: "Kişi Takibi 1 etkin",
+        person_track_2_entity: "Kişi Takibi 2 entity",
+        person_track_2_name: "Kişi Takibi 2 adı",
+        person_track_2_enabled: "Kişi Takibi 2 etkin",
+        person_track_3_entity: "Kişi Takibi 3 entity",
+        person_track_3_name: "Kişi Takibi 3 adı",
+        person_track_3_enabled: "Kişi Takibi 3 etkin",
+        dashboardFullscreenSettings: "Tam ekran ayarları",
         dashboardTopAreaSettings: "Üst Alan",
-        dashboardSidebarSettings: "Sidebar",
+        dashboardSidebarSettings: "Yan menü",
         saveDashboardSettings: "Dashboard ayarlarını kaydet",
         dashboardSettingsSaved: "Dashboard ayarları kaydedildi.",
-        fullscreen_enabled: "Fullscreen etkin",
+        dashboardSettingsSavedRebuild: "Dashboard ayarları kaydedildi. YAML arka planda yeniden oluşturuluyor; birkaç saniye sonra dashboard sayfasını yenile.",
+        fullscreen_enabled: "Tam ekran etkin",
         fullscreen_hide_header: "Header gizle",
         fullscreen_hide_sidebar: "Sidebar gizle",
         fullscreen_disable_scroll: "Scroll devre dışı",
-        fullscreen_show_button: "Fullscreen butonu göster",
+        fullscreen_show_button: "Tam ekran butonunu göster",
         rebuild_on_save: "Kaydetmede dashboard'u yeniden oluştur",
         dashboardTopHelp: "Üst alanda seçilmiş dashboard entitylerinin hangi slotlarda görüneceğini seç.",
         dashboardTopFontScales: "Üst alan font boyutları",
@@ -396,7 +466,7 @@ class PomTeslaReportPanel extends HTMLElement {
         dashboardTopFontLeft: "Sol alan font ölçeği",
         dashboardTopFontCenter: "Orta hız font ölçeği",
         dashboardTopFontRight: "Sağ alan font ölçeği",
-        dashboardSidebarHelp: "Sidebar düzeni. Her slotta hangi aksiyonun görüneceğini seç.",
+        dashboardSidebarHelp: "Yan menü düzeni. Her slotta hangi aksiyonun görüneceğini seç.",
         settingsTelegramNav: "TELEGRAM",
         settingsAiNav: "ENTITIES",
         aiSettings: "AI Ayarları",
@@ -411,6 +481,8 @@ class PomTeslaReportPanel extends HTMLElement {
         aiAnswerLength: "Cevap uzunluğu",
         aiContextMode: "Context modu",
         aiName: "AI adı",
+        aiUserAddress: "Size hitap şekli",
+        aiUserAddressNote: "AI sizi nasıl çağırmalı? Örn: Berkan, abi, Ahmet Bey. Boşsa özel isim kullanmaz.",
         openaiApiKey: "OpenAI API key",
         openaiModel: "OpenAI model",
         reverseGeocodingEnabled: "Reverse geocoding / adres çözümleme",
@@ -442,21 +514,22 @@ class PomTeslaReportPanel extends HTMLElement {
         minutesShort: "dk",
         percentShort: "%",
         psiBarNote: "Mevcut Options Flow değeri ile aynı formatta kaydedilir.",
-        personalityProfessional: "Professional",
-        personalityFriendly: "Friendly",
-        personalityFunny: "Funny",
-        personalityShortDirect: "Short direct",
-        personalityPremium: "Premium Tesla Assistant",
-        personalityTurkishBuddy: "Turkish Buddy",
+        personalityProfessional: "Profesyonel",
+        personalityFriendly: "Samimi",
+        personalityFunny: "Komik",
+        personalityLaz: "Karadeniz şivesi",
+        personalityShortDirect: "Kısa ve net",
+        personalityPremium: "Premium Tesla Asistanı",
+        personalityTurkishBuddy: "Türkçe Dost",
         answerShort: "Kısa",
         answerNormal: "Normal",
         answerDetailed: "Detaylı",
-        contextBasic: "Basic",
-        contextSmartAuto: "Smart auto",
-        contextSelectedDevice: "Selected device",
-        contextSmartManual: "Smart manual",
-        contextManualOnly: "Manual only",
-        alertStyleRule: "Rule-based",
+        contextBasic: "Basit",
+        contextSmartAuto: "Akıllı otomatik",
+        contextSelectedDevice: "Seçili cihaz",
+        contextSmartManual: "Akıllı manuel",
+        contextManualOnly: "Sadece manuel",
+        alertStyleRule: "Kural bazlı",
         alertStyleAI: "AI",
         entitiesAiTab: "AI",
         entitiesReportTab: "RAPOR",
@@ -498,10 +571,10 @@ class PomTeslaReportPanel extends HTMLElement {
         saveDashboardEntities: "Dashboard entitylerini kaydet",
         entityCategoryDashboardTop: "Üst Alan",
         entityCategoryDashboardSidebar: "Sidebar",
-        entityCategoryDashboardBottom: "Bottom Bar",
+        entityCategoryDashboardBottom: "Alt Bar",
         entityCategoryDashboardMap: "Harita",
         entityCategoryDashboardChargePopup: "Şarj Popup",
-        entityCategoryDashboardPerson: "Person Takip",
+        entityCategoryDashboardPerson: "Kişi Takibi",
         entityCategoryDashboardCustomHome: "Custom Home Assistant Entities",
         entityCategoryDashboardVehicleOpenClose: "Araç Açık/Kapalı Durumları",
         dashboardCustomIcon: "MDI icon",
@@ -510,10 +583,29 @@ class PomTeslaReportPanel extends HTMLElement {
         aiEntityManagerSub: "POM AI için kullanılacak entity rollerini seç. Rapor ve Dashboard entityleri ayrı bölümlerde yönetilecek.",
         aiMainTeslaEntity: "Ana Tesla örnek entity",
         aiMainTeslaEntitySub: "Auto Find aynı cihazdaki veya aynı Tesla/POM isim kümesindeki entityleri buradan bulmaya çalışır.",
-        autoFindEntities: "Auto Find entityleri bul",
+        autoFindEntities: "Deep Auto Find",
+        fastAutoFindEntities: "Fast Auto Find",
+        fastAutoFindEntitiesSub: "Düşük kaynak modu. Sadece aynı cihaz / aynı kaynak / Tesla-POM adaylarını tarar.",
+        deepAutoFindEntitiesSub: "Derin arama. Daha kapsamlıdır ama zayıf makinelerde birkaç dakika sürebilir.",
         saveAiEntities: "AI entity ayarlarını kaydet",
         aiEntitiesSaved: "AI entity ayarları kaydedildi.",
         aiAutoFindDone: "Auto Find tamamlandı ve bulunan entityler kaydedildi.",
+        autoFindStarted: "Dil bağımsız Deep Auto Find arka planda başlatıldı. Panel açık kalabilir; HA kilitlenmez.",
+        fastAutoFindStarted: "Fast Auto Find başlatıldı. Düşük kaynak modu sadece olası araç entitylerini tarar.",
+        autoFindWarningTitle: "Auto Find çalışıyor",
+        autoFindWarningText: "Bu ekranda kalmanız önerilir. İşlem birkaç dakika sürebilir ve büyük HA kurulumlarında kısa süreli yavaşlama olabilir.",
+        autoFindWarningSub: "X ile kapatabilirsiniz; işlem arka planda devam eder.",
+        autoFindWarningDoNotLeave: "Do not leave this place, it may take a few minutes.",
+        autoFindMasterNote: "AI ile aynı Vehicle Master Auto Find yapısı kullanılır.",
+        confidenceVeryHigh: "Çok yüksek",
+        confidenceHigh: "Yüksek",
+        confidenceMedium: "Kontrol et",
+        confidenceLow: "Zayıf",
+        confidenceManual: "Manual",
+        confidenceReason: "Sebep",
+        autoFindRunning: "Auto Find arka planda çalışıyor...",
+        autoFindStillRunning: "Auto Find hâlâ çalışıyor. Bu sırada Home Assistant kullanılabilir.",
+        autoFindFailed: "Auto Find hata verdi.",
         aiExtraDeduped: "Role atanmış entityler Extra AI listesinden otomatik çıkarılır.",
         aiAutoDiscoverToggle: "Cihaz bazlı otomatik keşfi etkin tut",
         entityRole: "Entity rolü",
@@ -603,7 +695,17 @@ class PomTeslaReportPanel extends HTMLElement {
         liveTripUpdateIntervalSeconds: "Canlı sürüş güncelleme aralığı",
         liveTripTrafficSpeedThreshold: "Trafik hız eşiği",
         liveTripFinishDelaySeconds: "Park sonrası rapor gecikmesi",
-        liveTripMinDistanceKm: "Minimum sürüş mesafesi",
+        liveTripMinDistanceKm: "Rapor için minimum sürüş mesafesi",
+        liveTripIgnoreShortManeuvers: "Kısa park manevralarını yok say",
+        liveTripCandidateMinDistanceKm: "Gerçek sürüşe geçiş mesafesi",
+        liveTripCandidateMinDurationMinutes: "Gerçek sürüşe geçiş süresi",
+        liveTripCandidateNote: "Araç D/R/N konumuna geçtiğinde önce aday sürüş olarak izlenir. Bu eşiklerden biri dolmadan tekrar Park olursa garaj/park manevrası sayılır ve rapor başlatılmaz.",
+        liveTripAiCommentSettings: "Canlı AI yorumları",
+        liveTripAiCommentSettingsSub: "Sürüş sırasında AI yorumunun kaç km'de bir üretileceğini seç ve dışarı çıkmadan test et.",
+        liveTripAiSegmentDistanceKm: "AI yorum aralığı",
+        liveTripAiSegmentDistanceNote: "1 km kısa şehir içi testler için, 5 km günlük kullanım için, 10 km uzun sürüşler için uygundur.",
+        testLiveTripAiComment: "AI yorumunu test et",
+        liveTripAiCommentTested: "Live Trip AI test yorumu hazırlandı.",
         startSpeedThreshold: "Başlangıç hız eşiği",
         enableTripMapCollection: "Sürüş haritası toplamayı etkinleştir",
         tripMapTrackerEntity: "Sürüş haritası tracker entity",
@@ -624,8 +726,11 @@ class PomTeslaReportPanel extends HTMLElement {
         saveTripSettings: "Sürüş ayarlarını kaydet",
         tripSettingsSaved: "Sürüş ayarları kaydedildi.",
         tripTelegramTest: "Telegram Test Sürüşü",
-        tripTelegramTestSub: "Aşağıdaki araçlar arabayı sürmeden canlı sürüş akışını test etmeni sağlar. Örnek rapor butonu kayıt oluşturmadan görsel rapor üretir; Live Trip test start/end ise simüle sürüş başlatıp bitirerek gerçek akışa daha yakın test yapar.",
+        tripTelegramTestSub: "Aracı sürmeden gerçek rapora yakın simülasyon üretir. Rapor görseli, trafik renkli rota haritası ve test AI yorumu Telegram’a gider; Sürüş Kayıtları’na veri eklemez.",
         sendTestTripReport: "Telegram’a örnek test sürüşü gönder",
+        sendShortCityTrip: "Kısa sürüş gönder",
+        sendTrafficTrip: "Trafikli sürüş gönder",
+        sendEfficientTrip: "Uzun verimli sürüş gönder",
         startLiveTripTest: "Live Trip test start",
         finishLiveTripTest: "Live Trip test end",
         resetLiveTripTest: "Live Trip test reset",
@@ -639,6 +744,144 @@ class PomTeslaReportPanel extends HTMLElement {
         liveTripDebugLoaded: "Live Trip debug güncellendi.",
         testTripSent: "Örnek test sürüş raporu Telegram’a gönderildi.",
         testTripNoLedger: "Bu işlem sürüş kayıtlarına veri eklemez.",
+        aiTripStoryDetailLevel: "AI sürüş hikâyesi detayı",
+        aiTripStoryDetailBasic: "Basit",
+        aiTripStoryDetailBalanced: "Dengeli",
+        aiTripStoryDetailDetailed: "Detaylı",
+        aiTripStoryDetailNote: "Bu seçim sadece görsel Live Trip raporundan sonra giden AI yorumunun uzunluğunu belirler. Detaylı varsayılandır.",
+        aiTripStoryRecordTitle: "AI Sürüş Yorumu",
+        aiTripStoryRecordEmpty: "Bu kayıt için AI yorumu henüz yok.",
+        aiTripStoryRegenerate: "AI yorumu oluştur / yeniden oluştur",
+        aiTripStoryRegenerating: "AI yorumu oluşturuluyor...",
+        aiTripStoryRegenerated: "AI yorumu kayda yazıldı.",
+        tripMapLayerColored: "Trafik renkli rota haritası",
+        tripMapLayerStandard: "Standart rota haritası",
+        systemStatusCenter: "Sistem Durumu",
+        systemStatusCenterSub: "Canlı sürüş, rapor ve Telegram zincirinde sorun olduğunda ilk bakılacak özet alan.",
+        statusLiveTrip: "Live Trip",
+        statusSpeed: "Hız",
+        statusShift: "Vites",
+        statusOdometer: "Odometer",
+        statusLastReport: "Son rapor",
+        statusWarnings: "Uyarılar",
+        refreshSystemStatus: "Sistem durumunu yenile",
+        testTripProfile: "Test sürüş profili",
+        testTripProfileCity: "Kısa şehir içi",
+        testTripProfileTraffic: "Trafikli sürüş",
+        testTripProfileEfficient: "Uzun / verimli sürüş",
+        systemLogs: "Sistem logları",
+        systemLogsSub: "Home Assistant ana log dosyasının son satırlarını gösterir. Çok büyük loglarda paneli kilitlememek için son 500 satır alınır.",
+        showSystemLogs: "Sistem loglarını göster",
+        clearSystemLogs: "Log ekranını temizle",
+        systemLogsLoaded: "Sistem logları yüklendi.",
+        systemLogsEmpty: "Henüz log yüklenmedi.",
+        systemControlPanel: "Sistem Kontrol Paneli",
+        systemControlPanelSub: "Rapor, Telegram, AI, kayıt ve dashboard servislerinin çalışabilir durumunu tek ekranda gösterir.",
+        refreshSystemControl: "Sistem kontrolünü yenile",
+        systemControlChecked: "Sistem kontrolü yenilendi.",
+        servicePanelAllGood: "Tüm temel servisler sağlıklı görünüyor.",
+        servicePanelHasWarnings: "Bazı servislerde uyarı var; sistem çalışabilir ama kontrol edilmeli.",
+        servicePanelHasErrors: "Kritik servis hatası var; rapor veya kayıt akışı etkilenebilir.",
+        serviceIntegration: "Entegrasyon",
+        serviceDashboard: "Dashboard",
+        serviceEntities: "Entity bağlantıları",
+        serviceLiveTrip: "Live Trip",
+        serviceTripRecords: "Trip Records",
+        serviceChargeRecords: "Charge Records",
+        serviceTelegram: "Telegram",
+        serviceAI: "AI",
+        serviceIntegrationOk: "Config entry hazır",
+        serviceIntegrationMissing: "Config entry eksik",
+        serviceDashboardOk: "YAML / resources hazır",
+        serviceMissing: "eksik",
+        serviceSelfReference: "Self-reference riski var",
+        serviceLiveTripReady: "Hazır / beklemede",
+        serviceLiveTripActive: "Aktif sürüş takip ediliyor",
+        serviceWritable: "Yazılabilir",
+        serviceWriteError: "Kayıt endpoint hatası",
+        serviceRefreshToTest: "Yenile ile test et",
+        serviceDisabled: "Kapalı",
+        serviceTelegramReady: "Chat ID / bot hazır",
+        serviceTelegramChatMissing: "Chat ID eksik",
+        serviceTelegramBotMissing: "Bot/token eksik",
+        serviceAiReady: "API key hazır",
+        serviceAiKeyMissing: "API key eksik",
+        serviceStatus_ok: "OK",
+        serviceStatus_online: "Online",
+        serviceStatus_ready: "Hazır",
+        serviceStatus_active: "Aktif",
+        serviceStatus_warning: "Uyarı",
+        serviceStatus_pending: "Beklemede",
+        serviceStatus_idle: "Beklemede",
+        serviceStatus_disabled: "Kapalı",
+        serviceStatus_not_tested: "Test edilmedi",
+        serviceStatus_error: "Hata",
+        serviceStatus_missing: "Eksik",
+        serviceStatus_unknown: "Bilinmiyor",
+        pomSystemJournal: "POM Sistem Günlüğü / Destek Raporu",
+        pomSystemJournalSub: "Sorun olduğunda tek dosya destek raporu oluşturur. POM olayları son 500 kayıtla sınırlı tutulur; şişme yapmaz.",
+        showEvents: "Son olayları göster",
+        hideEvents: "Olayları gizle",
+        downloadSupportReport: "Destek raporu indir ve gönder",
+        clearPomJournal: "POM günlüğünü temizle",
+        loadHaLogTail: "HA logunu rapora eklemeyi dene",
+        clearLogView: "Log görünümünü temizle",
+        journalStatus: "Durum",
+        journalLastError: "Son hata",
+        journalLastEvent: "Son olay",
+        journalEventCount: "Olay sayısı",
+        pomJournalEmpty: "Henüz POM olayı yok.",
+        pomJournalNote: "Destek için bana göndereceğin dosya: Destek raporu indir ve gönder. HA log bulunamazsa rapor yine oluşturulur; POM olayları ve sistem durumu dosyaya eklenir.",
+        pomJournalCleared: "POM sistem günlüğü temizlendi.",
+        supportReportGenerated: "Destek raporu oluşturuldu.",
+        panelOpenedEvent: "Panel açıldı",
+        settingsLoadedEvent: "Ayarlar yüklendi",
+        tripRecordsLoadedEvent: "Sürüş kayıtları yüklendi",
+        chargeRecordsLoadedEvent: "Şarj kayıtları yüklendi",
+        manualRecordsLoadedEvent: "Manuel takip kayıtları yüklendi",
+        healthLoadedEvent: "Sistem sağlığı yüklendi",
+        liveTripDebugLoadedEvent: "Live Trip durumu yüklendi",
+        haLogsLoadedEvent: "HA logları yüklendi",
+        haLogsUnavailable: "HA log dosyası bulunamadı; destek raporu POM olaylarıyla oluşturulacak.",
+        haLogsUnavailableEvent: "HA log dosyası bulunamadı",
+        supportReportDownloadHint: "Bu dosyayı destek için bana gönderebilirsin.",
+        journalEventStored: "POM günlük olayı kaydedildi",
+        settingsBackup: "Ayar yedekleme",
+        settingsBackupSub: "Ayarları, kayıtları ve tam yedekleri dışa aktar. Bu alan günlük kullanım için ana ekranda kalır.",
+        exportRecords: "Kayıtları dışa aktar",
+        exportRecordsDone: "Sürüş ve şarj kayıtları JSON olarak indirildi.",
+        exportFullBackup: "Tam yedek al",
+        exportFullBackupJson: "Tam yedek JSON",
+        exportFullBackupDone: "Tam yedek indirildi.",
+        exportFullBackupSub: "Ayarlar, sürüş kayıtları, şarj kayıtları, manuel takip, Live Trip AI segmentleri ve kullanıcı görsel dosyaları dahil edilir.",
+        backupSimpleSub: "Normal kullanıcı için önerilen seçenek Tam yedek. Diğer iki seçenek sadece ayar veya kayıt dosyasını ayrı almak isteyenler içindir.",
+        backupRecommended: "Önerilen",
+        fullBackupTitle: "Tam yedek",
+        fullBackupDesc: "Ayarlar, sürüş/şarj kayıtları, manuel takip, Live Trip AI segmentleri, dashboard kaynakları ve kullanıcı görselleri tek ZIP içinde iner.",
+        settingsOnlyTitle: "Sadece ayarlar",
+        settingsOnlyDesc: "Dil, para birimi, Telegram, AI, entity seçimleri ve dashboard ayarları JSON olarak iner.",
+        recordsOnlyTitle: "Sadece kayıtlar",
+        recordsOnlyDesc: "Sürüş ve şarj kayıtlarını tek JSON dosyası olarak indirir.",
+        importSettingsSmall: "Ayar JSON içe aktar",
+        backupBusyTitle: "Yedek hazırlanıyor",
+        backupBusySub: "Lütfen bekleyin. İşlem tamamlanana kadar sayfayı kapatmayın veya başka menüye geçmeyin.",
+        backupBusyFooter: "Dosya hazır olunca indirme otomatik başlayacak.",
+        busyElapsed: "Geçen süre",
+        busySeconds: "{seconds} sn",
+        autoFindBusyTitle: "Auto Find çalışıyor",
+        autoFindBusySub: "Entity araması yapılıyor. Lütfen işlem tamamlanana kadar bu ekranda bekleyin.",
+        autoFindBusyFooter: "İşlem tamamlanınca bu uyarı otomatik kapanacak.",
+        uploadBusyTitle: "Görsel yükleniyor",
+        uploadBusySub: "Lütfen bekleyin. Görsel dosya yükleniyor.",
+        uploadBusyFooter: "Yükleme tamamlanana kadar sayfayı kapatmayın.",
+        uploadBusyProgress: "Yükleme",
+        none: "Yok",
+        periodicTelegramReports: "Telegram periyodik raporları",
+        periodicTelegramReportsSub: "Aktif olan özetler otomatik gönderilir: haftalık raporlar pazar 23:55, aylık raporlar ayın son günü 23:55.",
+        weeklyTripReport: "Haftalık sürüş raporu",
+        monthlyTripReport: "Aylık sürüş raporu",
+        weeklyChargeReport: "Haftalık şarj raporu",
+        monthlyChargeReport: "Aylık şarj raporu",
         testTripMapIncluded: "Harita dahil",
         testTripMapExcluded: "Harita kapalı",
         secondsShort: "sn",
@@ -646,7 +889,7 @@ class PomTeslaReportPanel extends HTMLElement {
         speedUnit: "km/sa",
       },
       en: {
-        title: "POM Tesla Report",
+        title: "Tesla AI",
         subtitle: "Manage charge, trip, and report settings live without opening the Options screen.",
         chargeTab: "Charge Records",
         tripTab: "Trip Records",
@@ -689,6 +932,8 @@ class PomTeslaReportPanel extends HTMLElement {
         unitPrice: "Unit price",
         currency: "Currency",
         source: "Source",
+        sourceBadge: "Source",
+        sourceLock: "Source lock",
         selectChargeHint: "Select a charge record on the left. Fields fill instantly.",
         selectTripHint: "Select a trip record on the left. Fields fill instantly.",
         empty: "No records.",
@@ -791,6 +1036,25 @@ class PomTeslaReportPanel extends HTMLElement {
         importSettingsPlaceholder: "Import preparation area. For now it validates file selection only.",
         selectedImportFile: "Selected import file",
         systemSummary: "System summary",
+        systemHealth: "System Health / Diagnostics",
+        systemHealthSub: "Shows HA Core RAM, Auto Find and self-reference risks.",
+        healthStatus: "Status",
+        healthMemory: "RAM",
+        healthAvailable: "Available RAM",
+        healthTrend: "RAM trend",
+        healthEntities: "Entities",
+        healthPomEntities: "POM entities",
+        healthSelfReference: "Self-reference",
+        healthAutoFind: "Auto Find",
+        healthWarnings: "Warnings",
+        healthCriticalTitle: "Danger state detected",
+        healthCriticalSub: "This box turns red when the system reaches critical risk. Self-reference, high RAM or heavy running jobs appear here.",
+        healthDownloadJson: "Download diagnostic JSON",
+        healthNormal: "Normal",
+        healthWatch: "Watch",
+        healthWarning: "Warning",
+        healthCritical: "Critical",
+        healthWaiting: "Waiting for data",
         resourceSummaryShort: "Resource summary",
         entityStoreAudit: "Panel entity store audit",
         entityStoreAuditSub: "Shows whether Report, AI, and Dashboard selections come from panel stores or legacy Flow fallback.",
@@ -845,6 +1109,14 @@ class PomTeslaReportPanel extends HTMLElement {
         dashboardBackgroundParked: "Parked background",
         dashboardBackgroundCharging: "Charging background",
         dashboardBackgroundDriving: "Driving background",
+        dashboardDriveVehicleImageTitle: "Drive Dashboard center vehicle image",
+        dashboardDriveVehicleImageSub: "Changes the vehicle image in the center of the Drive Dashboard card. Transparent PNG/WebP works best.",
+        dashboardDriveVehicleImage: "Center vehicle image",
+        dashboardDriveTireImageTitle: "Drive Dashboard tire pressure image",
+        dashboardDriveTireImageSub: "Changes the vehicle/tire visual shown in the center of the Tire Pressure card.",
+        dashboardUploadProgress: "Uploading",
+        dashboardUploadPreparing: "Preparing upload",
+        dashboardFileTooLarge: "File is too large. Limit",
         dashboardMenuFullscreen: "Fullscreen",
         dashboardMenuFullscreenSub: "Manage full-screen dashboard behavior.",
         dashboardMenuTopArea: "Top Area",
@@ -854,7 +1126,8 @@ class PomTeslaReportPanel extends HTMLElement {
         dashboardMenuBackgrounds: "Backgrounds",
         dashboardMenuBackgroundsSub: "Parked, charging and driving images.",
         dashboardMenuBottomBar: "Bottom Bar",
-        dashboardMenuBottomBarSub: "Bottom bar slots and visibility switches.",
+        dashboardMenuBottomBarSub: "Bottom bar visibility switches. The 3 bottom data fields are now changed live by tapping them on the dashboard screen.",
+        bottomSlotsLiveNote: "Bottom slots 1/2/3 are no longer configured here; tap the related bottom-bar field on the Tesla dashboard to change it live.",
         dashboardMenuMap: "Map",
         dashboardMenuMapSub: "Tesla and person map history hours.",
         dashboardMenuPersonTrack: "Person Track",
@@ -868,6 +1141,10 @@ class PomTeslaReportPanel extends HTMLElement {
         bottom_slot_3: "Bottom slot 3",
         tesla_map_hours_to_show: "Tesla map history hours",
         person_map_hours_to_show: "Person map history hours",
+        dashboardMapThemeMode: "Dashboard map mode",
+        dashboardMapThemeDark: "Dark / legacy readable dashboard map",
+        dashboardMapThemeLight: "Light / daytime map",
+        dashboardMapThemeNote: "Dark mode restores the legacy readable dashboard map and does not force an extra dark tile filter. Light mode uses daytime tiles. The map transparency button shows more of the selected background image.",
         person_track_enabled: "Person track enabled",
         person_track_show_button: "Show person track button",
         person_track_hours_to_show: "Person track hours to show",
@@ -885,6 +1162,7 @@ class PomTeslaReportPanel extends HTMLElement {
         dashboardSidebarSettings: "Sidebar",
         saveDashboardSettings: "Save dashboard settings",
         dashboardSettingsSaved: "Dashboard settings saved.",
+        dashboardSettingsSavedRebuild: "Dashboard settings saved. YAML is regenerating in the background; refresh the dashboard page after a few seconds.",
         fullscreen_enabled: "Fullscreen enabled",
         fullscreen_hide_header: "Hide header",
         fullscreen_hide_sidebar: "Hide sidebar",
@@ -912,6 +1190,8 @@ class PomTeslaReportPanel extends HTMLElement {
         aiAnswerLength: "Answer length",
         aiContextMode: "Context mode",
         aiName: "AI name",
+        aiUserAddress: "How AI should address you",
+        aiUserAddressNote: "How should the AI call you? Example: Berkan, buddy, Mr. Smith. Leave blank to avoid personal names.",
         openaiApiKey: "OpenAI API key",
         openaiModel: "OpenAI model",
         reverseGeocodingEnabled: "Reverse geocoding / address lookup",
@@ -946,71 +1226,13 @@ class PomTeslaReportPanel extends HTMLElement {
         personalityProfessional: "Professional",
         personalityFriendly: "Friendly",
         personalityFunny: "Funny",
+        personalityLaz: "Laz / Black Sea accent",
         personalityShortDirect: "Short direct",
         personalityPremium: "Premium Tesla Assistant",
         personalityTurkishBuddy: "Turkish Buddy",
         answerShort: "Short",
         answerNormal: "Normal",
         answerDetailed: "Detailed",
-        contextBasic: "Basic",
-        contextSmartAuto: "Smart auto",
-        contextSelectedDevice: "Selected device",
-        contextSmartManual: "Smart manual",
-        contextManualOnly: "Manual only",
-        alertStyleRule: "Rule-based",
-        alertStyleAI: "AI",
-        aiSettings: "AI Ayarları",
-        aiSettingsSub: "AI davranışı, OpenAI bağlantısı, adres çözümleme ve proaktif uyarılar.",
-        aiBehavior: "Davranış",
-        aiConnection: "OpenAI",
-        aiAddress: "Adres çözümleme",
-        aiTelegramContext: "Telegram / bağlam",
-        aiAlerts: "Proaktif AI uyarıları",
-        aiEnabled: "AI etkin",
-        aiPersonality: "AI kişiliği",
-        aiAnswerLength: "Cevap uzunluğu",
-        aiContextMode: "Context modu",
-        aiName: "AI adı",
-        openaiApiKey: "OpenAI API key",
-        openaiModel: "OpenAI model",
-        reverseGeocodingEnabled: "Reverse geocoding / adres çözümleme",
-        reverseGeocodingCacheMinutes: "Adres lookup cache süresi",
-        reverseGeocodingUseInAi: "Çözümlenen adresi AI context içinde kullan",
-        aiMaxOutputTokens: "Maksimum cevap token",
-        aiTelegramIncludeContext: "Telegram cevaplarında araç context’i kullan",
-        aiConfirmOptionalControls: "Opsiyonel kontrol komutlarında onay iste",
-        aiAlertStyle: "Uyarı stili",
-        aiAlertCooldownMinutes: "Uyarı cooldown süresi",
-        aiAlertLowBatteryEnabled: "Düşük batarya uyarısı",
-        aiAlertLowBatteryThreshold: "Düşük batarya eşiği",
-        aiAlertPostTripSummaryEnabled: "Sürüş sonrası özet uyarısı",
-        aiAlertChargeFinishedEnabled: "Şarj bitti uyarısı",
-        aiAlertChargingStoppedEnabled: "Şarj durdu uyarısı",
-        aiAlertTirePressureEnabled: "Lastik basıncı uyarısı",
-        aiAlertTirePressureThresholdBar: "Lastik basıncı eşiği",
-        aiAlertHighBatteryTempEnabled: "Yüksek batarya sıcaklığı uyarısı",
-        aiAlertHighBatteryTempThresholdC: "Yüksek batarya sıcaklığı eşiği",
-        aiAlertClimateLeftOnEnabled: "Klima açık kaldı uyarısı",
-        aiAlertClimateLeftOnDelayMinutes: "Klima açık kaldı gecikmesi",
-        aiAlertUnlockedEnabled: "Araç kilitsiz uyarısı",
-        aiAlertUnlockedDelayMinutes: "Kilit açık gecikmesi",
-        aiAlertDoorWindowOpenEnabled: "Kapı/cam açık uyarısı",
-        aiAlertDoorWindowOpenDelayMinutes: "Kapı/cam açık gecikmesi",
-        aiAlertWindowOpenInstantEnabled: "Cam açık anlık uyarı",
-        saveAISettings: "AI ayarlarını kaydet",
-        aiSettingsSaved: "AI ayarları kaydedildi.",
-        minutesShort: "dk",
-        percentShort: "%",
-        psiBarNote: "Mevcut Options Flow değeri ile aynı formatta kaydedilir.",
-        personalityProfessional: "Professional",
-        personalityFriendly: "Friendly",
-        personalityFunny: "Funny",
-        personalityShortDirect: "Short direct",
-        personalityPremium: "Premium Tesla Assistant",
-        personalityTurkishBuddy: "Turkish Buddy",
-        answerShort: "Kısa",
-        answerNormal: "Normal",
-        answerDetailed: "Detaylı",
         contextBasic: "Basic",
         contextSmartAuto: "Smart auto",
         contextSelectedDevice: "Selected device",
@@ -1070,10 +1292,29 @@ class PomTeslaReportPanel extends HTMLElement {
         aiEntityManagerSub: "Select entity roles used by POM AI. Report and Dashboard entities will be managed in separate sections.",
         aiMainTeslaEntity: "Main Tesla sample entity",
         aiMainTeslaEntitySub: "Auto Find uses this entity to discover same-device or same Tesla/POM entity groups.",
-        autoFindEntities: "Auto Find entities",
+        autoFindEntities: "Deep Auto Find",
+        fastAutoFindEntities: "Fast Auto Find",
+        fastAutoFindEntitiesSub: "Low-resource mode. Scans only same-device / same-source / Tesla-POM candidates.",
+        deepAutoFindEntitiesSub: "Deep scan. More comprehensive but can take several minutes on weak systems.",
         saveAiEntities: "Save AI entity settings",
         aiEntitiesSaved: "AI entity settings saved.",
         aiAutoFindDone: "Auto Find completed and saved discovered entities.",
+        autoFindStarted: "Language-independent Deep Auto Find started in the background. The panel can stay open; HA will not be blocked.",
+        fastAutoFindStarted: "Fast Auto Find started. Low-resource mode scans only likely vehicle entities.",
+        autoFindWarningTitle: "Auto Find is running",
+        autoFindWarningText: "Please stay on this screen. This may take a few minutes and large Home Assistant systems can briefly slow down.",
+        autoFindWarningSub: "You can close this warning with X; the background job will continue.",
+        autoFindWarningDoNotLeave: "Do not leave this place, it may take a few minutes.",
+        autoFindMasterNote: "Uses the same Vehicle Master Auto Find structure as AI.",
+        confidenceVeryHigh: "Very high",
+        confidenceHigh: "High",
+        confidenceMedium: "Review",
+        confidenceLow: "Weak",
+        confidenceManual: "Manual",
+        confidenceReason: "Reason",
+        autoFindRunning: "Auto Find is running in the background...",
+        autoFindStillRunning: "Auto Find is still running. Home Assistant remains usable.",
+        autoFindFailed: "Auto Find failed.",
         aiExtraDeduped: "Entities assigned to fixed roles are automatically removed from Extra AI.",
         aiAutoDiscoverToggle: "Keep device-based auto discovery enabled",
         entityRole: "Entity role",
@@ -1161,7 +1402,17 @@ class PomTeslaReportPanel extends HTMLElement {
         liveTripUpdateIntervalSeconds: "Live trip update interval seconds",
         liveTripTrafficSpeedThreshold: "Traffic speed threshold",
         liveTripFinishDelaySeconds: "Report delay after Park",
-        liveTripMinDistanceKm: "Minimum trip distance",
+        liveTripMinDistanceKm: "Minimum distance for report",
+        liveTripIgnoreShortManeuvers: "Ignore short parking maneuvers",
+        liveTripCandidateMinDistanceKm: "Real trip confirmation distance",
+        liveTripCandidateMinDurationMinutes: "Real trip confirmation time",
+        liveTripCandidateNote: "When the car shifts to D/R/N, the movement is first tracked as a candidate trip. If it returns to Park before either threshold is reached, it is treated as a garage/parking maneuver and no report is started.",
+        liveTripAiCommentSettings: "Live AI comments",
+        liveTripAiCommentSettingsSub: "Choose how often AI comments are generated during a drive and test it without driving.",
+        liveTripAiSegmentDistanceKm: "AI comment interval",
+        liveTripAiSegmentDistanceNote: "1 km is useful for short city tests, 5 km for daily use, and 10 km for long drives.",
+        testLiveTripAiComment: "Test AI comment",
+        liveTripAiCommentTested: "Live Trip AI test comment is ready.",
         startSpeedThreshold: "Start speed threshold",
         enableTripMapCollection: "Enable trip map collection",
         tripMapTrackerEntity: "Trip map tracker entity",
@@ -1182,8 +1433,11 @@ class PomTeslaReportPanel extends HTMLElement {
         saveTripSettings: "Save trip settings",
         tripSettingsSaved: "Trip settings saved.",
         tripTelegramTest: "Telegram Test Trip",
-        tripTelegramTestSub: "These tools let you test the live trip flow without driving the car. The sample report button renders a visual-only report; Live Trip test start/end simulates a trip and is closer to the real report pipeline.",
+        tripTelegramTestSub: "Generate realistic simulator reports without driving. The visual report, traffic-colored route map and test AI comment are sent to Telegram; no Trip Records entry is created.",
         sendTestTripReport: "Send sample test trip to Telegram",
+        sendShortCityTrip: "Send short drive",
+        sendTrafficTrip: "Send traffic drive",
+        sendEfficientTrip: "Send long efficient drive",
         startLiveTripTest: "Live Trip test start",
         finishLiveTripTest: "Live Trip test end",
         resetLiveTripTest: "Live Trip test reset",
@@ -1197,6 +1451,144 @@ class PomTeslaReportPanel extends HTMLElement {
         liveTripDebugLoaded: "Live Trip debug refreshed.",
         testTripSent: "Sample test trip report sent to Telegram.",
         testTripNoLedger: "This action does not write anything to trip records.",
+        aiTripStoryDetailLevel: "AI trip story detail",
+        aiTripStoryDetailBasic: "Basic",
+        aiTripStoryDetailBalanced: "Balanced",
+        aiTripStoryDetailDetailed: "Detailed",
+        aiTripStoryDetailNote: "This only controls the length of the AI story sent after the visual Live Trip report. Detailed is the default.",
+        aiTripStoryRecordTitle: "AI Trip Story",
+        aiTripStoryRecordEmpty: "No AI story has been saved for this record yet.",
+        aiTripStoryRegenerate: "Generate / regenerate AI story",
+        aiTripStoryRegenerating: "Generating AI story...",
+        aiTripStoryRegenerated: "AI story saved to the record.",
+        tripMapLayerColored: "Traffic-colored route map",
+        tripMapLayerStandard: "Standard route map",
+        systemStatusCenter: "System Status",
+        systemStatusCenterSub: "A compact first-look panel for Live Trip, report and Telegram pipeline issues.",
+        statusLiveTrip: "Live Trip",
+        statusSpeed: "Speed",
+        statusShift: "Shift",
+        statusOdometer: "Odometer",
+        statusLastReport: "Last report",
+        statusWarnings: "Warnings",
+        refreshSystemStatus: "Refresh system status",
+        testTripProfile: "Test trip profile",
+        testTripProfileCity: "Short city drive",
+        testTripProfileTraffic: "Traffic-heavy drive",
+        testTripProfileEfficient: "Long / efficient drive",
+        systemLogs: "System logs",
+        systemLogsSub: "Shows the latest lines from Home Assistant’s main log file. To avoid locking the panel on huge logs, the last 500 lines are loaded.",
+        showSystemLogs: "Show system logs",
+        clearSystemLogs: "Clear log view",
+        systemLogsLoaded: "System logs loaded.",
+        systemLogsEmpty: "No log output loaded yet.",
+        systemControlPanel: "System Control Panel",
+        systemControlPanelSub: "Shows whether report, Telegram, AI, record, and dashboard services are usable.",
+        refreshSystemControl: "Refresh system control",
+        systemControlChecked: "System control refreshed.",
+        servicePanelAllGood: "All core services look healthy.",
+        servicePanelHasWarnings: "Some services have warnings; the system may still work but should be checked.",
+        servicePanelHasErrors: "A critical service error exists; report or record flows may be affected.",
+        serviceIntegration: "Integration",
+        serviceDashboard: "Dashboard",
+        serviceEntities: "Entity links",
+        serviceLiveTrip: "Live Trip",
+        serviceTripRecords: "Trip Records",
+        serviceChargeRecords: "Charge Records",
+        serviceTelegram: "Telegram",
+        serviceAI: "AI",
+        serviceIntegrationOk: "Config entry ready",
+        serviceIntegrationMissing: "Config entry missing",
+        serviceDashboardOk: "YAML / resources ready",
+        serviceMissing: "missing",
+        serviceSelfReference: "Self-reference risk exists",
+        serviceLiveTripReady: "Ready / waiting",
+        serviceLiveTripActive: "Active trip is being tracked",
+        serviceWritable: "Writable",
+        serviceWriteError: "Record endpoint error",
+        serviceRefreshToTest: "Refresh to test",
+        serviceDisabled: "Disabled",
+        serviceTelegramReady: "Chat ID / bot ready",
+        serviceTelegramChatMissing: "Chat ID missing",
+        serviceTelegramBotMissing: "Bot/token missing",
+        serviceAiReady: "API key ready",
+        serviceAiKeyMissing: "API key missing",
+        serviceStatus_ok: "OK",
+        serviceStatus_online: "Online",
+        serviceStatus_ready: "Ready",
+        serviceStatus_active: "Active",
+        serviceStatus_warning: "Warning",
+        serviceStatus_pending: "Pending",
+        serviceStatus_idle: "Idle",
+        serviceStatus_disabled: "Disabled",
+        serviceStatus_not_tested: "Not tested",
+        serviceStatus_error: "Error",
+        serviceStatus_missing: "Missing",
+        serviceStatus_unknown: "Unknown",
+        pomSystemJournal: "POM System Journal / Support Report",
+        pomSystemJournalSub: "Creates one support-report file when something breaks. POM events are limited to the latest 500 entries so it does not grow indefinitely.",
+        showEvents: "Show recent events",
+        hideEvents: "Hide events",
+        downloadSupportReport: "Download and send support report",
+        clearPomJournal: "Clear POM journal",
+        loadHaLogTail: "Try adding HA log to report",
+        clearLogView: "Clear log view",
+        journalStatus: "Status",
+        journalLastError: "Last error",
+        journalLastEvent: "Last event",
+        journalEventCount: "Event count",
+        pomJournalEmpty: "No POM events yet.",
+        pomJournalNote: "This area uses a bounded ring buffer; only the latest 500 events are kept.",
+        pomJournalCleared: "POM system journal cleared.",
+        supportReportGenerated: "Support report generated.",
+        panelOpenedEvent: "Panel opened",
+        settingsLoadedEvent: "Settings loaded",
+        tripRecordsLoadedEvent: "Trip records loaded",
+        chargeRecordsLoadedEvent: "Charge records loaded",
+        manualRecordsLoadedEvent: "Manual tracking records loaded",
+        healthLoadedEvent: "System health loaded",
+        liveTripDebugLoadedEvent: "Live Trip status loaded",
+        haLogsLoadedEvent: "HA logs loaded",
+        haLogsUnavailable: "HA log file was not found; the support report will be created with POM events only.",
+        haLogsUnavailableEvent: "HA log file was not found",
+        supportReportDownloadHint: "Send this file to support for troubleshooting.",
+        journalEventStored: "POM journal event stored",
+        settingsBackup: "Settings backup",
+        settingsBackupSub: "Export settings, records, and full backups. This stays on the main General screen for daily use.",
+        exportRecords: "Export records",
+        exportRecordsDone: "Trip and charge records downloaded as JSON.",
+        exportFullBackup: "Export full backup",
+        exportFullBackupJson: "Full backup JSON",
+        exportFullBackupDone: "Full backup downloaded.",
+        exportFullBackupSub: "Includes settings, trip records, charge records, manual tracking, Live Trip AI segments, and user visual files.",
+        backupSimpleSub: "For regular users, Full backup is the recommended option. The other two options are only for exporting settings or records separately.",
+        backupRecommended: "Recommended",
+        fullBackupTitle: "Full backup",
+        fullBackupDesc: "Downloads settings, trip/charge records, manual tracking, Live Trip AI segments, dashboard resources, and user images in one ZIP.",
+        settingsOnlyTitle: "Settings only",
+        settingsOnlyDesc: "Downloads language, currency, Telegram, AI, entity bindings, and dashboard settings as JSON.",
+        recordsOnlyTitle: "Records only",
+        recordsOnlyDesc: "Downloads trip and charge records as a single JSON file.",
+        importSettingsSmall: "Import settings JSON",
+        backupBusyTitle: "Preparing backup",
+        backupBusySub: "Please wait. Do not close the page or switch menus until the operation is complete.",
+        backupBusyFooter: "The download will start automatically when the file is ready.",
+        busyElapsed: "Elapsed time",
+        busySeconds: "{seconds}s",
+        autoFindBusyTitle: "Auto Find is running",
+        autoFindBusySub: "Entity discovery is running. Please stay on this screen until it completes.",
+        autoFindBusyFooter: "This warning will close automatically when the operation is complete.",
+        uploadBusyTitle: "Uploading image",
+        uploadBusySub: "Please wait. The image file is being uploaded.",
+        uploadBusyFooter: "Do not close the page until the upload is complete.",
+        uploadBusyProgress: "Upload",
+        none: "None",
+        periodicTelegramReports: "Telegram periodic reports",
+        periodicTelegramReportsSub: "Enabled summaries are sent automatically: weekly reports on Sunday at 23:55, monthly reports on the last day of the month at 23:55.",
+        weeklyTripReport: "Weekly trip report",
+        monthlyTripReport: "Monthly trip report",
+        weeklyChargeReport: "Weekly charging report",
+        monthlyChargeReport: "Monthly charging report",
         testTripMapIncluded: "Map included",
         testTripMapExcluded: "Map hidden",
         secondsShort: "s",
@@ -1231,7 +1623,9 @@ class PomTeslaReportPanel extends HTMLElement {
 
     let text = pickString(err.response) || pickString(err.message) || pickString(err.body) || pickString(err);
     if (text.includes("Bad Request: chat not found")) {
-      text = "Telegram chat not found. Bot bu gruba ekli değil, bot token yanlış gruba ait veya group ID hatalı.";
+      text = this._lang === "en"
+        ? "Telegram chat not found. The bot is not in this group, the bot token belongs to another group, or the group ID is wrong."
+        : "Telegram chat not found. Bot bu gruba ekli değil, bot token yanlış gruba ait veya group ID hatalı.";
     }
     return String(text || "API error").slice(0, 1200);
   }
@@ -1434,7 +1828,7 @@ class PomTeslaReportPanel extends HTMLElement {
       },
       ai_settings: {
         ...(payload?.ai_settings || {}),
-        reverse_geocoding_cache_minutes: Math.max(5, Number(payload?.ai_settings?.reverse_geocoding_cache_minutes ?? 60)),
+        reverse_geocoding_cache_minutes: 60,
       },
       dashboard_settings: {
         resources_status: payload?.dashboard_settings?.resources_status || {},
@@ -1451,6 +1845,7 @@ class PomTeslaReportPanel extends HTMLElement {
         allowed_extensions: Array.isArray(payload?.dashboard_settings?.allowed_extensions) ? payload.dashboard_settings.allowed_extensions : ["png", "jpg", "jpeg", "webp", "gif"],
         max_bytes: Number(payload?.dashboard_settings?.max_bytes || 25 * 1024 * 1024),
         youtube_driving_background: payload?.dashboard_settings?.youtube_driving_background || {},
+        drive_dashboard: payload?.dashboard_settings?.drive_dashboard || {},
         fullscreen: payload?.dashboard_settings?.fullscreen || {},
         top_area: {
           ...(payload?.dashboard_settings?.top_area || {}),
@@ -1500,7 +1895,13 @@ class PomTeslaReportPanel extends HTMLElement {
         live_trip_traffic_speed_threshold: Number(trip.live_trip_traffic_speed_threshold ?? 20),
         live_trip_finish_delay_seconds: Number(trip.live_trip_finish_delay_seconds ?? 90),
         live_trip_min_distance_km: Number(trip.live_trip_min_distance_km ?? 0),
+        live_trip_ignore_short_maneuvers: Boolean(trip.live_trip_ignore_short_maneuvers ?? true),
+        live_trip_candidate_min_distance_km: Number(trip.live_trip_candidate_min_distance_km ?? 0.30),
+        live_trip_candidate_min_duration_seconds: Number(trip.live_trip_candidate_min_duration_seconds ?? 120),
+        live_trip_ai_segment_distance_km: Number(trip.live_trip_ai_segment_distance_km ?? 10),
+        live_trip_ai_segment_distance_options: Array.isArray(trip.live_trip_ai_segment_distance_options) ? trip.live_trip_ai_segment_distance_options : [1, 5, 10],
         ai_trip_story_enabled: Boolean(trip.ai_trip_story_enabled ?? payload?.ai_settings?.ai_alert_post_trip_summary_enabled ?? true),
+        ai_trip_story_detail_level: ["basic", "balanced", "detailed"].includes(String(trip.ai_trip_story_detail_level || "")) ? String(trip.ai_trip_story_detail_level) : "detailed",
         ai_trip_story_delay_mode: trip.ai_trip_story_delay_mode || "follow_live_trip_report_delay",
         trip_map_enabled: Boolean(trip.trip_map_enabled ?? true),
         trip_map_tracker_entity: trip.trip_map_tracker_entity || "",
@@ -1518,10 +1919,70 @@ class PomTeslaReportPanel extends HTMLElement {
         show_climate: Boolean(trip.show_climate ?? true),
         show_elevation: Boolean(trip.show_elevation ?? true),
         show_trip_map: Boolean(trip.show_trip_map ?? true),
+        telegram_weekly_trip_report_enabled: Boolean(trip.telegram_weekly_trip_report_enabled ?? false),
+        telegram_monthly_trip_report_enabled: Boolean(trip.telegram_monthly_trip_report_enabled ?? false),
+        telegram_weekly_charge_report_enabled: Boolean(trip.telegram_weekly_charge_report_enabled ?? false),
+        telegram_monthly_charge_report_enabled: Boolean(trip.telegram_monthly_charge_report_enabled ?? false),
       },
     };
   }
 
+
+  _loadPomEvents() {
+    try {
+      const raw = window.localStorage?.getItem?.("pom_tesla_system_events_v1");
+      const parsed = raw ? JSON.parse(raw) : [];
+      return Array.isArray(parsed) ? parsed.slice(0, 500) : [];
+    } catch (_err) {
+      return [];
+    }
+  }
+
+  _seedPomJournalSession() {
+    try {
+      const last = Array.isArray(this._pomEvents) ? this._pomEvents[0] : null;
+      const lastTs = last?.ts ? Date.parse(last.ts) : 0;
+      const sameRecent = last?.module === "panel_session" && Number.isFinite(lastTs) && (Date.now() - lastTs) < 30000;
+      if (!sameRecent) {
+        this._pushPomEvent("info", this._t("panelOpenedEvent"), { build: this._frontendBuild || "" }, "panel_session");
+      }
+    } catch (_err) {
+      // Journal must never break panel boot.
+    }
+  }
+
+  _savePomEvents() {
+    try {
+      window.localStorage?.setItem?.("pom_tesla_system_events_v1", JSON.stringify((this._pomEvents || []).slice(0, 500)));
+    } catch (_err) {
+      // localStorage can be unavailable in some HA WebView contexts; ignore safely.
+    }
+  }
+
+  _safePomEventDetail(detail = {}) {
+    try {
+      const text = JSON.stringify(detail ?? {});
+      if (text.length <= 6000) return detail ?? {};
+      return { truncated: true, preview: text.slice(0, 6000) };
+    } catch (err) {
+      return { serialization_error: this._formatError(err) };
+    }
+  }
+
+  _pushPomEvent(level, title, detail = {}, module = "panel") {
+    const event = {
+      ts: new Date().toISOString(),
+      level: String(level || "info"),
+      module: String(module || "panel"),
+      title: String(title || "POM event").slice(0, 180),
+      detail: this._safePomEventDetail(detail),
+      active_tab: this._activeTab,
+      active_settings_tab: this._activeSettingsTab,
+      build: this._frontendBuild || "",
+    };
+    this._pomEvents = [event, ...(this._pomEvents || [])].slice(0, 500);
+    this._savePomEvents();
+  }
 
   _pushDebugEvent(level, message, detail = {}) {
     const item = {
@@ -1533,6 +1994,7 @@ class PomTeslaReportPanel extends HTMLElement {
       active_settings_tab: this._activeSettingsTab,
     };
     this._debugEvents = [item, ...(this._debugEvents || [])].slice(0, 30);
+    this._pushPomEvent(level, message, detail, "panel");
   }
 
   _recordApiResult(name, result, startedAt) {
@@ -1728,6 +2190,71 @@ class PomTeslaReportPanel extends HTMLElement {
     else this._loadManualTrackingMapPreview(this._selectedManualTrackingId);
   }
 
+  _mergeHealthPayload(payload) {
+    const health = payload?.health || payload?.general_settings?.health || payload?.settings?.general_settings?.health || null;
+    if (!health) return false;
+    if (!this._settingsData) {
+      this._settingsData = { success: true, general_settings: {} };
+    }
+    if (!this._settingsData.general_settings) this._settingsData.general_settings = {};
+    this._settingsData.general_settings.health = health;
+    this._lastHealthFetchTs = Date.now();
+    return true;
+  }
+
+  _filterHealthWarnings(warnings) {
+    return (Array.isArray(warnings) ? warnings : []).filter((warning) => {
+      const text = String(warning || "").trim();
+      if (!text) return false;
+      return !/no immediate pom health risk detected/i.test(text);
+    });
+  }
+
+  _maybePushHealthEvent(health) {
+    if (!health || typeof health !== "object") return;
+    const severity = String(health.severity || health.status || "normal").toLowerCase();
+    const warnings = this._filterHealthWarnings(health.warnings || []);
+    const isNormal = ["ok", "normal", ""].includes(severity) && !warnings.length;
+    const now = Date.now();
+    if (isNormal) {
+      this._lastHealthSeverity = "normal";
+      this._lastHealthEventSignature = "normal";
+      return;
+    }
+    const signature = `${severity}|${warnings.join("|")}`;
+    const sameAsLast = signature === this._lastHealthEventSignature;
+    const cooldownMs = 10 * 60 * 1000;
+    if (sameAsLast && now - (this._lastHealthEventAt || 0) < cooldownMs) return;
+    this._lastHealthEventSignature = signature;
+    this._lastHealthEventAt = now;
+    this._lastHealthSeverity = severity;
+    const level = severity === "critical" ? "error" : "warning";
+    this._pushPomEvent(level, this._t("healthWarnings"), { severity, warnings }, "health");
+  }
+
+  async _loadHealth(showStatus = false) {
+    if (!this._hass) return;
+    try {
+      const payload = await this._hass.callApi("GET", "pom_tesla_report/health");
+      const merged = this._mergeHealthPayload(payload);
+      const health = payload?.health || payload?.general_settings?.health || null;
+      if (merged && showStatus) {
+        this._status = this._t("loaded");
+        this._pushPomEvent("success", this._t("healthLoadedEvent"), health || payload, "health");
+      }
+      this._maybePushHealthEvent(health);
+      this._render();
+    } catch (err) {
+      // Keep the whole settings panel usable even if the health endpoint is not
+      // available because the backend is still restarting or an older package is loaded.
+      if (showStatus) {
+        this._error = this._formatError(err);
+        this._pushPomEvent("error", "Health load failed", { error: this._error }, "health");
+        this._render();
+      }
+    }
+  }
+
   async _loadActive() {
     if (!this._hass) return;
     this._loading = true;
@@ -1737,18 +2264,24 @@ class PomTeslaReportPanel extends HTMLElement {
       if (this._activeTab === "trip" || this._activeTab === "manual") {
         const trip = await this._hass.callApi("GET", "pom_tesla_report/trip_records");
         this._tripData = this._normalizeApiPayload(trip, this._chargeData?.currency || this._currency || "");
+        this._pushPomEvent("success", this._activeTab === "manual" ? this._t("manualRecordsLoadedEvent") : this._t("tripRecordsLoadedEvent"), { records: this._tripData?.records?.length || 0 }, this._activeTab === "manual" ? "manual_records" : "trip_records");
       } else if (this._activeTab === "settings") {
         const settings = await this._hass.callApi("GET", "pom_tesla_report/settings");
         this._settingsData = this._normalizeSettingsPayload(settings);
+        this._mergeHealthPayload(settings);
         this._ensureStationEditor();
+        this._pushPomEvent("success", this._t("settingsLoadedEvent"), { language: this._settingsData?.language || this._lang, build: this._frontendBuild || "" }, "settings");
+        this._loadHealth(false);
       } else {
         const charge = await this._hass.callApi("GET", "pom_tesla_report/charge_records");
         this._chargeData = this._normalizeApiPayload(charge);
+        this._pushPomEvent("success", this._t("chargeRecordsLoadedEvent"), { records: this._chargeData?.records?.length || 0 }, "charge_records");
       }
       this._restoreSelections();
       this._status = this._t("loaded");
     } catch (err) {
       this._error = this._formatError(err);
+      this._pushPomEvent("error", "Active tab load failed", { tab: this._activeTab, error: this._error }, "panel_load");
     } finally {
       this._loading = false;
       this._render();
@@ -1933,7 +2466,8 @@ class PomTeslaReportPanel extends HTMLElement {
   }
 
   _tripRecords() {
-    return this._filterRecordsByDate(this._tripData?.records || [], "trip");
+    const records = (this._tripData?.records || []).filter((r) => !this._isManualTrackingRecord(r));
+    return this._filterRecordsByDate(records, "trip");
   }
 
   _isManualTrackingRecord(record) {
@@ -2032,6 +2566,28 @@ class PomTeslaReportPanel extends HTMLElement {
     this._render();
   }
 
+  async _loadManualTrackingMapPreview(recordId = this._selectedManualTrackingId) {
+    if (!this._hass || !recordId) {
+      this._manualTrackingMapPreview = null;
+      this._render();
+      return;
+    }
+    const requestId = ++this._manualTrackingMapRequestId;
+    this._manualTrackingMapPreview = { loading: true, image_url: "", error: "" };
+    this._render();
+    try {
+      // Manual Tracking records are stored in the shared trip ledger, so the
+      // existing trip record-map endpoint is the correct preview source.
+      const payload = await this._hass.callApi("GET", `pom_tesla_report/record_map?kind=trip&id=${encodeURIComponent(recordId)}`);
+      if (requestId !== this._manualTrackingMapRequestId) return;
+      this._manualTrackingMapPreview = { ...(payload || {}), loading: false, error: (payload && payload.success === false ? (payload.message || payload.error || "") : "") };
+    } catch (err) {
+      if (requestId !== this._manualTrackingMapRequestId) return;
+      this._manualTrackingMapPreview = { loading: false, image_url: "", error: this._formatError(err) };
+    }
+    this._render();
+  }
+
   _selectChargeRecord(id) {
     const rec = (this._chargeData?.records || []).find((r) => r.id === id);
     this._selectedChargeId = id;
@@ -2053,10 +2609,14 @@ class PomTeslaReportPanel extends HTMLElement {
   _selectManualTrackingRecord(id) {
     const rec = (this._tripData?.records || []).find((r) => r.id === id);
     this._selectedManualTrackingId = id;
-    this._editingManualTracking = rec ? { ...rec } : null;
+    this._editingManualTracking = rec && this._isManualTrackingRecord(rec) ? { ...rec } : null;
     this._status = "";
     this._error = "";
-    this._loadManualTrackingMapPreview(id);
+    if (this._editingManualTracking) this._loadManualTrackingMapPreview(id);
+    else {
+      this._manualTrackingMapPreview = null;
+      this._render();
+    }
   }
 
   _selectStation(index) {
@@ -2175,6 +2735,14 @@ class PomTeslaReportPanel extends HTMLElement {
     return Boolean(this.shadowRoot.getElementById(id)?.checked);
   }
 
+  _applyTripIntervalToLocalSettings(segmentKm) {
+    const normalized = [1, 5, 10].includes(Number(segmentKm)) ? Number(segmentKm) : 10;
+    this._settingsData = this._settingsData || this._normalizeSettingsPayload({});
+    this._settingsData.trip_reports = this._settingsData.trip_reports || {};
+    this._settingsData.trip_reports.live_trip_ai_segment_distance_km = normalized;
+    return normalized;
+  }
+
   _readTripSettingsForm() {
     const root = this.shadowRoot;
     const current = this._settingsData?.trip_reports || {};
@@ -2196,7 +2764,12 @@ class PomTeslaReportPanel extends HTMLElement {
       live_trip_traffic_speed_threshold: number("trip_live_trip_traffic_speed_threshold", current.live_trip_traffic_speed_threshold ?? 20),
       live_trip_finish_delay_seconds: this._minutesToSecondsValue(value("trip_live_trip_finish_delay_minutes", this._secondsToMinutesValue(current.live_trip_finish_delay_seconds ?? 1800)), 30),
       live_trip_min_distance_km: number("trip_live_trip_min_distance_km", current.live_trip_min_distance_km ?? 0),
+      live_trip_ignore_short_maneuvers: checked("trip_live_trip_ignore_short_maneuvers", current.live_trip_ignore_short_maneuvers ?? true),
+      live_trip_candidate_min_distance_km: number("trip_live_trip_candidate_min_distance_km", current.live_trip_candidate_min_distance_km ?? 0.30),
+      live_trip_candidate_min_duration_seconds: this._minutesToSecondsValue(value("trip_live_trip_candidate_min_duration_minutes", this._secondsToMinutesValue(current.live_trip_candidate_min_duration_seconds ?? 120)), 2),
+      live_trip_ai_segment_distance_km: Number(value("trip_live_trip_ai_segment_distance_km", current.live_trip_ai_segment_distance_km ?? 10)),
       ai_trip_story_enabled: checked("trip_ai_story_enabled", current.ai_trip_story_enabled ?? true),
+      ai_trip_story_detail_level: ["basic", "balanced", "detailed"].includes(String(value("trip_ai_story_detail_level", current.ai_trip_story_detail_level || "detailed"))) ? String(value("trip_ai_story_detail_level", current.ai_trip_story_detail_level || "detailed")) : "detailed",
       ai_trip_story_delay_mode: "follow_live_trip_report_delay",
       trip_map_enabled: checked("trip_map_enabled", current.trip_map_enabled),
       trip_map_tracker_entity: String(value("trip_map_tracker_entity", current.trip_map_tracker_entity || "") || "").trim(),
@@ -2214,6 +2787,10 @@ class PomTeslaReportPanel extends HTMLElement {
       show_climate: checked("trip_show_climate", current.show_climate),
       show_elevation: checked("trip_show_elevation", current.show_elevation),
       show_trip_map: checked("trip_show_trip_map", current.show_trip_map),
+      telegram_weekly_trip_report_enabled: checked("trip_telegram_weekly_trip_report_enabled", current.telegram_weekly_trip_report_enabled ?? false),
+      telegram_monthly_trip_report_enabled: checked("trip_telegram_monthly_trip_report_enabled", current.telegram_monthly_trip_report_enabled ?? false),
+      telegram_weekly_charge_report_enabled: checked("trip_telegram_weekly_charge_report_enabled", current.telegram_weekly_charge_report_enabled ?? false),
+      telegram_monthly_charge_report_enabled: checked("trip_telegram_monthly_charge_report_enabled", current.telegram_monthly_charge_report_enabled ?? false),
     };
   }
 
@@ -2820,6 +3397,114 @@ class PomTeslaReportPanel extends HTMLElement {
     };
   }
 
+  _showAutoFindNotice(kind, modeLabel = "") {
+    const label = kind === "dashboard"
+      ? this._t("dashboardEntityManager")
+      : (kind === "report" ? this._t("reportEntityManager") : this._t("aiEntityManager"));
+    this._autoFindNotice = { kind, label, modeLabel, closed: false };
+    const mode = String(modeLabel || "").trim();
+    this._showBusyOverlay(
+      `${this._t("autoFindBusyTitle")} · ${label}`,
+      `${mode ? `${mode} · ` : ""}${this._t("autoFindBusySub")}`,
+      this._t("autoFindBusyFooter")
+    );
+  }
+
+  _hideAutoFindNotice() {
+    this._autoFindNotice = null;
+    this._hideBusyOverlay();
+  }
+
+  _closeAutoFindNotice() {
+    if (this._autoFindNotice) this._autoFindNotice.closed = true;
+    this._render();
+  }
+
+  _renderAutoFindNoticeBanner() {
+    const notice = this._autoFindNotice;
+    if (this._backupBusy || !notice || notice.closed) return "";
+    const label = notice.label || this._t("autoFindRunning");
+    return `
+      <div class="autofind-banner" id="autoFindNoticeBanner">
+        <div class="autofind-banner-spinner"></div>
+        <div class="autofind-banner-main">
+          <b>${this._esc(this._t("autoFindWarningTitle"))} · ${this._esc(label)}</b>
+          <div>${this._esc(this._t("autoFindWarningDoNotLeave"))}</div>
+          <small>${this._esc(this._t("autoFindWarningText"))} ${this._esc(this._t("autoFindWarningSub"))}</small>
+        </div>
+        <button type="button" class="autofind-banner-close" id="autoFindNoticeClose">×</button>
+      </div>
+    `;
+  }
+
+  _sleep(ms) {
+    return new Promise((resolve) => window.setTimeout(resolve, ms));
+  }
+
+  async _pollAutoFindJob(kind) {
+    const label = kind === "dashboard"
+      ? this._t("dashboardEntityManager")
+      : (kind === "report" ? this._t("reportEntityManager") : this._t("aiEntityManager"));
+    for (let attempt = 0; attempt < 180; attempt += 1) {
+      await this._sleep(attempt < 3 ? 800 : 1200);
+      let payload = null;
+      try {
+        payload = await this._hass.callApi("POST", "pom_tesla_report/settings", {
+          action: "auto_find_status",
+          kind,
+        });
+      } catch (err) {
+        this._error = this._formatError(err);
+        this._hideAutoFindNotice();
+        this._render();
+        return null;
+      }
+
+      const job = payload?.auto_find_job || {};
+      const status = String(job.status || "idle");
+      const countInfo = Number.isFinite(Number(job.found_count)) ? ` · ${job.found_count}` : "";
+      this._status = `${label}: ${job.message || this._t("autoFindRunning")}${countInfo}`;
+      this._error = job.error || "";
+      this._updateBusyOverlay({
+        title: `${this._t("autoFindBusyTitle")} · ${label}`,
+        sub: `${job.message || this._t("autoFindRunning")}${countInfo}`,
+        footer: this._t("autoFindBusyFooter"),
+      });
+      this._render();
+
+      if (status === "done") {
+        const settingsPayload = job.settings || payload.settings || payload;
+        this._settingsData = this._applySettingsSaveResponse(settingsPayload, {});
+        if (kind === "dashboard") {
+          this._dashboardEntityDraft = null;
+          this._status = this._t("dashboardAutoFindDone");
+        } else if (kind === "report") {
+          this._reportEntityDraft = null;
+          this._status = this._t("reportAutoFindDone");
+        } else {
+          this._aiEntityDraft = null;
+          this._status = this._t("aiAutoFindDone");
+        }
+        this._error = "";
+        this._hideAutoFindNotice();
+        this._render();
+        return job;
+      }
+
+      if (status === "error") {
+        this._error = job.error || this._t("autoFindFailed");
+        this._status = "";
+        this._hideAutoFindNotice();
+        this._render();
+        return job;
+      }
+    }
+    this._status = this._t("autoFindStillRunning");
+    this._hideAutoFindNotice();
+    this._render();
+    return null;
+  }
+
   async _saveAIEntityManager() {
     if (!this._hass) return;
     const ai_entity_manager = this._readAIEntityManagerForm();
@@ -2838,22 +3523,25 @@ class PomTeslaReportPanel extends HTMLElement {
     }
   }
 
-  async _autoFindAIEntities() {
+  async _autoFindAIEntities(fastMode = false) {
     if (!this._hass) return;
     const ai_entity_manager = this._readAIEntityManagerForm();
-    ai_entity_manager.action = "auto_find";
-    this._loading = true;
+    ai_entity_manager.action = fastMode ? "fast_auto_find_async" : "auto_find_async";
+    ai_entity_manager.fast_mode = !!fastMode;
+    this._loading = false;
     this._error = "";
-    this._status = "";
+    this._status = fastMode ? this._t("fastAutoFindStarted") : this._t("autoFindStarted");
+    this._showAutoFindNotice("ai", fastMode ? this._t("fastAutoFindEntities") : this._t("autoFindEntities"));
     this._render();
     try {
-      this._settingsData = this._applySettingsSaveResponse(await this._hass.callApi("POST", "pom_tesla_report/settings", { ai_entity_manager }), { ai_entity_manager });
-      this._aiEntityDraft = null;
-      this._status = this._t("aiAutoFindDone");
+      const started = await this._hass.callApi("POST", "pom_tesla_report/settings", { ai_entity_manager });
+      const job = started?.auto_find_job || {};
+      this._status = job.message || this._t("autoFindStarted");
+      this._render();
+      await this._pollAutoFindJob("ai");
     } catch (err) {
       this._error = this._formatError(err);
-    } finally {
-      this._loading = false;
+      this._hideAutoFindNotice();
       this._render();
     }
   }
@@ -2899,22 +3587,25 @@ class PomTeslaReportPanel extends HTMLElement {
     }
   }
 
-  async _autoFindReportEntities() {
+  async _autoFindReportEntities(fastMode = false) {
     if (!this._hass) return;
     const report_entity_manager = this._readReportEntityManagerForm();
-    report_entity_manager.action = "auto_find";
-    this._loading = true;
+    report_entity_manager.action = fastMode ? "fast_auto_find_async" : "auto_find_async";
+    report_entity_manager.fast_mode = !!fastMode;
+    this._loading = false;
     this._error = "";
-    this._status = "";
+    this._status = fastMode ? this._t("fastAutoFindStarted") : this._t("autoFindStarted");
+    this._showAutoFindNotice("report", fastMode ? this._t("fastAutoFindEntities") : this._t("autoFindEntities"));
     this._render();
     try {
-      this._settingsData = this._applySettingsSaveResponse(await this._hass.callApi("POST", "pom_tesla_report/settings", { report_entity_manager }), { report_entity_manager });
-      this._reportEntityDraft = null;
-      this._status = this._t("reportAutoFindDone");
+      const started = await this._hass.callApi("POST", "pom_tesla_report/settings", { report_entity_manager });
+      const job = started?.auto_find_job || {};
+      this._status = job.message || this._t("autoFindStarted");
+      this._render();
+      await this._pollAutoFindJob("report");
     } catch (err) {
       this._error = this._formatError(err);
-    } finally {
-      this._loading = false;
+      this._hideAutoFindNotice();
       this._render();
     }
   }
@@ -2966,22 +3657,25 @@ class PomTeslaReportPanel extends HTMLElement {
     }
   }
 
-  async _autoFindDashboardEntities() {
+  async _autoFindDashboardEntities(fastMode = false) {
     if (!this._hass) return;
     const dashboard_entity_manager = this._readDashboardEntityManagerForm();
-    dashboard_entity_manager.action = "auto_find";
-    this._loading = true;
+    dashboard_entity_manager.action = fastMode ? "fast_auto_find_async" : "auto_find_async";
+    dashboard_entity_manager.fast_mode = !!fastMode;
+    this._loading = false;
     this._error = "";
-    this._status = "";
+    this._status = fastMode ? this._t("fastAutoFindStarted") : this._t("autoFindStarted");
+    this._showAutoFindNotice("dashboard", fastMode ? this._t("fastAutoFindEntities") : this._t("autoFindEntities"));
     this._render();
     try {
-      this._settingsData = this._applySettingsSaveResponse(await this._hass.callApi("POST", "pom_tesla_report/settings", { dashboard_entity_manager }), { dashboard_entity_manager });
-      this._dashboardEntityDraft = null;
-      this._status = this._t("dashboardAutoFindDone");
+      const started = await this._hass.callApi("POST", "pom_tesla_report/settings", { dashboard_entity_manager });
+      const job = started?.auto_find_job || {};
+      this._status = job.message || this._t("autoFindStarted");
+      this._render();
+      await this._pollAutoFindJob("dashboard");
     } catch (err) {
       this._error = this._formatError(err);
-    } finally {
-      this._loading = false;
+      this._hideAutoFindNotice();
       this._render();
     }
   }
@@ -3107,12 +3801,20 @@ class PomTeslaReportPanel extends HTMLElement {
       } else {
         this._chargeData = await this._hass.callApi("POST", "pom_tesla_report/charge_records", payload);
         this._status = this._t("saved");
-        const saved = action === "update"
-          ? this._chargeData.records.find((r) => r.id === this._selectedChargeId)
-          : this._chargeData.records[0];
-        if (saved) {
-          this._selectedChargeId = saved.id;
-          this._editingCharge = { ...saved };
+        if (action === "update") {
+          const saved = this._chargeData.records.find((r) => r.id === this._selectedChargeId);
+          if (saved) {
+            this._selectedChargeId = saved.id;
+            this._editingCharge = { ...saved };
+          }
+        } else {
+          // After adding a new charge record, return the editor to the clean
+          // "new record / select a record" state instead of staying on the
+          // just-saved row. This avoids confusing manual entry sessions.
+          this._selectedChargeId = "";
+          this._editingCharge = null;
+          this._chargeMapPreview = null;
+          this._chargeMapRequestId += 1;
         }
       }
     } catch (err) {
@@ -3343,12 +4045,16 @@ class PomTeslaReportPanel extends HTMLElement {
   async _saveTripSettings() {
     if (!this._hass) return;
     const trip_reports = this._readTripSettingsForm();
+    trip_reports.live_trip_ai_segment_distance_km = this._applyTripIntervalToLocalSettings(trip_reports.live_trip_ai_segment_distance_km);
     const numeric = [
       trip_reports.auto_start_speed_threshold,
       trip_reports.live_trip_update_interval_seconds,
       trip_reports.live_trip_traffic_speed_threshold,
       trip_reports.live_trip_finish_delay_seconds,
       trip_reports.live_trip_min_distance_km,
+      trip_reports.live_trip_candidate_min_distance_km,
+      trip_reports.live_trip_candidate_min_duration_seconds,
+      trip_reports.live_trip_ai_segment_distance_km,
       trip_reports.trip_map_sample_interval_seconds,
       trip_reports.trip_map_min_movement_meters,
     ];
@@ -3361,8 +4067,10 @@ class PomTeslaReportPanel extends HTMLElement {
     this._error = "";
     this._render();
     try {
-      this._settingsData = this._applySettingsSaveResponse(await this._hass.callApi("POST", "pom_tesla_report/settings", { trip_reports }), { trip_reports });
-      this._status = this._t("tripSettingsSaved");
+      const response = await this._hass.callApi("POST", "pom_tesla_report/settings", { trip_reports });
+      this._settingsData = this._applySettingsSaveResponse(response, { trip_reports });
+      this._applyTripIntervalToLocalSettings(trip_reports.live_trip_ai_segment_distance_km);
+      this._status = `${this._t("tripSettingsSaved")} · ${this._t("liveTripAiSegmentDistanceKm")}: ${trip_reports.live_trip_ai_segment_distance_km} km`;
       this._ensureStationEditor();
     } catch (err) {
       this._error = this._formatError(err);
@@ -3373,7 +4081,7 @@ class PomTeslaReportPanel extends HTMLElement {
   }
 
 
-  async _sendTestTripReport() {
+  async _sendTestTripReport(profile = "city") {
     if (!this._hass) return;
     const trip_reports = this._readTripSettingsForm();
     const numeric = [
@@ -3382,6 +4090,9 @@ class PomTeslaReportPanel extends HTMLElement {
       trip_reports.live_trip_traffic_speed_threshold,
       trip_reports.live_trip_finish_delay_seconds,
       trip_reports.live_trip_min_distance_km,
+      trip_reports.live_trip_candidate_min_distance_km,
+      trip_reports.live_trip_candidate_min_duration_seconds,
+      trip_reports.live_trip_ai_segment_distance_km,
       trip_reports.trip_map_sample_interval_seconds,
       trip_reports.trip_map_min_movement_meters,
     ];
@@ -3397,13 +4108,54 @@ class PomTeslaReportPanel extends HTMLElement {
       // Save the currently visible trip toggles first so the test PNG uses the
       // exact values the user is trying from this screen.
       this._settingsData = this._applySettingsSaveResponse(await this._hass.callApi("POST", "pom_tesla_report/settings", { trip_reports }), { trip_reports });
-      const result = await this._hass.callApi("POST", "pom_tesla_report/trip_test", {});
+      const safeProfile = ["city", "traffic", "efficient"].includes(String(profile)) ? String(profile) : "city";
+      const result = await this._hass.callApi("POST", "pom_tesla_report/trip_test", { profile: safeProfile });
       const mapText = result?.map_included ? this._t("testTripMapIncluded") : this._t("testTripMapExcluded");
-      this._status = `${this._t("testTripSent")} ${mapText}. ${this._t("testTripNoLedger")}`;
+      const profileText = result?.profile_label || result?.profile || "";
+      this._status = `${this._t("testTripSent")} ${profileText ? "· " + profileText : ""}. ${mapText}. ${this._t("testTripNoLedger")}`;
     } catch (err) {
       this._error = this._formatError(err);
     } finally {
       this._loading = false;
+      this._render();
+    }
+  }
+
+  async _saveLiveTripAiIntervalOnly(segmentKm, showStatus = false) {
+    if (!this._hass) return null;
+    const normalized = this._applyTripIntervalToLocalSettings(segmentKm);
+    const result = await this._hass.callApi("POST", "pom_tesla_report/live_trip_ai_interval", { segment_km: normalized });
+    const resultKm = Number(result?.segment_km || normalized);
+    this._applyTripIntervalToLocalSettings(resultKm);
+    if (showStatus) {
+      this._status = result?.message || `${this._t("liveTripAiSegmentDistanceKm")}: ${resultKm} km`;
+    }
+    return result;
+  }
+
+  async _runLiveTripAiCommentTest() {
+    if (!this._hass) return;
+    const trip_reports = this._readTripSettingsForm();
+    trip_reports.live_trip_ai_segment_distance_km = this._applyTripIntervalToLocalSettings(trip_reports.live_trip_ai_segment_distance_km);
+    const segmentKm = Number(trip_reports.live_trip_ai_segment_distance_km || 10);
+
+    this._loading = true;
+    this._error = "";
+    this._showBusyOverlay(this._lang === "en" ? "Preparing AI comment" : "AI yorumu hazırlanıyor", this._lang === "en" ? "Please wait until the test comment is generated." : "Test yorumu hazırlanırken lütfen bekleyin.", this._lang === "en" ? "The panel-only test comment will be written to the Live Trip AI card." : "Panel test yorumu Live Trip AI kartına yazılacak.");
+    this._render();
+    try {
+      await this._saveLiveTripAiIntervalOnly(segmentKm, false);
+      const result = await this._hass.callApi("POST", "pom_tesla_report/live_trip_ai_test", { segment_km: segmentKm, force: true });
+      const resultKm = Number(result?.segment_km || segmentKm);
+      this._applyTripIntervalToLocalSettings(resultKm);
+      this._status = `${result?.message || this._t("liveTripAiCommentTested")} · ${resultKm} km`;
+      try { this._liveTripDiagnostics = await this._hass.callApi("GET", "pom_tesla_report/live_trip_debug"); } catch (_e) {}
+      try { await this._loadSettings(); } catch (_e) {}
+    } catch (err) {
+      this._error = this._formatError(err);
+    } finally {
+      this._loading = false;
+      this._hideBusyOverlay();
       this._render();
     }
   }
@@ -3417,6 +4169,9 @@ class PomTeslaReportPanel extends HTMLElement {
       trip_reports.live_trip_traffic_speed_threshold,
       trip_reports.live_trip_finish_delay_seconds,
       trip_reports.live_trip_min_distance_km,
+      trip_reports.live_trip_candidate_min_distance_km,
+      trip_reports.live_trip_candidate_min_duration_seconds,
+      trip_reports.live_trip_ai_segment_distance_km,
       trip_reports.trip_map_sample_interval_seconds,
       trip_reports.trip_map_min_movement_meters,
     ];
@@ -3449,18 +4204,268 @@ class PomTeslaReportPanel extends HTMLElement {
 
   async _loadLiveTripDebug(showStatus = false) {
     if (!this._hass) return;
-    this._loading = true;
-    this._error = "";
-    this._render();
-    try {
-      this._liveTripDiagnostics = await this._hass.callApi("GET", "pom_tesla_report/live_trip_debug");
-      if (showStatus) this._status = this._t("liveTripDebugLoaded");
-    } catch (err) {
-      this._error = this._formatError(err);
-    } finally {
-      this._loading = false;
+    const useBusy = Boolean(showStatus);
+    if (useBusy) {
+      this._loading = true;
+      this._error = "";
       this._render();
     }
+    try {
+      this._liveTripDiagnostics = await this._hass.callApi("GET", "pom_tesla_report/live_trip_debug");
+      if (showStatus) {
+        this._status = this._t("liveTripDebugLoaded");
+        this._pushPomEvent("success", this._t("liveTripDebugLoadedEvent"), this._liveTripDiagnostics || {}, "live_trip");
+      }
+    } catch (err) {
+      if (showStatus) {
+        this._error = this._formatError(err);
+        this._pushPomEvent("error", "Live Trip debug load failed", { error: this._error }, "live_trip");
+      }
+    } finally {
+      if (useBusy) this._loading = false;
+      this._render();
+    }
+  }
+
+  async _loadSystemLogs(showStatus = true) {
+    if (!this._hass) return;
+    if (showStatus) {
+      this._loading = true;
+      this._error = "";
+      this._render();
+    }
+    try {
+      const payload = await this._hass.callApi("GET", "pom_tesla_report/system_logs");
+      this._systemLogsPayload = payload || {};
+      const lineCount = this._systemLogsPayload?.lines_returned || this._systemLogsPayload?.lines?.length || 0;
+      const available = this._systemLogsPayload?.log_available !== false && !this._systemLogsPayload?.warning && !this._systemLogsPayload?.error;
+      if (available && lineCount > 0) {
+        if (showStatus) this._status = this._t("systemLogsLoaded");
+        const logDetail = {
+          lines: lineCount,
+          path: this._systemLogsPayload?.path || "",
+          is_fallback: Boolean(this._systemLogsPayload?.is_fallback),
+          is_stale: Boolean(this._systemLogsPayload?.is_stale),
+          first_timestamp: this._systemLogsPayload?.first_timestamp || "",
+          last_timestamp: this._systemLogsPayload?.last_timestamp || "",
+          pom_related_count: this._systemLogsPayload?.pom_related_count || 0,
+        };
+        const logLevel = logDetail.is_fallback || logDetail.is_stale ? "warning" : "success";
+        this._pushPomEvent(logLevel, this._t("haLogsLoadedEvent"), logDetail, "ha_logs");
+      } else {
+        const warning = this._systemLogsPayload?.warning || this._systemLogsPayload?.error || this._t("haLogsUnavailable");
+        if (showStatus) this._status = warning;
+        this._pushPomEvent("warning", this._t("haLogsUnavailableEvent"), {
+          warning,
+          paths_checked: this._systemLogsPayload?.paths_checked || [],
+        }, "ha_logs");
+      }
+    } catch (err) {
+      const warning = this._formatError(err) || this._t("haLogsUnavailable");
+      if (showStatus) this._status = warning;
+      this._pushPomEvent("warning", this._t("haLogsUnavailableEvent"), { error: warning }, "ha_logs");
+    } finally {
+      if (showStatus) this._loading = false;
+      this._render();
+    }
+  }
+
+  _clearSystemLogs() {
+    this._systemLogsPayload = null;
+    this._render();
+  }
+
+
+  async _runSystemControlCheck(showStatus = true) {
+    if (!this._hass) return;
+    if (showStatus) {
+      this._loading = true;
+      this._error = "";
+      this._render();
+    }
+    const startedAt = performance.now();
+    const result = {
+      generated_at: new Date().toISOString(),
+      settings: { ok: false },
+      dashboard_resources: { ok: null },
+      live_trip_debug: { ok: null },
+      trip_records: { ok: null },
+      charge_records: { ok: null },
+    };
+    const safeGet = async (name, url) => {
+      const t0 = performance.now();
+      try {
+        const payload = await this._hass.callApi("GET", url);
+        this._recordApiResult(`GET ${name}`, { status: "fulfilled", value: payload }, t0);
+        return { ok: true, payload };
+      } catch (err) {
+        this._recordApiResult(`GET ${name}`, { status: "rejected", reason: err }, t0);
+        return { ok: false, error: this._formatError(err) };
+      }
+    };
+    try {
+      const settingsRes = await safeGet("settings", "pom_tesla_report/settings");
+      result.settings = { ok: settingsRes.ok, error: settingsRes.error || "" };
+      if (settingsRes.ok) {
+        this._settingsData = this._normalizeSettingsPayload(settingsRes.payload);
+        this._mergeHealthPayload(settingsRes.payload);
+      }
+      const [dash, live, trips, charges] = await Promise.all([
+        safeGet("dashboard_resources", "pom_tesla_report/dashboard_resources"),
+        safeGet("live_trip_debug", "pom_tesla_report/live_trip_debug"),
+        safeGet("trip_records", "pom_tesla_report/trip_records"),
+        safeGet("charge_records", "pom_tesla_report/charge_records"),
+      ]);
+      result.dashboard_resources = { ok: dash.ok, error: dash.error || "", missing: dash.payload?.missing || dash.payload?.missing_total || 0 };
+      result.live_trip_debug = { ok: live.ok, error: live.error || "" };
+      result.trip_records = { ok: trips.ok, error: trips.error || "", count: Array.isArray(trips.payload?.records) ? trips.payload.records.length : null };
+      result.charge_records = { ok: charges.ok, error: charges.error || "", count: Array.isArray(charges.payload?.records) ? charges.payload.records.length : null };
+      if (live.ok) this._liveTripDiagnostics = live.payload || {};
+      if (trips.ok) this._tripData = this._normalizeApiPayload(trips.payload, this._chargeData?.currency || this._currency || "");
+      if (charges.ok) this._chargeData = this._normalizeApiPayload(charges.payload);
+      this._systemControlSnapshot = result;
+      if (showStatus) {
+        this._status = this._t("systemControlChecked");
+        this._pushPomEvent("success", this._t("systemControlChecked"), result, "system_check");
+      }
+    } catch (err) {
+      this._error = this._formatError(err);
+      if (showStatus) this._pushPomEvent("error", "System control check failed", { error: this._error }, "system_check");
+    } finally {
+      if (showStatus) {
+        this._loading = false;
+        this._render();
+      }
+    }
+  }
+
+  _togglePomJournal() {
+    this._pomJournalExpanded = !this._pomJournalExpanded;
+    this._render();
+  }
+
+  _clearPomJournal() {
+    this._pomEvents = [];
+    this._savePomEvents();
+    this._status = this._t("pomJournalCleared");
+    this._render();
+  }
+
+  _supportReportSummary() {
+    const health = this._settingsData?.general_settings?.health || this._settingsData?.health || {};
+    const severity = String(health.severity || health.status || "normal").toLowerCase();
+    const items = this._buildSystemControlItems();
+    const badItems = items.filter((item) => this._serviceStatusClass(item.status) === "bad");
+    const warnItems = items.filter((item) => this._serviceStatusClass(item.status) === "warn");
+    const payload = this._systemLogsPayload || {};
+    const haLogPath = payload.path || "";
+    const haLogFallback = Boolean(payload.is_fallback || /\.log\.1$/i.test(haLogPath));
+    const haLogStale = Boolean(payload.is_stale);
+    const pomRelatedCount = Number(payload.pom_related_count || 0);
+    const warnings = [];
+    const realHealthWarnings = this._filterHealthWarnings(health.warnings || []);
+    if (realHealthWarnings.length) warnings.push(...realHealthWarnings);
+    for (const item of warnItems) warnings.push(`${item.label}: ${item.detail || this._serviceStatusLabel(item.status)}`);
+    if (haLogFallback || haLogStale) warnings.push("HA log eski/fallback dosyadan alındı; güncel POM hataları için sınırlı güvenilir.");
+    if (payload.log_available && pomRelatedCount === 0) warnings.push("HA log içinde POM ile ilgili satır bulunmadı.");
+    const critical = badItems.length > 0 || severity === "critical";
+    return {
+      overall: critical ? "error" : (warnings.length ? "warning" : "ok"),
+      pom_status: critical ? "Sorun var" : (warnings.length ? "Uyarı var" : "Sağlıklı"),
+      critical_issue: critical,
+      health_status: health.status || "ok",
+      health_severity: health.severity || "normal",
+      warnings: warnings.slice(0, 20),
+      recommended_action: critical ? "Kritik görünen kartları ve son POM olaylarını kontrol et." : (warnings.length ? "Acil işlem yok; uyarılar bilgi amaçlı kontrol edilebilir." : "Acil işlem yok."),
+      ha_log: {
+        available: Boolean(payload.log_available),
+        path: haLogPath,
+        fallback: haLogFallback,
+        stale: haLogStale,
+        first_timestamp: payload.first_timestamp || "",
+        last_timestamp: payload.last_timestamp || "",
+        pom_related_count: pomRelatedCount,
+      },
+      service_status: items.map((item) => ({ key: item.key, label: item.label, status: item.status, detail: item.detail })),
+    };
+  }
+
+  _supportReportPayload() {
+    const general = this._settingsData?.general_settings || {};
+    const systemLogPayload = this._systemLogsPayload || {};
+    return {
+      summary: this._supportReportSummary(),
+      generated_at: new Date().toISOString(),
+      frontend_build: this._frontendBuild || "",
+      language: general.app_language || this._lang || "",
+      currency: this._currency || "",
+      system_control: this._systemControlSnapshot || { items: this._buildSystemControlItems() },
+      health: general.health || this._settingsData?.health || {},
+      system: general.system || {},
+      resource_summary: general.resource_summary || {},
+      live_trip_diagnostics: this._liveTripDiagnostics || {},
+      last_api_results: this._lastApiResults || [],
+      pom_events: (this._pomEvents || []).slice(0, 500),
+      ha_log_tail: {
+        path: systemLogPayload?.path || "",
+        log_available: Boolean(systemLogPayload?.log_available),
+        is_fallback: Boolean(systemLogPayload?.is_fallback),
+        is_stale: Boolean(systemLogPayload?.is_stale),
+        first_timestamp: systemLogPayload?.first_timestamp || "",
+        last_timestamp: systemLogPayload?.last_timestamp || "",
+        pom_related_count: systemLogPayload?.pom_related_count || 0,
+        lines_returned: systemLogPayload?.lines_returned || 0,
+        lines: Array.isArray(systemLogPayload?.lines) ? systemLogPayload.lines.slice(0, 500) : [],
+      },
+      status: this._status || "",
+      error: this._error || "",
+    };
+  }
+
+  async _downloadPomSupportReport() {
+    if (this._hass) {
+      // Best-effort checks before export. These should populate Trip/Charge
+      // Records, dashboard resources and Live Trip status in the report, but
+      // must never block support-report export if one endpoint fails.
+      try { await this._runSystemControlCheck(false); } catch (_err) {}
+    }
+    if (this._hass && !this._systemLogsPayload) {
+      // Best-effort only. Missing HA logs must never block support-report export.
+      await this._loadSystemLogs(false);
+    }
+    this._pushPomEvent("info", this._t("supportReportGenerated"), { event_count_before_download: (this._pomEvents || []).length }, "support");
+    const payload = this._supportReportPayload();
+    payload.user_instruction = this._t("supportReportDownloadHint");
+    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `pom_tesla_support_report_${new Date().toISOString().replace(/[:.]/g, "-")}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+    this._status = this._t("supportReportGenerated");
+    this._render();
+  }
+
+  _renderSystemLogsPanel() {
+    const payload = this._systemLogsPayload || null;
+    const text = payload?.text || (Array.isArray(payload?.lines) ? payload.lines.join("\n") : "");
+    return `
+      <div class="debug-toolbar system-log-toolbar">
+        <div>
+          <b>${this._t("systemLogs")}</b>
+          <div class="note">${this._t("systemLogsSub")}</div>
+        </div>
+        <div class="actions">
+          <button id="showSystemLogsBtn" class="secondary">${this._t("showSystemLogs")}</button>
+          <button id="clearSystemLogsBtn" class="secondary">${this._t("clearSystemLogs")}</button>
+        </div>
+      </div>
+      <div class="debug-panel debug-output-panel system-logs-panel">
+        <pre>${this._esc(text || this._t("systemLogsEmpty"))}</pre>
+      </div>
+      ${payload?.path ? `<div class="note">${this._esc(payload.path)} · ${this._esc(String(payload.lines_returned || 0))}/${this._esc(String(payload.max_lines || 500))}</div>` : ""}
+    `;
   }
 
   _renderLiveTripDebugPanel() {
@@ -3570,6 +4575,7 @@ class PomTeslaReportPanel extends HTMLElement {
       this._error = "";
       if (this._activeSettingsTab === "charging") this._ensureStationEditor();
       this._render();
+      if (this._activeSettingsTab === "general") this._loadLiveTripDebug(false);
       return;
     }
     const subtab = this._findActionTarget(ev, "[data-entities-subtab]");
@@ -3615,6 +4621,7 @@ class PomTeslaReportPanel extends HTMLElement {
     this._error = "";
     if (this._activeSettingsTab === "charging") this._ensureStationEditor();
     this._render();
+    if (this._activeSettingsTab === "general") this._loadLiveTripDebug(false);
   }
 
   _switchDashboardSectionDirect(section) {
@@ -3766,6 +4773,36 @@ class PomTeslaReportPanel extends HTMLElement {
     }
   }
 
+  async _regenerateTripAiSummary() {
+    if (!this._hass || !this._selectedTripId) {
+      this._error = this._t("noSelection");
+      this._render();
+      return;
+    }
+    this._loading = true;
+    this._error = "";
+    this._status = this._t("aiTripStoryRegenerating");
+    this._render();
+    try {
+      const payload = await this._hass.callApi("POST", "pom_tesla_report/trip_records", {
+        action: "regenerate_ai_summary",
+        id: this._selectedTripId,
+      });
+      if (payload && payload.success === false) {
+        throw new Error(payload.message || payload.error || "AI regeneration failed");
+      }
+      this._tripData = payload;
+      const saved = (this._tripData?.records || []).find((r) => r.id === this._selectedTripId);
+      if (saved) this._editingTrip = { ...saved };
+      this._status = this._t("aiTripStoryRegenerated");
+    } catch (err) {
+      this._error = this._formatError(err);
+    } finally {
+      this._loading = false;
+      this._render();
+    }
+  }
+
   async _deleteTrip() {
     if (!this._hass || !this._selectedTripId) {
       this._error = this._t("noSelection");
@@ -3827,6 +4864,11 @@ class PomTeslaReportPanel extends HTMLElement {
       .test-card h3 { margin:0 0 7px; font-size:17px; }
       .test-card p { margin:0 0 14px; color:#b6c3d5; line-height:1.45; font-size:13px; }
       .test-card button { width:100%; background:linear-gradient(135deg, #7c3aed, #0ea5e9); box-shadow:0 14px 34px rgba(124,58,237,.25); pointer-events:auto; position:relative; z-index:3; }
+      .test-drive-actions { display:grid; gap:12px; margin:18px 0 16px; }
+      .test-drive-actions button { min-height:52px; border-radius:18px; background:linear-gradient(135deg, #2563eb, #0ea5e9); box-shadow:0 14px 34px rgba(14,165,233,.22); font-size:15px; }
+      .test-drive-actions button:first-child { background:linear-gradient(135deg, #7c3aed, #0ea5e9); }
+      .test-drive-actions button:nth-child(2) { background:linear-gradient(135deg, #f97316, #0ea5e9); }
+      .test-drive-actions button:nth-child(3) { background:linear-gradient(135deg, #10b981, #0ea5e9); }
       .test-card .actions.compact button { flex:1 1 240px; min-height:44px; }
       .charge-test-actions { display:grid; grid-template-columns:repeat(2,minmax(220px,1fr)); gap:16px; margin-top:12px; position:relative; z-index:20; pointer-events:auto; }
       .test-action-card { min-height:62px; display:flex; align-items:center; justify-content:center; text-align:center; padding:14px 18px; border-radius:18px; font-weight:900; color:#fff; cursor:pointer; user-select:none; position:relative; z-index:30; pointer-events:auto; border:1px solid rgba(255,255,255,.08); box-shadow:0 14px 34px rgba(14,165,233,.16); }
@@ -3838,14 +4880,120 @@ class PomTeslaReportPanel extends HTMLElement {
       @media (max-width: 760px) { .charge-test-actions { grid-template-columns:1fr; } }
       .card { background:linear-gradient(180deg, rgba(21,26,34,.96), rgba(13,17,23,.96)); border:1px solid #263143; border-radius:22px; box-shadow:0 18px 50px rgba(0,0,0,.35); overflow:hidden; }
       .card.accent { border-color:rgba(56,189,248,.35); box-shadow:0 20px 60px rgba(14,165,233,.10); }
+      .health-card { grid-column:1 / -1; background:linear-gradient(180deg, rgba(14, 23, 39, .98), rgba(9, 13, 21, .98)); border:1px solid rgba(56,189,248,.28); border-radius:22px; box-shadow:0 18px 55px rgba(14,165,233,.10); overflow:hidden; padding:18px 20px; }
+      .health-card.health-watch { border-color:rgba(250,204,21,.42); box-shadow:0 18px 55px rgba(250,204,21,.10); }
+      .health-card.health-warning { border-color:rgba(251,146,60,.55); box-shadow:0 18px 55px rgba(251,146,60,.14); }
+      .health-card.health-critical { border-color:rgba(248,113,113,.75); background:linear-gradient(180deg, rgba(69,10,10,.98), rgba(24,8,11,.98)); box-shadow:0 0 0 1px rgba(248,113,113,.22), 0 22px 70px rgba(239,68,68,.26); }
+      .health-head { display:flex; justify-content:space-between; gap:14px; align-items:center; margin-bottom:14px; }
+      .health-head h2 { margin:0; font-size:19px; }
+      .health-pill { padding:10px 14px; border-radius:999px; border:1px solid rgba(34,197,94,.40); background:rgba(22,163,74,.14); color:#86efac; font-weight:900; letter-spacing:.12em; text-transform:uppercase; font-size:12px; }
+      .health-pill.watch { border-color:rgba(250,204,21,.42); background:rgba(202,138,4,.15); color:#fde68a; }
+      .health-pill.warning { border-color:rgba(251,146,60,.55); background:rgba(234,88,12,.16); color:#fed7aa; }
+      .health-pill.critical { border-color:rgba(248,113,113,.75); background:rgba(220,38,38,.24); color:#fecaca; animation:pomHealthPulse 1.45s ease-in-out infinite; }
+      @keyframes pomHealthPulse { 0%,100%{ box-shadow:0 0 0 rgba(239,68,68,0); } 50%{ box-shadow:0 0 24px rgba(239,68,68,.55); } }
+      .health-alert { margin:10px 0 14px; border:1px solid rgba(248,113,113,.55); background:rgba(127,29,29,.46); border-radius:16px; padding:13px 14px; display:flex; flex-direction:column; gap:5px; color:#fee2e2; }
+      .health-alert b { font-size:15px; }
+      .health-alert span { color:#fecaca; font-size:13px; line-height:1.45; }
+      .health-grid { display:grid; grid-template-columns:repeat(7, minmax(0,1fr)); gap:10px; }
+      .health-grid > div { background:rgba(15,23,42,.68); border:1px solid rgba(148,163,184,.16); border-radius:16px; padding:12px; min-height:86px; display:flex; flex-direction:column; align-items:center; justify-content:center; text-align:center; }
+      .health-grid span { display:block; color:#94a3b8; font-size:11px; font-weight:800; letter-spacing:.08em; text-transform:uppercase; text-align:center; }
+      .health-grid b { display:block; margin-top:7px; color:#e5edf6; font-size:17px; word-break:break-word; text-align:center; width:100%; line-height:1.25; }
+      .health-grid small { display:block; margin-top:4px; color:#94a3b8; text-align:center; width:100%; }
+      .health-warnings { display:grid; gap:6px; margin:8px 0 12px; }
+      .health-warnings div { border:1px solid rgba(148,163,184,.16); background:rgba(2,6,23,.38); border-radius:12px; padding:9px 11px; color:#cbd5e1; font-size:13px; }
+      .system-status-card { grid-column:1 / -1; border:1px solid rgba(56,189,248,.26); background:linear-gradient(180deg, rgba(10,18,30,.98), rgba(7,11,20,.98)); }
+      .status-center-grid { display:grid; grid-template-columns:repeat(6,minmax(0,1fr)); gap:10px; }
+      .status-center-grid > div { background:rgba(15,23,42,.66); border:1px solid rgba(148,163,184,.15); border-radius:15px; padding:12px; text-align:center; }
+      .status-center-grid span { display:block; color:#93a4bd; font-size:11px; font-weight:800; letter-spacing:.08em; text-transform:uppercase; }
+      .status-center-grid b { display:block; margin-top:7px; color:#f8fafc; font-size:15px; line-height:1.25; word-break:break-word; }
+      .status-warning-list { display:grid; gap:7px; margin-top:12px; }
+      .status-warning-list div { border:1px solid rgba(251,146,60,.28); background:rgba(124,45,18,.18); color:#fed7aa; border-radius:12px; padding:9px 11px; font-size:13px; }
+      .system-control-card, .system-journal-card { grid-column:1 / -1; border:1px solid rgba(56,189,248,.22); background:linear-gradient(180deg, rgba(10,18,30,.98), rgba(7,11,20,.98)); }
+      .service-overview { border-radius:16px; padding:11px 13px; font-weight:800; margin-bottom:12px; border:1px solid rgba(148,163,184,.18); }
+      .service-overview.ok { color:#bbf7d0; background:rgba(22,163,74,.12); border-color:rgba(34,197,94,.28); }
+      .service-overview.warn { color:#fde68a; background:rgba(202,138,4,.13); border-color:rgba(250,204,21,.28); }
+      .service-overview.bad { color:#fecaca; background:rgba(127,29,29,.22); border-color:rgba(248,113,113,.38); }
+      .service-grid { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:12px; }
+      .service-card { border-radius:18px; padding:14px; min-height:118px; background:rgba(15,23,42,.68); border:1px solid rgba(148,163,184,.16); display:flex; flex-direction:column; gap:9px; }
+      .service-card.ok { border-color:rgba(34,197,94,.30); background:linear-gradient(180deg, rgba(22,163,74,.10), rgba(15,23,42,.66)); }
+      .service-card.warn { border-color:rgba(250,204,21,.30); background:linear-gradient(180deg, rgba(202,138,4,.11), rgba(15,23,42,.66)); }
+      .service-card.bad { border-color:rgba(248,113,113,.46); background:linear-gradient(180deg, rgba(127,29,29,.22), rgba(15,23,42,.66)); }
+      .service-top { display:flex; align-items:center; justify-content:space-between; gap:8px; }
+      .service-icon { font-size:20px; filter:drop-shadow(0 0 10px rgba(56,189,248,.18)); }
+      .service-pill { border-radius:999px; padding:5px 9px; font-size:10px; font-weight:900; letter-spacing:.08em; text-transform:uppercase; border:1px solid rgba(148,163,184,.22); color:#cbd5e1; background:rgba(15,23,42,.75); }
+      .service-pill.ok { color:#86efac; border-color:rgba(34,197,94,.34); background:rgba(22,163,74,.14); }
+      .service-pill.warn { color:#fde68a; border-color:rgba(250,204,21,.34); background:rgba(202,138,4,.14); }
+      .service-pill.bad { color:#fecaca; border-color:rgba(248,113,113,.48); background:rgba(127,29,29,.25); }
+      .service-card b { color:#f8fafc; font-size:15px; line-height:1.25; }
+      .service-card small { color:#9fb0c7; line-height:1.35; }
+      .journal-summary { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:10px; margin-bottom:12px; }
+      .journal-summary > div { background:rgba(15,23,42,.66); border:1px solid rgba(148,163,184,.15); border-radius:15px; padding:12px; }
+      .journal-summary span { display:block; color:#93a4bd; font-size:11px; font-weight:800; letter-spacing:.08em; text-transform:uppercase; }
+      .journal-summary b { display:block; margin-top:7px; color:#f8fafc; font-size:14px; line-height:1.25; word-break:break-word; }
+      .compact-actions { margin:8px 0 12px; }
+      .journal-list { display:grid; gap:7px; margin-top:12px; }
+      .journal-row { display:grid; grid-template-columns:160px 1fr 110px; gap:10px; align-items:center; border:1px solid rgba(148,163,184,.15); background:rgba(2,6,23,.36); border-radius:13px; padding:9px 11px; }
+      .journal-row.error { border-color:rgba(248,113,113,.38); background:rgba(127,29,29,.18); }
+      .journal-row.success { border-color:rgba(34,197,94,.24); background:rgba(22,163,74,.08); }
+      .journal-row span, .journal-row small { color:#93a4bd; font-size:12px; }
+      .journal-row b { color:#dbeafe; font-size:13px; line-height:1.25; }
+      @media (max-width: 1200px) {
+        .service-grid { grid-template-columns:repeat(2,minmax(0,1fr)); }
+        .journal-summary { grid-template-columns:repeat(2,minmax(0,1fr)); }
+      }
+      @media (max-width: 760px) {
+        .service-grid, .journal-summary { grid-template-columns:1fr; }
+        .journal-row { grid-template-columns:1fr; }
+      }
+      .periodic-report-box { margin-top:22px; border:1px solid rgba(230,111,72,.35); background:linear-gradient(180deg, rgba(230,111,72,.09), rgba(15,23,42,.35)); border-radius:20px; padding:18px; }
+      .orange-title { color:#e66f48; font-weight:950; text-transform:uppercase; letter-spacing:.12em; font-size:13px; margin-bottom:8px; }
+      .periodic-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:8px 18px; margin-top:12px; }
+      @media (max-width: 1080px) { .status-center-grid { grid-template-columns:repeat(3,minmax(0,1fr)); } .periodic-grid { grid-template-columns:1fr; } }
+      @media (max-width: 1080px) { .health-grid { grid-template-columns:repeat(3, minmax(0,1fr)); } }
+      @media (max-width: 680px) { .health-head { flex-direction:column; } .health-grid { grid-template-columns:1fr; } }
+
       .card-h { padding:18px 20px; border-bottom:1px solid #263143; display:flex; justify-content:space-between; gap:12px; align-items:center; }
       .card-h h2 { margin:0; font-size:18px; }
       .card-h .hint { color:#94a3b8; font-size:13px; margin-top:5px; line-height:1.35; }
+      .card-h.section-hero { background: linear-gradient(180deg, rgba(14,24,43,0.96), rgba(9,18,34,0.86)); border:1px solid rgba(69,163,255,0.24); border-radius:18px; margin:16px 16px 0 16px; padding:18px 22px; box-shadow: inset 0 1px 0 rgba(255,255,255,0.04), 0 10px 28px rgba(2,8,23,0.28); }
+      .card-h.section-hero h2 { font-size:20px; letter-spacing:0.01em; }
+      .card-h.section-hero .hint { font-size:14px; color:#a9bdd8; margin-top:7px; }
+      .section-hero .hero-kicker { display:inline-flex; align-items:center; gap:8px; padding:5px 10px; border-radius:999px; border:1px solid rgba(94,234,212,0.22); background: rgba(24,38,64,0.78); color:#88e0ff; font-size:11px; font-weight:800; letter-spacing:0.18em; text-transform:uppercase; margin-bottom:10px; }
+      .section-hero .hero-dot { width:7px; height:7px; border-radius:50%; background:#35c2ff; box-shadow:0 0 0 4px rgba(53,194,255,0.16); }
+      .card.section-card .body { padding-top:20px; }
       .body { padding:18px 20px; }
       button { background:#0ea5e9; color:white; border:0; border-radius:14px; padding:11px 14px; font-weight:800; cursor:pointer; box-shadow:0 10px 30px rgba(14,165,233,.18); }
       button.secondary { background:#1f2937; color:#dbeafe; box-shadow:none; border:1px solid #334155; }
       .file-btn { display:inline-flex; align-items:center; justify-content:center; padding:12px 16px; border-radius:14px; background:#1f2937; color:#dbeafe; border:1px solid #334155; cursor:pointer; font-weight:900; text-decoration:none; min-height:42px; }
+      .file-btn.compact { min-height:38px; padding:10px 13px; font-size:12px; border-radius:12px; }
       .file-btn:hover { border-color:#38bdf8; color:#fff; background:#243244; }
+      .backup-card .body { padding:18px 20px 20px; }
+      .backup-simple-grid { display:grid; grid-template-columns:minmax(320px,1.3fr) minmax(210px,.85fr) minmax(210px,.85fr); gap:14px; align-items:stretch; }
+      .backup-simple-grid button { text-align:left; box-shadow:none; min-height:138px; white-space:normal; }
+      .backup-main-action { position:relative; overflow:hidden; border:1px solid rgba(56,189,248,.44); background:linear-gradient(135deg, rgba(14,165,233,.98), rgba(6,182,212,.76), rgba(30,64,175,.92)); box-shadow:0 18px 42px rgba(14,165,233,.22) !important; }
+      .backup-main-action:before { content:""; position:absolute; inset:-35% -10%; background:radial-gradient(circle at 80% 10%, rgba(255,255,255,.24), transparent 30%), radial-gradient(circle at 12% 90%, rgba(255,90,90,.22), transparent 32%); pointer-events:none; }
+      .backup-main-action b, .backup-main-action small, .backup-main-action .backup-recommended { position:relative; z-index:1; }
+      .backup-main-action b, .backup-secondary-action b { display:block; font-size:18px; margin:8px 0 8px; color:#fff; }
+      .backup-main-action small, .backup-secondary-action small { display:block; color:rgba(226,232,240,.9); line-height:1.42; font-weight:700; }
+      .backup-recommended { display:inline-flex; align-items:center; width:max-content; padding:5px 9px; border-radius:999px; background:rgba(255,255,255,.18); border:1px solid rgba(255,255,255,.24); color:#fff; font-size:11px; font-weight:950; letter-spacing:.05em; text-transform:uppercase; }
+      .backup-secondary-action { background:linear-gradient(180deg, rgba(30,41,59,.96), rgba(15,23,42,.94)); border:1px solid rgba(71,85,105,.82); color:#dbeafe; }
+      .backup-secondary-action:hover { border-color:rgba(56,189,248,.7); background:linear-gradient(180deg, rgba(38,52,76,.98), rgba(15,23,42,.96)); }
+      .backup-footer-row { display:flex; gap:10px; align-items:center; justify-content:flex-start; flex-wrap:wrap; margin-top:14px; }
+      .backup-json-advanced { opacity:.72; padding:9px 12px !important; }
+      .backup-busy-overlay { position:fixed; inset:0; z-index:1000000; display:flex; align-items:center; justify-content:center; padding:24px; background:rgba(8,2,7,.68); backdrop-filter:blur(10px); }
+      .backup-busy-modal { width:min(520px, calc(100vw - 42px)); display:grid; grid-template-columns:76px minmax(0,1fr); gap:18px; align-items:center; padding:24px; border-radius:28px; border:1px solid rgba(248,113,113,.48); background:radial-gradient(circle at top right, rgba(255,72,96,.28), transparent 36%), linear-gradient(135deg, rgba(69,10,10,.96), rgba(23,8,18,.96)); box-shadow:0 28px 90px rgba(0,0,0,.58), 0 0 55px rgba(239,68,68,.28); }
+      .backup-busy-icon { width:72px; height:72px; border-radius:999px; display:grid; place-items:center; background:linear-gradient(135deg, #fb7185, #ef4444); box-shadow:0 0 35px rgba(248,113,113,.55); }
+      .backup-busy-icon span { width:38px; height:38px; border-radius:999px; border:4px solid rgba(255,255,255,.34); border-top-color:#fff; animation:pomSpin .85s linear infinite; }
+      .backup-busy-copy b { display:block; color:#fff; font-size:24px; font-weight:950; }
+      .backup-busy-copy p { margin:8px 0 8px; color:#fee2e2; line-height:1.45; font-weight:850; }
+      .backup-busy-copy small { display:block; color:#fecaca; font-weight:800; margin-top:8px; }
+      .backup-busy-elapsed { display:inline-flex; width:max-content; margin-top:10px; padding:7px 10px; border-radius:999px; background:rgba(255,255,255,.08); border:1px solid rgba(255,255,255,.12); color:#fff1f2; font-style:normal; font-weight:950; font-size:12px; letter-spacing:.03em; }
+      .backup-busy-progress { margin:12px 0 4px; }
+      .backup-busy-progress-head { display:flex; align-items:center; justify-content:space-between; gap:10px; color:#ffe4e6; font-size:12px; font-weight:950; margin-bottom:7px; }
+      .backup-busy-progress-bar { height:9px; border-radius:999px; overflow:hidden; background:rgba(255,255,255,.13); border:1px solid rgba(255,255,255,.10); }
+      .backup-busy-progress-bar i { display:block; height:100%; width:0%; border-radius:999px; background:linear-gradient(90deg,#fda4af,#fb7185,#f43f5e); box-shadow:0 0 18px rgba(251,113,133,.48); transition:width .16s linear; }
+      @media (max-width: 980px) { .backup-simple-grid { grid-template-columns:1fr; } .backup-simple-grid button { min-height:112px; } }
+      @media (max-width: 560px) { .backup-busy-modal { grid-template-columns:1fr; text-align:center; } .backup-busy-icon { margin:0 auto; } }
       .debug-panel { margin-top:14px; border:1px solid rgba(56,189,248,.20); background:rgba(2,6,23,.55); border-radius:16px; padding:12px; }
       .debug-panel pre { white-space:pre-wrap; word-break:break-word; margin:8px 0 0; color:#cbd5e1; font-size:11px; line-height:1.45; }
       .debug-toolbar { display:flex; justify-content:space-between; align-items:flex-start; gap:12px; margin:16px 0 8px; }
@@ -4008,7 +5156,142 @@ class PomTeslaReportPanel extends HTMLElement {
       .ai-role-tile.empty, .ai-role-tile.invalid { border-color:rgba(248, 113, 113, .32); background:linear-gradient(180deg, rgba(40, 8, 12, .94), rgba(28, 6, 10, .90)); }
       .ai-role-tile.empty:hover, .ai-role-tile.invalid:hover { border-color:rgba(252, 165, 165, .70); box-shadow:0 12px 28px rgba(127, 29, 29, .20); }
       .ai-role-tile.empty .ai-role-friendly, .ai-role-tile.invalid .ai-role-friendly { color:#fee2e2; }
-      .ai-role-tile.empty .ai-role-meta-line, .ai-role-tile.invalid .ai-role-meta-line { color:#fca5a5; }
+      .ai-role-tile.empty .ai-role-meta-line, .ai-role-tile.invalid 
+
+.autofind-banner {
+  display: grid;
+  grid-template-columns: 42px 1fr 42px;
+  gap: 14px;
+  align-items: center;
+  margin: 14px 0 16px;
+  padding: 16px;
+  border-radius: 20px;
+  background: linear-gradient(135deg, rgba(245,158,11,0.16), rgba(14,165,233,0.12));
+  border: 1px solid rgba(245,158,11,0.36);
+  box-shadow: 0 14px 42px rgba(0,0,0,0.22);
+}
+.autofind-banner-spinner {
+  width: 34px;
+  height: 34px;
+  border-radius: 999px;
+  border: 4px solid rgba(148,163,184,0.26);
+  border-top-color: #38bdf8;
+  animation: pomSpin 0.9s linear infinite;
+}
+@keyframes pomSpin { to { transform: rotate(360deg); } }
+.autofind-banner-main b {
+  display: block;
+  color: #fff7ed;
+  font-size: 15px;
+  font-weight: 950;
+}
+.autofind-banner-main div {
+  margin-top: 4px;
+  color: #fef3c7;
+  font-weight: 900;
+}
+.autofind-banner-main small {
+  display: block;
+  margin-top: 4px;
+  color: #cbd5e1;
+  line-height: 1.35;
+}
+.autofind-banner-close {
+  width: 38px;
+  height: 38px;
+  border-radius: 999px;
+  display: grid;
+  place-items: center;
+  background: rgba(255,255,255,0.08);
+  border: 1px solid rgba(255,255,255,0.14);
+  color: white;
+  font-size: 24px;
+  line-height: 1;
+  padding: 0;
+  box-shadow: none;
+}
+
+
+.source-badge {
+  display: inline-flex;
+  align-items: center;
+  width: fit-content;
+  margin-top: 6px;
+  padding: 3px 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 900;
+  color: #bfdbfe;
+  background: rgba(59,130,246,0.14);
+  border: 1px solid rgba(59,130,246,0.34);
+}
+.source-badge.source-tessie {
+  color: #d1fae5;
+  background: rgba(16,185,129,0.16);
+  border-color: rgba(16,185,129,0.42);
+}
+.source-badge.source-teslamate {
+  color: #fee2e2;
+  background: rgba(239,68,68,0.13);
+  border-color: rgba(239,68,68,0.36);
+}
+.source-badge.source-tesla_fleet,
+.source-badge.source-tesla-fleet {
+  color: #e9d5ff;
+  background: rgba(168,85,247,0.14);
+  border-color: rgba(168,85,247,0.36);
+}
+.source-badge.source-person {
+  color: #fef3c7;
+  background: rgba(245,158,11,0.14);
+  border-color: rgba(245,158,11,0.34);
+}
+.source-badge.source-manual {
+  color: #cbd5e1;
+  background: rgba(148,163,184,0.12);
+  border-color: rgba(148,163,184,0.28);
+}
+
+.confidence-badge {
+  display: inline-flex;
+  align-items: center;
+  width: fit-content;
+  margin-top: 7px;
+  padding: 3px 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 800;
+  border: 1px solid rgba(255,255,255,0.14);
+  background: rgba(255,255,255,0.07);
+  color: rgba(255,255,255,0.82);
+}
+.confidence-badge.very-high {
+  color: #d1fae5;
+  background: rgba(16,185,129,0.18);
+  border-color: rgba(16,185,129,0.45);
+}
+.confidence-badge.high {
+  color: #dbeafe;
+  background: rgba(59,130,246,0.18);
+  border-color: rgba(59,130,246,0.42);
+}
+.confidence-badge.medium {
+  color: #fef3c7;
+  background: rgba(245,158,11,0.16);
+  border-color: rgba(245,158,11,0.42);
+}
+.confidence-badge.low {
+  color: #fee2e2;
+  background: rgba(239,68,68,0.16);
+  border-color: rgba(239,68,68,0.42);
+}
+.confidence-badge.manual {
+  color: #e9d5ff;
+  background: rgba(168,85,247,0.14);
+  border-color: rgba(168,85,247,0.36);
+}
+
+.ai-role-meta-line { color:#fca5a5; }
       .ai-role-tile.empty .ai-role-chip, .ai-role-tile.invalid .ai-role-chip { border-color:rgba(248, 113, 113, .26); background:rgba(69, 10, 10, .34); }
       .ai-role-tile.empty .ai-role-desc, .ai-role-tile.invalid .ai-role-desc, .ai-role-tile.empty .ai-role-expected, .ai-role-tile.invalid .ai-role-expected { color:#fda4af; }
       .ai-role-tile-head { min-width:0; padding-right:34px; }
@@ -4053,7 +5336,7 @@ class PomTeslaReportPanel extends HTMLElement {
       .automation-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:14px; }
       .automation-card { border:1px solid rgba(56,189,248,.16); border-radius:18px; background:rgba(15,23,42,.55); padding:14px; display:flex; flex-direction:column; gap:12px; }
       .dashboard-upload-grid { display:grid; grid-template-columns:minmax(0,1fr); gap:14px; margin-top:14px; }
-      .dashboard-upload-card { border:1px solid rgba(56,189,248,.16); border-radius:18px; background:rgba(15,23,42,.55); padding:16px; display:grid; grid-template-columns:minmax(220px,260px) minmax(0,1fr) minmax(180px,220px); gap:16px; align-items:start; }
+      .dashboard-upload-card { border:1px solid rgba(56,189,248,.16); border-radius:18px; background:rgba(15,23,42,.55); padding:16px; display:grid; grid-template-columns:minmax(220px,300px) minmax(260px,1fr) minmax(180px,240px); gap:18px; align-items:start; overflow:hidden; }
       .dashboard-upload-card.youtube-bg-card { grid-template-columns:minmax(0,1fr); }
       .dashboard-upload-media { display:flex; flex-direction:column; gap:10px; min-width:0; }
       .dashboard-upload-main { display:flex; flex-direction:column; gap:12px; min-width:0; }
@@ -4061,12 +5344,15 @@ class PomTeslaReportPanel extends HTMLElement {
       .dashboard-upload-title { font-weight:800; font-size:15px; color:#f8fafc; }
       .dashboard-preview { width:100%; aspect-ratio:16/9; object-fit:cover; border-radius:14px; border:1px solid rgba(51,65,85,.8); background:#020617; }
       .dashboard-preview.empty { display:grid; place-items:center; color:#64748b; }
-      .dashboard-current-url { font-size:11px; line-height:1.35; color:#93c5fd; word-break:break-all; background:#0f172a; border:1px solid #273244; border-radius:12px; padding:10px; }
+      .dashboard-current-url { font-size:11px; line-height:1.35; color:#93c5fd; word-break:break-all; overflow-wrap:anywhere; background:#0f172a; border:1px solid #273244; border-radius:12px; padding:10px; min-height:34px; max-height:76px; overflow:auto; }
       .dashboard-upload-actions { display:flex; flex-direction:column; gap:8px; align-items:stretch; }
       .dashboard-upload-actions input[type=file] { display:none; }
       .dashboard-upload-actions button, .dashboard-upload-actions .file-btn { width:100%; box-sizing:border-box; max-width:100%; }
       .dashboard-upload-actions .file-btn { display:inline-flex; align-items:center; justify-content:center; text-decoration:none; padding:11px 14px; border-radius:12px; background:#1f2937; color:#dbeafe; border:1px solid #334155; cursor:pointer; font-weight:800; }
       .dashboard-upload-actions .file-btn:hover { border-color:#38bdf8; color:#fff; background:#243244; }
+      .dashboard-upload-progress { margin-top:8px; min-width:160px; }
+      .dashboard-upload-progress-bar { height:8px; border-radius:999px; background:rgba(255,255,255,.10); overflow:hidden; border:1px solid rgba(255,255,255,.08); }
+      .dashboard-upload-progress-bar > i { display:block; width:0%; height:100%; border-radius:999px; background:linear-gradient(90deg,#2488ff,#62b2ff); transition:width .12s linear; }
       .dashboard-toggle-row { display:grid; grid-template-columns:repeat(3, minmax(0,1fr)); gap:10px; }
       .youtube-settings-grid { display:grid; grid-template-columns:minmax(0,2fr) minmax(180px,1fr) minmax(160px,.8fr); gap:12px; align-items:end; }
       .youtube-settings-grid .field-wrap { min-width:0; }
@@ -4105,6 +5391,10 @@ class PomTeslaReportPanel extends HTMLElement {
 
       .person-track-card { border:1px solid rgba(56,189,248,.16); border-radius:18px; background:rgba(15,23,42,.45); padding:14px; margin:14px 0; }
 
+      .ai-summary-box { margin:18px 0 0; padding:16px; border:1px solid rgba(56,189,248,.24); border-radius:18px; background:linear-gradient(135deg, rgba(15,23,42,.92), rgba(8,47,73,.34)); box-shadow:inset 0 0 0 1px rgba(255,255,255,.03); }
+      .ai-summary-box.muted-box { background:rgba(15,23,42,.55); border-color:rgba(148,163,184,.16); }
+      .ai-summary-text { color:#dbeafe; font-size:13px; line-height:1.55; margin-top:8px; white-space:normal; }
+      .field-grid.single-field { grid-template-columns:minmax(260px, 420px); margin-top:12px; }
       .record-map-card { display:flex; flex-direction:column; gap:10px; margin-bottom:16px; }
       .record-map-title { color:#cbd5e1; font-size:12px; font-weight:800; letter-spacing:.08em; text-transform:uppercase; }
       .record-map-canvas { min-height:220px; border:1px solid rgba(56,189,248,.18); border-radius:18px; overflow:hidden; background:rgba(2,6,23,.65); display:flex; align-items:center; justify-content:center; }
@@ -4368,7 +5658,12 @@ class PomTeslaReportPanel extends HTMLElement {
               <td class="addr"><b>${this._esc(r.start_address || "-")}</b><div class="muted">→ ${this._esc(r.end_address || "-")}</div></td>
               <td>${this._fmtNumber(r.trip_km, 2)} km</td>
               <td>${this._fmtNumber(r.used_kwh, 2)} kWh</td>
-              <td class="hide-sm">${this._fmtNumber(r.consumption_kwh_100km, 2)}</td>
+              <td class="hide-sm">
+                ${this._fmtNumber(r.consumption_kwh_100km, 2)}
+                <div class="muted">${this._t("movingAverageSpeed")}: ${this._fmtNumber(r.average_moving_speed || r.average_speed || 0, 1)} km/sa</div>
+                <div class="muted">${this._t("overallAverageSpeed")}: ${this._fmtNumber(r.average_overall_speed || 0, 1)} km/sa</div>
+                <div class="muted">Trafik gecikmesi: ${r.traffic_delay_text || "—"} ${r.traffic_congestion_percent ? `(+%${this._fmtNumber(r.traffic_congestion_percent, 0)})` : ""}</div>
+              </td>
             </tr>
           `).join("")}
         </tbody>
@@ -4405,7 +5700,7 @@ class PomTeslaReportPanel extends HTMLElement {
         : `<div class="record-map-placeholder">${this._esc(preview.error || this._t("mapUnavailable"))}</div>`;
     return `
       <div class="record-map-card">
-        <div class="record-map-title">${this._t("routeMap")}</div>
+        <div class="record-map-title">${this._t("routeMap")}${preview.map_type ? ` · ${this._esc(preview.map_type === "colored" ? this._t("tripMapLayerColored") : this._t("tripMapLayerStandard"))}` : ""}</div>
         <div class="record-map-canvas">${body}</div>
       </div>
     `;
@@ -4467,6 +5762,21 @@ class PomTeslaReportPanel extends HTMLElement {
         <div><label>${this._t("currency")}</label><input id="trip_currency_label" value="${this._esc(r.currency_label || this._tripData?.currency || this._currency || "TL")}" /></div>
       </div>
       <div class="note">${this._t("autoCalcHint")}</div>
+      ${r.ai_summary ? `
+        <div class="ai-summary-box">
+          <div class="record-map-title">${this._t("aiTripStoryRecordTitle")}${r.ai_summary_detail_level ? ` · ${this._esc(r.ai_summary_detail_level)}` : ""}</div>
+          <div class="ai-summary-text">${this._esc(r.ai_summary).replace(/\n/g, "<br />")}</div>
+          ${r.ai_summary_telegram_status ? `<div class="muted">Telegram: ${this._esc(r.ai_summary_telegram_status)}</div>` : ""}
+        </div>
+      ` : `
+        <div class="ai-summary-box muted-box">
+          <div class="record-map-title">${this._t("aiTripStoryRecordTitle")}</div>
+          <div class="muted">${this._t("aiTripStoryRecordEmpty")}</div>
+        </div>
+      `}
+      <div class="actions ai-summary-actions">
+        <button id="regenerateTripAiBtn" class="secondary" ${this._selectedTripId ? "" : "disabled"}>${this._t("aiTripStoryRegenerate")}</button>
+      </div>
       <div class="actions">
         <button id="saveTripBtn">${this._selectedTripId ? this._t("saveUpdate") : this._t("saveNew")}</button>
         <button id="addTripBtn" class="secondary">${this._t("saveNew")}</button>
@@ -4567,24 +5877,205 @@ class PomTeslaReportPanel extends HTMLElement {
   }
 
 
-  _renderGeneralSettings() {
+  _healthStatusText(status) {
+    const key = {
+      ok: "healthNormal",
+      watch: "healthWatch",
+      warning: "healthWarning",
+      critical: "healthCritical",
+    }[String(status || "").toLowerCase()] || "healthNormal";
+    return this._t(key);
+  }
+
+  _downloadHealthDiagnostics() {
     const general = this._settingsData?.general_settings || {};
-    const summary = general.resource_summary || {};
-    const system = general.system || {};
-    const debugPayload = {
-      language: general.app_language || this._lang || "-",
-      default_open_tab: general.default_open_tab || "settings",
+    const health = general.health || {};
+    const payload = {
+      generated_at: new Date().toISOString(),
+      frontend_build: this._frontendBuild || "",
+      health,
+      entity_store_audit: general.entity_store_audit || {},
+      system: general.system || {},
       status: this._status || "",
       error: this._error || "",
-      frontend_build: this._frontendBuild || "",
-      last_click_debug: this._lastClickDebug || {},
-      resource_summary: summary || {},
-      config_entry: Boolean(system.has_config_entry),
     };
-    const debugOutput = this._manualDebugSnapshot || this._debugSnapshot();
-    const panelMigrationOutput = this._panelMigrationOutput ?? (general.entity_store_audit || {});
+    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "pom_tesla_health_diagnostics.json";
+    a.click();
+    URL.revokeObjectURL(url);
+    this._status = this._t("exportSettingsDone");
+    this._render();
+  }
+
+  _renderSystemHealthCard() {
+    const health = this._settingsData?.general_settings?.health || this._settingsData?.health || {};
+    const memory = health.memory || {};
+    const counts = health.counts || {};
+    const selfRef = health.self_reference || {};
+    const autofind = health.autofind || {};
+    const warnings = this._filterHealthWarnings(health.warnings || []);
+    const severity = String(health.severity || "normal").toLowerCase();
+    const status = String(health.status || "ok").toLowerCase();
+    const cls = severity === "critical" ? "health-card health-critical" : (severity === "warning" ? "health-card health-warning" : (severity === "watch" ? "health-card health-watch" : "health-card"));
+    const running = Array.isArray(autofind.running) ? autofind.running : [];
+    const rss = Number(memory.rss_mb || 0);
+    const total = Number(memory.total_mb || 0);
+    const available = Number(memory.available_mb || 0);
+    const pct = Number(memory.rss_percent || 0);
+    const haEntities = Number(counts.ha_entities ?? counts.entity_count ?? 0);
+    const pomEntities = Number(counts.pom_entities ?? counts.pom_entity_count ?? 0);
+    const memText = rss > 0 ? `${this._esc(String(rss))} MB${total ? ` / ${this._esc(String(total))} MB` : ""}` : this._t("healthWaiting");
+    const availText = available > 0 ? `${this._esc(String(available))} MB` : this._t("healthWaiting");
+    return `
+      <section class="${cls}">
+        <div class="health-head">
+          <div>
+            <h2>${this._t("systemHealth")}</h2>
+            <div class="hint">${this._t("systemHealthSub")}</div>
+          </div>
+          <div class="health-pill ${severity === "critical" ? "critical" : severity === "warning" ? "warning" : severity === "watch" ? "watch" : ""}">
+            ${this._esc(this._healthStatusText(status))}
+          </div>
+        </div>
+        ${severity === "critical" ? `
+          <div class="health-alert">
+            <b>${this._t("healthCriticalTitle")}</b>
+            <span>${this._t("healthCriticalSub")}</span>
+          </div>
+        ` : ""}
+        <div class="health-grid">
+          <div><span>${this._t("healthMemory")}</span><b>${memText}</b><small>${pct ? `%${this._esc(String(pct))}` : ""}</small></div>
+          <div><span>${this._t("healthAvailable")}</span><b>${availText}</b><small>${memory.available_percent ? `%${this._esc(String(memory.available_percent))}` : ""}</small></div>
+          <div><span>${this._t("healthTrend")}</span><b>${this._esc(String(memory.trend_5m_mb ?? 0))} MB</b><small>${this._esc(String(memory.trend_per_min_mb ?? 0))} MB/min</small></div>
+          <div><span>${this._t("healthEntities")}</span><b>${haEntities || this._t("healthWaiting")}</b><small>HA</small></div>
+          <div><span>${this._t("healthPomEntities")}</span><b>${pomEntities || this._t("healthWaiting")}</b><small>POM</small></div>
+          <div><span>${this._t("healthSelfReference")}</span><b>${this._esc(String(selfRef.issue_count ?? 0))}</b><small>${(selfRef.issue_count || 0) > 0 ? "blocked" : "OK"}</small></div>
+          <div><span>${this._t("healthAutoFind")}</span><b>${running.length ? this._esc(running.join(", ")) : "Idle"}</b><small>${this._esc(String(health.generated_at || ""))}</small></div>
+        </div>
+        <div class="section-title">${this._t("healthWarnings")}</div>
+        <div class="health-warnings">
+          ${warnings.map((w) => `<div>${this._esc(w)}</div>`).join("") || `<div>${this._t("healthNormal")}</div>`}
+        </div>
+        <div class="actions">
+          <button id="downloadHealthDiagnosticsBtn" class="secondary">${this._t("healthDownloadJson")}</button>
+          <button id="refreshBtnHealth" class="secondary">${this._t("refresh")}</button>
+        </div>
+      </section>
+    `;
+  }
+
+  _formatBusyElapsed() {
+    const started = Number(this._backupBusyStartedAt || 0);
+    const seconds = started ? Math.max(0, Math.floor((Date.now() - started) / 1000)) : 0;
+    return this._t("busySeconds").replace("{seconds}", String(seconds));
+  }
+
+  _updateBusyTimerDom() {
+    try {
+      const elapsed = this.shadowRoot.getElementById("backup_busy_elapsed");
+      if (elapsed) elapsed.textContent = `${this._t("busyElapsed")}: ${this._formatBusyElapsed()}`;
+    } catch (_err) {}
+  }
+
+  _startBusyTimer() {
+    if (this._backupBusyTimer) return;
+    this._backupBusyTimer = window.setInterval(() => this._updateBusyTimerDom(), 1000);
+  }
+
+  _stopBusyTimer() {
+    if (this._backupBusyTimer) {
+      window.clearInterval(this._backupBusyTimer);
+      this._backupBusyTimer = null;
+    }
+  }
+
+  _showWaitModal(title = "", sub = "", footer = "", percent = null) {
+    this._showBusyOverlay(title, sub, footer, percent);
+  }
+
+  _hideWaitModal() {
+    this._hideBusyOverlay();
+  }
+
+  _showBusyOverlay(title = "", sub = "", footer = "", percent = null) {
+    this._backupBusy = true;
+    this._backupBusyTitle = title || this._t("backupBusyTitle");
+    this._backupBusySub = sub || this._t("backupBusySub");
+    this._backupBusyFooter = footer || this._t("backupBusyFooter");
+    this._backupBusyPercent = Number.isFinite(Number(percent)) ? Math.max(0, Math.min(100, Number(percent))) : null;
+    this._backupBusyStartedAt = Date.now();
+    this._startBusyTimer();
+    this._render();
+  }
+
+  _updateBusyOverlay({ title = null, sub = null, footer = null, percent = null } = {}) {
+    if (!this._backupBusy) return;
+    if (title !== null) this._backupBusyTitle = title || this._backupBusyTitle;
+    if (sub !== null) this._backupBusySub = sub || this._backupBusySub;
+    if (footer !== null) this._backupBusyFooter = footer || this._backupBusyFooter;
+    if (percent !== null && Number.isFinite(Number(percent))) this._backupBusyPercent = Math.max(0, Math.min(100, Number(percent)));
+    try {
+      const titleEl = this.shadowRoot.getElementById("backup_busy_title");
+      const subEl = this.shadowRoot.getElementById("backup_busy_sub");
+      const footerEl = this.shadowRoot.getElementById("backup_busy_footer");
+      const pctEl = this.shadowRoot.getElementById("backup_busy_percent");
+      const barEl = this.shadowRoot.getElementById("backup_busy_progress_bar");
+      const progressWrap = this.shadowRoot.getElementById("backup_busy_progress");
+      if (titleEl) titleEl.textContent = this._backupBusyTitle;
+      if (subEl) subEl.textContent = this._backupBusySub;
+      if (footerEl) footerEl.textContent = this._backupBusyFooter;
+      if (pctEl && this._backupBusyPercent !== null) pctEl.textContent = `%${Math.round(this._backupBusyPercent)}`;
+      if (barEl && this._backupBusyPercent !== null) barEl.style.width = `${this._backupBusyPercent}%`;
+      if (progressWrap) progressWrap.style.display = this._backupBusyPercent === null ? "none" : "block";
+      this._updateBusyTimerDom();
+    } catch (_err) {}
+  }
+
+  _hideBusyOverlay() {
+    this._backupBusy = false;
+    this._backupBusyTitle = "";
+    this._backupBusySub = "";
+    this._backupBusyFooter = "";
+    this._backupBusyPercent = null;
+    this._backupBusyStartedAt = 0;
+    this._stopBusyTimer();
+  }
+
+  _renderBackupBusyOverlay() {
+    if (!this._backupBusy) return "";
+    const title = this._backupBusyTitle || this._t("backupBusyTitle");
+    const sub = this._backupBusySub || this._t("backupBusySub");
+    const footer = this._backupBusyFooter || this._t("backupBusyFooter");
+    const pct = this._backupBusyPercent;
+    const progressStyle = pct === null ? "display:none" : "";
+    return `
+      <div class="backup-busy-overlay" role="alertdialog" aria-live="assertive" aria-modal="true">
+        <div class="backup-busy-modal">
+          <div class="backup-busy-icon"><span></span></div>
+          <div class="backup-busy-copy">
+            <b id="backup_busy_title">${this._esc(title)}</b>
+            <p id="backup_busy_sub">${this._esc(sub)}</p>
+            <div class="backup-busy-progress" id="backup_busy_progress" style="${progressStyle}">
+              <div class="backup-busy-progress-head"><span>${this._esc(this._t("uploadBusyProgress"))}</span><strong id="backup_busy_percent">${pct === null ? "" : `%${Math.round(pct)}`}</strong></div>
+              <div class="backup-busy-progress-bar"><i id="backup_busy_progress_bar" style="width:${pct === null ? 0 : Math.max(0, Math.min(100, pct))}%"></i></div>
+            </div>
+            <small id="backup_busy_footer">${this._esc(footer)}</small>
+            <em id="backup_busy_elapsed" class="backup-busy-elapsed">${this._esc(this._t("busyElapsed"))}: ${this._esc(this._formatBusyElapsed())}</em>
+          </div>
+        </div>
+      </div>
+    `;
+  }
+
+  _renderGeneralSettings() {
+    const general = this._settingsData?.general_settings || {};
     return `
       <div class="settings-grid wide">
+        ${this._renderSystemHealthCard()}
+        ${this._renderSystemStatusCenter()}
         <section class="card accent">
           <div class="card-h"><div><h2>${this._t("generalSettings")}</h2><div class="hint">${this._t("generalSettingsSub")}</div></div></div>
           <div class="body">
@@ -4601,46 +6092,29 @@ class PomTeslaReportPanel extends HTMLElement {
                 <option value="trips" ${general.default_open_tab === "trips" ? "selected" : ""}>${this._t("defaultOpenTrips")}</option>
               </select></div>
             </div>
-            <div class="section-title">${this._t("debugDiagnosticsMode")}</div>
-            ${this._toggle("general_debug_enabled", general.debug_enabled, this._t("debugDiagnosticsMode"))}
-            <div class="note">${this._t("debugDiagnosticsSub")}</div>
-            ${general.debug_enabled ? `
-              <div class="debug-toolbar">
-                <div>
-                  <b>${this._t("debugDiagnosticsDetails")}</b>
-                  <div class="note">${this._t("debugDiagnosticsSub")}</div>
-                </div>
-                <div class="actions">
-                  <button id="runDebugInfoBtn" class="secondary">${this._t("debugRun")}</button>
-                  <button id="copyDebugInfoBtn" class="secondary">${this._t("debugCopy")}</button>
-                  <button id="clearDebugInfoBtn" class="secondary">${this._t("debugClear")}</button>
-                </div>
-              </div>
-              <div class="debug-panel debug-output-panel">
-                <pre>${this._esc(JSON.stringify(debugOutput, null, 2))}</pre>
-              </div>` : ""}
             <div class="actions"><button id="saveGeneralSettingsBtn">${this._t("saveGeneralSettings")}</button><button id="refreshBtn" class="secondary">${this._t("refresh")}</button></div>
           </div>
         </section>
-        <section class="card">
-          <div class="card-h"><div><h2>${this._t("systemSummary")}</h2><div class="hint">${this._t("generalSettingsSub")}</div></div></div>
+        <section class="card backup-card">
+          <div class="card-h"><div><h2>${this._t("settingsBackup")}</h2><div class="hint">${this._t("backupSimpleSub")}</div></div></div>
           <div class="body">
-            <div class="summary">
-              <div><span>${this._t("appLanguage")}</span><b>${this._esc(general.app_language || this._lang || "-")}</b></div>
-              <div><span>${this._t("resourceSummaryShort")}</span><b>${this._esc(String(summary.missing_total ?? summary.missing ?? 0))} / ${this._esc(String(summary.total ?? summary.resource_total ?? "-"))}</b></div>
-              <div><span>Config entry</span><b>${system.has_config_entry ? "OK" : "Missing"}</b></div>
+            <div class="backup-simple-grid">
+              <button id="exportFullBackupBtn" class="backup-main-action" type="button">
+                <span class="backup-recommended">${this._t("backupRecommended")}</span>
+                <b>${this._t("fullBackupTitle")}</b>
+                <small>${this._t("fullBackupDesc")}</small>
+              </button>
+              <button id="exportSettingsBtn" class="backup-secondary-action" type="button">
+                <b>${this._t("settingsOnlyTitle")}</b>
+                <small>${this._t("settingsOnlyDesc")}</small>
+              </button>
+              <button id="exportRecordsBtn" class="backup-secondary-action" type="button">
+                <b>${this._t("recordsOnlyTitle")}</b>
+                <small>${this._t("recordsOnlyDesc")}</small>
+              </button>
             </div>
-            <div class="section-title">${this._t("panelMigrationOutput")}</div>
-            <div class="note">${this._t("entityStoreAuditSub")}</div>
-            <pre class="audit-pre">${this._esc(JSON.stringify(panelMigrationOutput, null, 2))}</pre>
-            <div class="actions">
-              <button id="migratePanelStoresBtn" class="secondary">${this._t("migratePanelStores")}</button>
-              <button id="clearPanelMigrationOutputBtn" class="secondary">${this._t("clearPanelMigrationOutput")}</button>
-            </div>
-            <div class="section-title">${this._t("exportSettings")} / ${this._t("importSettings")}</div>
-            <div class="actions">
-              <button id="exportSettingsBtn" class="secondary">${this._t("exportSettings")}</button>
-              <label class="file-btn" for="importSettingsFile">${this._t("importSettings")}</label>
+            <div class="backup-footer-row">
+              <label class="file-btn compact" for="importSettingsFile">${this._t("importSettingsSmall")}</label>
               <input id="importSettingsFile" type="file" accept="application/json,.json" style="display:none" />
             </div>
             <div class="note" id="importSettingsNote">${this._t("importSettingsPlaceholder")}</div>
@@ -4649,6 +6123,7 @@ class PomTeslaReportPanel extends HTMLElement {
       </div>
     `;
   }
+
 
   _readGeneralSettingsForm() {
     const root = this.shadowRoot;
@@ -4669,7 +6144,11 @@ class PomTeslaReportPanel extends HTMLElement {
       const startedAt = performance.now();
       const response = await this._hass.callApi("POST", "pom_tesla_report/settings", { general_settings });
       this._recordApiResult("POST settings/general", { status: "fulfilled", value: response }, startedAt);
-      this._settingsData = this._applySettingsSaveResponse(response, { general_settings });
+      const refreshedSettings = await this._hass.callApi("GET", "pom_tesla_report/settings");
+      this._recordApiResult("GET settings (after general save)", { status: "fulfilled", value: refreshedSettings }, performance.now());
+      this._settingsData = this._normalizeSettingsPayload(refreshedSettings);
+      this._mergeHealthPayload(refreshedSettings);
+      this._ensureStationEditor();
       this._lastSettingsSaveSummary = {
         area: "general",
         at: new Date().toISOString(),
@@ -4707,15 +6186,87 @@ class PomTeslaReportPanel extends HTMLElement {
     }
   }
 
-  _exportPanelSettings() {
-    const data = this._settingsData || {};
-    const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
+  _downloadBlob(blob, filename) {
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = "pom_tesla_report_settings.json";
+    a.download = filename;
     a.click();
     URL.revokeObjectURL(url);
+  }
+
+  async _exportRecordsBackup() {
+    if (!this._hass) return;
+    this._loading = false;
+    this._error = "";
+    this._showBusyOverlay(this._t("backupBusyTitle"), this._t("backupBusySub"), this._t("backupBusyFooter"));
+    try {
+      const [trips, charges] = await Promise.all([
+        this._hass.callApi("GET", "pom_tesla_report/trip_records"),
+        this._hass.callApi("GET", "pom_tesla_report/charge_records"),
+      ]);
+      this._tripData = this._normalizeApiPayload(trips, this._chargeData?.currency || this._currency || "");
+      this._chargeData = this._normalizeApiPayload(charges);
+      const payload = {
+        schema: "pom_tesla_records_export_v1",
+        generated_at: new Date().toISOString(),
+        frontend_build: this._frontendBuild || "",
+        language: this._lang,
+        currency: this._currency,
+        trip_records: this._tripData || trips || {},
+        charge_records: this._chargeData || charges || {},
+      };
+      this._downloadBlob(new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" }), `pom_tesla_records_backup_${new Date().toISOString().replace(/[:.]/g, "-")}.json`);
+      this._status = this._t("exportRecordsDone");
+      this._pushPomEvent("success", "Records backup exported", { trip_records: this._tripData?.records?.length || 0, charge_records: this._chargeData?.records?.length || 0 }, "backup");
+    } catch (err) {
+      this._error = this._formatError(err);
+      this._pushPomEvent("error", "Records backup export failed", { error: this._error }, "backup");
+    } finally {
+      this._hideBusyOverlay();
+      this._loading = false;
+      this._render();
+    }
+  }
+
+  async _downloadFullBackup(format = "zip") {
+    if (!this._hass) return;
+    this._loading = false;
+    this._error = "";
+    this._showBusyOverlay(this._t("backupBusyTitle"), this._t("backupBusySub"), this._t("backupBusyFooter"));
+    try {
+      const token = this._hassAuthToken();
+      const safeFormat = format === "json" ? "json" : "zip";
+      const response = await fetch(`/api/pom_tesla_report/backup_export?format=${encodeURIComponent(safeFormat)}`, {
+        method: "GET",
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
+      if (!response.ok) {
+        let detail = "";
+        try { detail = (await response.json())?.error || ""; } catch (_err) { try { detail = await response.text(); } catch (_err2) {} }
+        throw new Error(detail || `HTTP ${response.status}`);
+      }
+      const blob = await response.blob();
+      const disposition = response.headers.get("Content-Disposition") || "";
+      const match = disposition.match(/filename="?([^";]+)"?/i);
+      const fallback = `pom_tesla_full_backup_${new Date().toISOString().replace(/[:.]/g, "-")}.${safeFormat}`;
+      this._downloadBlob(blob, match?.[1] || fallback);
+      this._status = this._t("exportFullBackupDone");
+      this._pushPomEvent("success", "Full backup exported", { format: safeFormat, size: blob.size }, "backup");
+    } catch (err) {
+      this._error = this._formatError(err);
+      this._pushPomEvent("error", "Full backup export failed", { error: this._error, format }, "backup");
+    } finally {
+      this._hideBusyOverlay();
+      this._loading = false;
+      this._render();
+    }
+  }
+
+
+  _exportPanelSettings() {
+    const data = this._settingsData || {};
+    this._downloadBlob(new Blob([JSON.stringify(data, null, 2)], { type: "application/json" }), "pom_tesla_report_settings.json");
     this._status = this._t("exportSettingsDone");
     this._pushDebugEvent("success", "Settings exported");
     this._render();
@@ -4823,9 +6374,68 @@ class PomTeslaReportPanel extends HTMLElement {
     return `<div class="entities-subnav">${items.map(([id, label]) => `<button type="button" data-entities-subtab="${id}" class="${this._activeEntitiesTab === id ? "active" : ""}">${this._t(label)}</button>`).join("")}</div>`;
   }
 
+  _entryForRole(kind, role, value) {
+    const manager = this._settingsData?.[kind] || {};
+    const entries = Array.isArray(manager.entries) ? manager.entries : [];
+    return entries.find((item) => item && item.role === role && (!value || item.entity_id === value)) || null;
+  }
+
+  _confidenceText(label) {
+    const value = String(label || "").toLowerCase();
+    if (value === "very_high") return this._t("confidenceVeryHigh");
+    if (value === "high") return this._t("confidenceHigh");
+    if (value === "medium") return this._t("confidenceMedium");
+    if (value === "low" || value === "very_low") return this._t("confidenceLow");
+    return this._t("confidenceMedium");
+  }
+
+  _renderConfidenceBadge(entry) {
+    if (!entry || !entry.entity_id) return "";
+    const manual = String(entry.source || "").includes("manual") || entry.manual === true;
+    const raw = Number(entry.confidence);
+    if (manual && !Number.isFinite(raw)) {
+      return "";
+    }
+    if (!Number.isFinite(raw) || raw <= 0) return "";
+    const confidence = Math.max(0, Math.min(100, Math.round(raw)));
+    let level = "low";
+    if (confidence >= 95) level = "very-high";
+    else if (confidence >= 85) level = "high";
+    else if (confidence >= 70) level = "medium";
+    const reason = entry.match_reason ? `${this._t("confidenceReason")}: ${entry.match_reason}` : "";
+    const label = this._confidenceText(entry.confidence_label || level.replace("-", "_"));
+    return `<div class="confidence-badge ${level}" title="${this._esc(reason)}">%${confidence} · ${this._esc(label)}</div>`;
+  }
+
+  _inferSourceFromEntityId(entityId) {
+    const id = String(entityId || "").toLowerCase();
+    if (!id) return { key: "", label: "" };
+    if (id.startsWith("sensor.pom_") || id.startsWith("binary_sensor.pom_") || id.startsWith("device_tracker.pom_") || id.startsWith("button.pom_") || id.startsWith("switch.pom_") || id.startsWith("select.pom_") || id.startsWith("climate.pom_") || id.startsWith("lock.pom_") || id.startsWith("cover.pom_") || id.startsWith("number.pom_")) {
+      return { key: "tessie", label: "Tessie / POM" };
+    }
+    if (id.startsWith("sensor.tesla_") || id.startsWith("binary_sensor.tesla_") || id === "device_tracker.tesla" || id.startsWith("device_tracker.tesla_")) {
+      return { key: "teslamate", label: "TeslaMate" };
+    }
+    if (id.startsWith("person.")) return { key: "person", label: "Person" };
+    if (id.includes("fleet")) return { key: "tesla_fleet", label: "Tesla Fleet" };
+    return { key: "manual", label: "Manual / Other" };
+  }
+
+  _renderSourceBadge(entry) {
+    if (!entry || !entry.entity_id) return "";
+    const inferred = this._inferSourceFromEntityId(entry.entity_id);
+    const label = String(entry.source_label || entry.source_key || entry.source_platform || inferred.label || "").trim();
+    if (!label) return "";
+    const key = String(entry.source_key || inferred.key || label).toLowerCase().replace(/[^a-z0-9_\-]/g, "-");
+    const title = `${this._t("sourceBadge")}: ${label}${entry.source_device_id ? ` · ${entry.source_device_id}` : ""}`;
+    return `<div class="source-badge source-${this._esc(key)}" title="${this._esc(title)}">${this._esc(this._t("sourceBadge"))}: ${this._esc(label)}</div>`;
+  }
+
+
   _renderAIRoleTile(roleDef, value) {
     const role = roleDef.role || "other";
     const selected = this._entityOptionById(value || "");
+    const entry = this._entryForRole("ai_entity_manager", role, value || "");
     const friendly = value ? (selected?.name || value) : this._t("chooseEntity");
     const meta = !value ? this._t("entityNotSelected") : (!selected ? this._t("unknownEntitySelected") : this._entityMeta(value));
     const emptyClass = !value ? " empty" : (!selected ? " invalid" : "");
@@ -4836,6 +6446,8 @@ class PomTeslaReportPanel extends HTMLElement {
           <div class="ai-role-title">${this._esc(roleDef.label || role)}</div>
           <div class="ai-role-desc">${this._esc(roleDef.description || "")}</div>
           ${roleDef.expected_entity ? `<div class="ai-role-expected">${this._esc(this._t("entityExpectedEntity"))}: ${this._esc(roleDef.expected_entity)}</div>` : ""}
+          ${this._renderConfidenceBadge(entry)}
+          ${this._renderSourceBadge(entry)}
         </div>
         <div class="ai-role-chip">
           <div class="ai-role-friendly">${this._esc(friendly)}</div>
@@ -4869,6 +6481,7 @@ class PomTeslaReportPanel extends HTMLElement {
   _renderReportRoleTile(roleDef, value) {
     const role = roleDef.role || "other";
     const selected = this._entityOptionById(value || "");
+    const entry = this._entryForRole("report_entity_manager", role, value || "");
     const friendly = value ? (selected?.name || value) : this._t("chooseEntity");
     const meta = !value ? this._t("entityNotSelected") : (!selected ? this._t("unknownEntitySelected") : this._entityMeta(value));
     const emptyClass = !value ? " empty" : (!selected ? " invalid" : "");
@@ -4879,6 +6492,8 @@ class PomTeslaReportPanel extends HTMLElement {
           <div class="ai-role-title">${this._esc(roleDef.label || role)}</div>
           <div class="ai-role-desc">${this._esc(roleDef.description || "")}</div>
           ${roleDef.expected_entity ? `<div class="ai-role-expected">${this._esc(this._t("entityExpectedEntity"))}: ${this._esc(roleDef.expected_entity)}</div>` : ""}
+          ${this._renderConfidenceBadge(entry)}
+          ${this._renderSourceBadge(entry)}
         </div>
         <div class="ai-role-chip">
           <div class="ai-role-friendly">${this._esc(friendly)}</div>
@@ -4892,6 +6507,7 @@ class PomTeslaReportPanel extends HTMLElement {
   _renderDashboardRoleTile(roleDef, value) {
     const role = roleDef.role || "other";
     const selected = this._entityOptionById(value || "");
+    const entry = this._entryForRole("dashboard_entity_manager", role, value || "");
     const friendly = value ? (selected?.name || value) : this._t("chooseEntity");
     const meta = !value ? this._t("entityNotSelected") : (!selected ? this._t("unknownEntitySelected") : this._entityMeta(value));
     const emptyClass = !value ? " empty" : (!selected ? " invalid" : "");
@@ -4902,6 +6518,8 @@ class PomTeslaReportPanel extends HTMLElement {
           <div class="ai-role-title">${this._esc(roleDef.label || role)}</div>
           <div class="ai-role-desc">${this._esc(roleDef.description || "")}</div>
           ${roleDef.expected_entity ? `<div class="ai-role-expected">${this._esc(this._t("entityExpectedEntity"))}: ${this._esc(roleDef.expected_entity)}</div>` : ""}
+          ${this._renderConfidenceBadge(entry)}
+          ${this._renderSourceBadge(entry)}
         </div>
         <div class="ai-role-chip">
           <div class="ai-role-friendly">${this._esc(friendly)}</div>
@@ -4939,6 +6557,9 @@ class PomTeslaReportPanel extends HTMLElement {
                 ${this._renderEntityPickerField("dashboard_main_entity", draft.main_entity || dashboard.main_entity || "", "sensor.tesla_battery_level")}
                 <div class="note">${this._t("dashboardMainTeslaEntitySub")}</div>
                 <div class="note">${this._t("autoFindEntitiesSub")}</div>
+                <div class="note">${this._t("autoFindMasterNote")}</div>
+                <div class="note">${this._t("fastAutoFindEntitiesSub")}</div>
+                <div class="note">${this._t("deepAutoFindEntitiesSub")}</div>
               </div>
               <div class="ai-summary-side">
                 <div class="summary-grid mini ai-summary-stats">
@@ -4947,7 +6568,8 @@ class PomTeslaReportPanel extends HTMLElement {
                   <div><span>${this._t("dashboardMissingCount")}</span><b>${this._esc(missingCount)}</b></div>
                 </div>
                 <div class="actions ai-summary-actions">
-                  <button id="autoFindDashboardEntitiesBtn" class="primary-wide">${this._t("autoFindEntities")}</button>
+                  <button id="fastAutoFindDashboardEntitiesBtn" class="primary-wide">${this._t("fastAutoFindEntities")}</button>
+                  <button id="autoFindDashboardEntitiesBtn" class="secondary">${this._t("autoFindEntities")}</button>
                   <button type="button" class="secondary clear-all-dashboard-entities">${this._t("clearAllDashboardEntities")}</button>
                   <button id="saveDashboardEntityManagerBtn" class="secondary">${this._t("saveDashboardEntities")}</button>
                 </div>
@@ -4972,7 +6594,7 @@ class PomTeslaReportPanel extends HTMLElement {
                 </div>
               `).join("")}
             </div>
-            <div class="actions sticky-actions"><button id="saveDashboardEntityManagerBtnBottom">${this._t("saveDashboardEntities")}</button><button id="autoFindDashboardEntitiesBtnBottom" class="secondary">${this._t("autoFindEntities")}</button><button type="button" class="secondary clear-all-dashboard-entities">${this._t("clearAllDashboardEntities")}</button></div>
+            <div class="actions sticky-actions"><button id="saveDashboardEntityManagerBtnBottom">${this._t("saveDashboardEntities")}</button><button id="fastAutoFindDashboardEntitiesBtnBottom" class="secondary">${this._t("fastAutoFindEntities")}</button><button id="autoFindDashboardEntitiesBtnBottom" class="secondary">${this._t("autoFindEntities")}</button><button type="button" class="secondary clear-all-dashboard-entities">${this._t("clearAllDashboardEntities")}</button></div>
           </div>
         </section>
       </div>
@@ -5000,6 +6622,9 @@ class PomTeslaReportPanel extends HTMLElement {
                 ${this._renderEntityPickerField("report_main_entity", draft.main_entity || report.main_entity || "", "sensor.pom_battery_level")}
                 <div class="note">${this._t("reportMainTeslaEntitySub")}</div>
                 <div class="note">${this._t("autoFindEntitiesSub")}</div>
+                <div class="note">${this._t("autoFindMasterNote")}</div>
+                <div class="note">${this._t("fastAutoFindEntitiesSub")}</div>
+                <div class="note">${this._t("deepAutoFindEntitiesSub")}</div>
               </div>
               <div class="ai-summary-side">
                 <div class="summary-grid mini ai-summary-stats">
@@ -5008,7 +6633,8 @@ class PomTeslaReportPanel extends HTMLElement {
                   <div><span>${this._t("reportMapCount")}</span><b>${this._esc(mapCount)}</b></div>
                 </div>
                 <div class="actions ai-summary-actions">
-                  <button id="autoFindReportEntitiesBtn" class="primary-wide">${this._t("autoFindEntities")}</button>
+                  <button id="fastAutoFindReportEntitiesBtn" class="primary-wide">${this._t("fastAutoFindEntities")}</button>
+                  <button id="autoFindReportEntitiesBtn" class="secondary">${this._t("autoFindEntities")}</button>
                   <button id="saveReportEntityManagerBtn" class="secondary">${this._t("saveReportEntities")}</button>
                 </div>
               </div>
@@ -5031,7 +6657,7 @@ class PomTeslaReportPanel extends HTMLElement {
                 </div>
               `).join("")}
             </div>
-            <div class="actions sticky-actions"><button id="saveReportEntityManagerBtnBottom">${this._t("saveReportEntities")}</button><button id="autoFindReportEntitiesBtnBottom" class="secondary">${this._t("autoFindEntities")}</button></div>
+            <div class="actions sticky-actions"><button id="saveReportEntityManagerBtnBottom">${this._t("saveReportEntities")}</button><button id="fastAutoFindReportEntitiesBtnBottom" class="secondary">${this._t("fastAutoFindEntities")}</button><button id="autoFindReportEntitiesBtnBottom" class="secondary">${this._t("autoFindEntities")}</button></div>
           </div>
         </section>
       </div>
@@ -5065,6 +6691,8 @@ class PomTeslaReportPanel extends HTMLElement {
                 ${this._renderEntityPickerField("ai_main_entity", draft.main_entity || ai.main_entity || "", "sensor.pom_battery_level")}
                 <div class="note">${this._t("aiMainTeslaEntitySub")}</div>
                 <div class="note">${this._t("autoFindEntitiesSub")}</div>
+                <div class="note">${this._t("fastAutoFindEntitiesSub")}</div>
+                <div class="note">${this._t("deepAutoFindEntitiesSub")}</div>
               </div>
               <div class="ai-summary-side">
                 ${this._toggle("ai_auto_discover_device_entities", draft.auto_discover_device_entities, this._t("aiAutoDiscoverToggle"))}
@@ -5074,7 +6702,8 @@ class PomTeslaReportPanel extends HTMLElement {
                   <div><span>${this._t("aiCustomCount")}</span><b>${this._esc(customEntries.filter((item) => item.entity_id).length)}</b></div>
                 </div>
                 <div class="actions ai-summary-actions">
-                  <button id="autoFindAIEntitiesBtn" class="primary-wide">${this._t("autoFindEntities")}</button>
+                  <button id="fastAutoFindAIEntitiesBtn" class="primary-wide">${this._t("fastAutoFindEntities")}</button>
+                  <button id="autoFindAIEntitiesBtn" class="secondary">${this._t("autoFindEntities")}</button>
                   <button type="button" class="secondary clear-all-ai-entities">${this._t("clearAllAiEntities")}</button>
                   <button id="saveAIEntityManagerBtn" class="secondary">${this._t("saveAiEntities")}</button>
                 </div>
@@ -5107,11 +6736,18 @@ class PomTeslaReportPanel extends HTMLElement {
               </div>
               <button type="button" class="secondary add-ai-entry">${this._t("addAiEntity")}</button>
             </div>
-            <div class="actions sticky-actions"><button id="saveAIEntityManagerBtnBottom">${this._t("saveAiEntities")}</button><button id="autoFindAIEntitiesBtnBottom" class="secondary">${this._t("autoFindEntities")}</button><button type="button" class="secondary clear-all-ai-entities">${this._t("clearAllAiEntities")}</button></div>
+            <div class="actions sticky-actions"><button id="saveAIEntityManagerBtnBottom">${this._t("saveAiEntities")}</button><button id="fastAutoFindAIEntitiesBtnBottom" class="secondary">${this._t("fastAutoFindEntities")}</button><button id="autoFindAIEntitiesBtnBottom" class="secondary">${this._t("autoFindEntities")}</button><button type="button" class="secondary clear-all-ai-entities">${this._t("clearAllAiEntities")}</button></div>
           </div>
         </section>
       </div>
     `;
+  }
+
+  _supportedAIPersonality(value) {
+    const normalized = String(value || "friendly").trim();
+    if (normalized === "turkish_buddy") return "laz_black_sea";
+    if (["professional", "friendly", "funny", "laz_black_sea"].includes(normalized)) return normalized;
+    return "friendly";
   }
 
 
@@ -5129,6 +6765,7 @@ class PomTeslaReportPanel extends HTMLElement {
       ["API key", state.has_openai_key ? "ok" : "missing"],
       ["Model", state.model || "—"],
       ["Name", state.ai_name || "—"],
+      [this._t("aiUserAddress"), state.ai_user_address || "—"],
       ["Max tokens", state.max_output_tokens || "—"],
     ];
     return `
@@ -5170,9 +6807,9 @@ class PomTeslaReportPanel extends HTMLElement {
             ${this._toggle("ai_settings_enabled", ai.ai_enabled, this._t("aiEnabled"))}
             <div class="field-grid">
               <div><label>${this._t("aiName")}</label><input id="ai_settings_name" value="${this._esc(ai.ai_name || "Tesla AI")}" /></div>
-              <div><label>${this._t("aiPersonality")}</label><select id="ai_settings_personality">${this._selectOptions(ai.ai_personality || "friendly", [["professional", this._t("personalityProfessional")], ["friendly", this._t("personalityFriendly")], ["funny", this._t("personalityFunny")], ["short_direct", this._t("personalityShortDirect")], ["premium_tesla_assistant", this._t("personalityPremium")], ["turkish_buddy", this._t("personalityTurkishBuddy")]])}</select></div>
+              <div><label>${this._t("aiUserAddress")}</label><input id="ai_settings_user_address" value="${this._esc(ai.ai_user_address || "")}" /><div class="note">${this._t("aiUserAddressNote")}</div></div>
+              <div><label>${this._t("aiPersonality")}</label><select id="ai_settings_personality">${this._selectOptions(this._supportedAIPersonality(ai.ai_personality || "friendly"), [["professional", this._t("personalityProfessional")], ["friendly", this._t("personalityFriendly")], ["funny", this._t("personalityFunny")], ["laz_black_sea", this._t("personalityLaz")]])}</select></div>
               <div><label>${this._t("aiAnswerLength")}</label><select id="ai_settings_answer_length">${this._selectOptions(ai.ai_answer_length || "short", [["short", this._t("answerShort")], ["normal", this._t("answerNormal")], ["detailed", this._t("answerDetailed")]])}</select></div>
-              <div><label>${this._t("aiContextMode")}</label><select id="ai_settings_context_mode">${this._selectOptions(ai.ai_context_mode || "smart_manual", [["basic", this._t("contextBasic")], ["smart_auto", this._t("contextSmartAuto")], ["selected_device", this._t("contextSelectedDevice")], ["smart_manual", this._t("contextSmartManual")], ["manual_only", this._t("contextManualOnly")]])}</select></div>
             </div>
 
             <div class="section-title">${this._t("aiConnection")}</div>
@@ -5185,10 +6822,6 @@ class PomTeslaReportPanel extends HTMLElement {
             <div class="section-title">${this._t("aiAddress")}</div>
             ${this._toggle("ai_settings_reverse_geocoding_enabled", ai.reverse_geocoding_enabled, this._t("reverseGeocodingEnabled"))}
             ${this._toggle("ai_settings_reverse_geocoding_use_in_ai", ai.reverse_geocoding_use_in_ai, this._t("reverseGeocodingUseInAi"))}
-            <div class="field-grid">
-              <div><label>${this._t("reverseGeocodingCacheMinutes")}</label><input id="ai_settings_reverse_geocoding_cache_minutes" inputmode="numeric" value="${this._esc(Math.max(5, Number(ai.reverse_geocoding_cache_minutes ?? 60)))}" /><div class="note">${this._t("minutesShort")} · min 5</div></div>
-            </div>
-
             <div class="section-title">${this._t("aiTelegramContext")}</div>
             <div class="visual-grid">
               ${this._toggle("ai_settings_telegram_include_context", ai.ai_telegram_include_context, this._t("aiTelegramIncludeContext"))}
@@ -5271,10 +6904,11 @@ class PomTeslaReportPanel extends HTMLElement {
       ai_answer_length: value("ai_settings_answer_length", current.ai_answer_length || "short"),
       ai_context_mode: value("ai_settings_context_mode", current.ai_context_mode || "smart_manual"),
       ai_name: clean("ai_settings_name", current.ai_name || "Tesla AI") || "Tesla AI",
+      ai_user_address: clean("ai_settings_user_address", current.ai_user_address || ""),
       openai_api_key: clean("ai_settings_openai_api_key", current.openai_api_key || ""),
       openai_model: clean("ai_settings_openai_model", current.openai_model || "gpt-4.1-mini") || "gpt-4.1-mini",
       reverse_geocoding_enabled: checked("ai_settings_reverse_geocoding_enabled", current.reverse_geocoding_enabled),
-      reverse_geocoding_cache_minutes: Math.max(5, number("ai_settings_reverse_geocoding_cache_minutes", current.reverse_geocoding_cache_minutes ?? 60)),
+      reverse_geocoding_cache_minutes: 60,
       reverse_geocoding_use_in_ai: checked("ai_settings_reverse_geocoding_use_in_ai", current.reverse_geocoding_use_in_ai),
       ai_max_output_tokens: number("ai_settings_max_output_tokens", current.ai_max_output_tokens ?? 700),
       ai_telegram_include_context: checked("ai_settings_telegram_include_context", current.ai_telegram_include_context),
@@ -5323,12 +6957,73 @@ class PomTeslaReportPanel extends HTMLElement {
     return this._saveAISettings("automationSettingsSaved");
   }
 
-  _readFileAsDataURL(file) {
+  _dashboardUploadMaxBytes() {
+    return Number(this._settingsData?.dashboard_settings?.max_bytes || 25 * 1024 * 1024);
+  }
+
+  _setDashboardUploadProgress(slot, percent, text, busy = true) {
+    try {
+      const progress = this.shadowRoot.getElementById(`dashboard_upload_progress_${slot}`);
+      const bar = this.shadowRoot.getElementById(`dashboard_upload_progress_bar_${slot}`);
+      const label = this.shadowRoot.getElementById(`dashboard_upload_progress_text_${slot}`);
+      const btn = this.shadowRoot.getElementById(`dashboard_upload_btn_${slot}`);
+      if (progress) progress.style.display = busy ? "block" : "none";
+      if (bar) bar.style.width = `${Math.max(0, Math.min(100, Number(percent) || 0))}%`;
+      if (label) label.textContent = text || `${Math.round(percent || 0)}%`;
+      if (btn) btn.disabled = Boolean(busy);
+      if (this._backupBusy) {
+        this._updateBusyOverlay({
+          title: this._t("uploadBusyTitle"),
+          sub: text || `${this._t("dashboardUploadProgress")}: ${Math.round(percent || 0)}%`,
+          footer: this._t("uploadBusyFooter"),
+          percent,
+        });
+      }
+    } catch (err) {}
+  }
+
+  _hassAuthToken() {
+    try {
+      const direct = this._hass?.auth?.data?.access_token || this._hass?.connection?.options?.auth?.data?.access_token;
+      if (direct) return direct;
+    } catch (err) {}
+    try {
+      const raw = window.localStorage.getItem("hassTokens");
+      if (!raw) return "";
+      const parsed = JSON.parse(raw);
+      return parsed?.access_token || "";
+    } catch (err) { return ""; }
+  }
+
+  _uploadDashboardMediaMultipart(slot, file) {
     return new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onload = () => resolve(String(reader.result || ""));
-      reader.onerror = () => reject(reader.error || new Error("Could not read selected file."));
-      reader.readAsDataURL(file);
+      const xhr = new XMLHttpRequest();
+      const form = new FormData();
+      form.append("slot", slot);
+      form.append("file", file, file.name || `${slot}.png`);
+      xhr.open("POST", "/api/pom_tesla_report/dashboard_media", true);
+      const token = this._hassAuthToken();
+      if (token) xhr.setRequestHeader("Authorization", `Bearer ${token}`);
+      xhr.responseType = "json";
+      xhr.upload.onprogress = (ev) => {
+        if (ev.lengthComputable) {
+          const pct = Math.round((ev.loaded / ev.total) * 100);
+          this._setDashboardUploadProgress(slot, pct, `${this._t("dashboardUploadProgress")}: ${pct}%`);
+        } else {
+          this._setDashboardUploadProgress(slot, 10, this._t("dashboardUploadPreparing"));
+        }
+      };
+      xhr.onerror = () => reject(new Error("Upload failed."));
+      xhr.onload = () => {
+        const payload = xhr.response || (() => { try { return JSON.parse(xhr.responseText || "{}"); } catch(e) { return {}; } })();
+        if (xhr.status < 200 || xhr.status >= 300 || payload?.success === false) {
+          reject(new Error(payload?.error || `Upload failed (${xhr.status}).`));
+          return;
+        }
+        resolve(payload);
+      };
+      this._setDashboardUploadProgress(slot, 0, this._t("dashboardUploadPreparing"));
+      xhr.send(form);
     });
   }
 
@@ -5341,25 +7036,28 @@ class PomTeslaReportPanel extends HTMLElement {
       this._render();
       return;
     }
-    this._loading = true;
+    const maxBytes = this._dashboardUploadMaxBytes();
+    if (file.size > maxBytes) {
+      this._error = `${this._t("dashboardFileTooLarge")}: ${Math.round(maxBytes / 1024 / 1024)} MB.`;
+      this._render();
+      return;
+    }
     this._error = "";
     this._status = "";
-    this._render();
+    this._showBusyOverlay(this._t("uploadBusyTitle"), this._t("uploadBusySub"), this._t("uploadBusyFooter"), 0);
+    this._setDashboardUploadProgress(slot, 0, this._t("dashboardUploadPreparing"));
     try {
-      const dataUrl = await this._readFileAsDataURL(file);
-      const payload = await this._hass.callApi("POST", "pom_tesla_report/dashboard_media", {
-        action: "upload",
-        slot,
-        filename: file.name || `${slot}.png`,
-        data_url: dataUrl,
-      });
-      if (payload?.success === false) throw new Error(payload?.error || "Upload failed.");
+      const payload = await this._uploadDashboardMediaMultipart(slot, file);
       this._settingsData = this._normalizeSettingsPayload(payload);
       this._status = this._t("dashboardUploadOk");
+      this._setDashboardUploadProgress(slot, 100, `${this._t("dashboardUploadProgress")}: 100%`, false);
+      this._render();
     } catch (err) {
       this._error = this._formatError(err);
+      this._setDashboardUploadProgress(slot, 0, "", false);
+      this._render();
     } finally {
-      this._loading = false;
+      this._hideBusyOverlay();
       this._render();
     }
   }
@@ -5458,10 +7156,208 @@ class PomTeslaReportPanel extends HTMLElement {
     `;
   }
 
+
+  _serviceStatusClass(status) {
+    const raw = String(status || "unknown").toLowerCase();
+    if (["ok", "active", "ready", "online"].includes(raw)) return "ok";
+    if (["warning", "pending", "idle", "disabled", "unknown", "not_tested"].includes(raw)) return "warn";
+    if (["error", "critical", "missing"].includes(raw)) return "bad";
+    return "warn";
+  }
+
+  _serviceStatusLabel(status) {
+    const key = `serviceStatus_${String(status || "unknown").toLowerCase()}`;
+    const translated = this._t(key);
+    return translated === key ? String(status || "unknown") : translated;
+  }
+
+  _buildSystemControlItems() {
+    const general = this._settingsData?.general_settings || {};
+    const summary = general.resource_summary || {};
+    const system = general.system || {};
+    const health = general.health || this._settingsData?.health || {};
+    const counts = health.counts || {};
+    const selfRef = health.self_reference || {};
+    const autofind = health.autofind || {};
+    const dashboardMissing = Number(summary.missing_total ?? summary.missing ?? 0);
+    const dashboardTotal = Number(summary.total ?? summary.resource_total ?? 0);
+    const pomEntities = Number(counts.pom_entities ?? counts.pom_entity_count ?? 0);
+    const haEntities = Number(counts.ha_entities ?? counts.entity_count ?? 0);
+    const runningAutoFind = Array.isArray(autofind.running) ? autofind.running : [];
+    const diag = this._liveTripDiagnostics || {};
+    const derived = diag.derived || {};
+    const live = diag.live_trip_state || {};
+    const warnings = Array.isArray(derived.warnings) ? derived.warnings : [];
+    const settings = this._settingsData || {};
+    const telegram = settings.telegram || {};
+    const ai = settings.ai_settings || {};
+    const chargingRecordsOk = this._systemControlSnapshot?.charge_records?.ok;
+    const tripRecordsOk = this._systemControlSnapshot?.trip_records?.ok;
+    const chargeRecordsCount = this._systemControlSnapshot?.charge_records?.count;
+    const tripRecordsCount = this._systemControlSnapshot?.trip_records?.count;
+    const dashboardResourcesOk = this._systemControlSnapshot?.dashboard_resources?.ok;
+
+    const telegramEnabled = Boolean(telegram.builtin_telegram_enabled || telegram.replies_enabled || telegram.ai_group_listener_enabled);
+    const telegramHasTarget = Boolean(String(telegram.telegram_group_id || "").trim());
+    const telegramHasBot = Boolean(String(telegram.builtin_telegram_bot_token || "").trim()) || Boolean(telegram.mode === "ha_telegram_service");
+    const aiEnabled = Boolean(ai.ai_enabled);
+    const aiHasKey = Boolean(String(ai.openai_api_key || "").trim() || String(ai.api_key || "").trim());
+
+    return [
+      {
+        key: "integration",
+        icon: "🧩",
+        label: this._t("serviceIntegration"),
+        status: system.has_config_entry ? "online" : "error",
+        detail: system.has_config_entry ? this._t("serviceIntegrationOk") : this._t("serviceIntegrationMissing"),
+      },
+      {
+        key: "dashboard",
+        icon: "🖥️",
+        label: this._t("serviceDashboard"),
+        status: dashboardMissing > 0 || dashboardResourcesOk === false ? "warning" : "ok",
+        detail: dashboardMissing > 0 ? `${dashboardMissing}/${dashboardTotal || "?"} ${this._t("serviceMissing")}` : this._t("serviceDashboardOk"),
+      },
+      {
+        key: "entities",
+        icon: "🔗",
+        label: this._t("serviceEntities"),
+        status: (selfRef.issue_count || 0) > 0 ? "error" : (runningAutoFind.length ? "pending" : "ok"),
+        detail: (selfRef.issue_count || 0) > 0 ? this._t("serviceSelfReference") : `${pomEntities || "—"} POM / ${haEntities || "—"} HA`,
+      },
+      {
+        key: "live_trip",
+        icon: "🛣️",
+        label: this._t("serviceLiveTrip"),
+        status: live.active ? "active" : (warnings.filter((w) => !/below start threshold/i.test(String(w))).length ? "warning" : "ready"),
+        detail: live.active ? this._t("serviceLiveTripActive") : ((warnings[0] && /below start threshold/i.test(String(warnings[0]))) ? this._t("serviceLiveTripParkedWaiting") : (warnings.filter((w) => !/below start threshold/i.test(String(w)))[0] || this._t("serviceLiveTripReady"))),
+      },
+      {
+        key: "trip_records",
+        icon: "📘",
+        label: this._t("serviceTripRecords"),
+        status: tripRecordsOk === false ? "error" : (tripRecordsOk === true ? "ok" : "not_tested"),
+        detail: tripRecordsOk === false ? this._t("serviceWriteError") : (tripRecordsOk === true ? `${Number.isFinite(Number(tripRecordsCount)) ? tripRecordsCount : "—"} ${this._t("serviceRecordsLoaded")}` : this._t("serviceRefreshToTest")),
+      },
+      {
+        key: "charge_records",
+        icon: "🔌",
+        label: this._t("serviceChargeRecords"),
+        status: chargingRecordsOk === false ? "error" : (chargingRecordsOk === true ? "ok" : "not_tested"),
+        detail: chargingRecordsOk === false ? this._t("serviceWriteError") : (chargingRecordsOk === true ? `${Number.isFinite(Number(chargeRecordsCount)) ? chargeRecordsCount : "—"} ${this._t("serviceRecordsLoaded")}` : this._t("serviceRefreshToTest")),
+      },
+      {
+        key: "telegram",
+        icon: "✈️",
+        label: this._t("serviceTelegram"),
+        status: !telegramEnabled ? "disabled" : (!telegramHasTarget ? "warning" : (!telegramHasBot ? "warning" : "ready")),
+        detail: !telegramEnabled ? this._t("serviceDisabled") : (!telegramHasTarget ? this._t("serviceTelegramChatMissing") : (!telegramHasBot ? this._t("serviceTelegramBotMissing") : this._t("serviceTelegramReady"))),
+      },
+      {
+        key: "ai",
+        icon: "🤖",
+        label: this._t("serviceAI"),
+        status: !aiEnabled ? "disabled" : (!aiHasKey ? "warning" : "ready"),
+        detail: !aiEnabled ? this._t("serviceDisabled") : (!aiHasKey ? this._t("serviceAiKeyMissing") : this._t("serviceAiReady")),
+      },
+    ];
+  }
+
+  _renderServiceCard(item) {
+    const cls = this._serviceStatusClass(item.status);
+    return `
+      <div class="service-card ${cls}">
+        <div class="service-top">
+          <span class="service-icon">${this._esc(item.icon || "•")}</span>
+          <span class="service-pill ${cls}">${this._esc(this._serviceStatusLabel(item.status))}</span>
+        </div>
+        <b>${this._esc(item.label || "")}</b>
+        <small>${this._esc(item.detail || "")}</small>
+      </div>
+    `;
+  }
+
+  _renderSystemControlPanel() {
+    const items = this._buildSystemControlItems();
+    const bad = items.filter((item) => this._serviceStatusClass(item.status) === "bad").length;
+    const warn = items.filter((item) => this._serviceStatusClass(item.status) === "warn").length;
+    const stateText = bad ? this._t("servicePanelHasErrors") : (warn ? this._t("servicePanelHasWarnings") : this._t("servicePanelAllGood"));
+    return `
+      <section class="card system-control-card">
+        <div class="card-h">
+          <div><h2>${this._t("systemControlPanel")}</h2><div class="hint">${this._t("systemControlPanelSub")}</div></div>
+          <button id="refreshSystemControlBtn" class="secondary">${this._t("refreshSystemControl")}</button>
+        </div>
+        <div class="body">
+          <div class="service-overview ${bad ? "bad" : warn ? "warn" : "ok"}">${this._esc(stateText)}</div>
+          <div class="service-grid">
+            ${items.map((item) => this._renderServiceCard(item)).join("")}
+          </div>
+        </div>
+      </section>
+    `;
+  }
+
+  _renderPomSystemJournal() {
+    const events = Array.isArray(this._pomEvents) ? this._pomEvents.slice(0, 500) : [];
+    const lastError = events.find((item) => String(item.level || "").toLowerCase() === "error");
+    const lastEvent = events[0] || null;
+    const payload = this._systemLogsPayload || null;
+    const systemLogLines = Array.isArray(payload?.lines) ? payload.lines : [];
+    const shownEvents = events.slice(0, 60);
+    return `
+      <section class="card system-journal-card">
+        <div class="card-h">
+          <div><h2>${this._t("pomSystemJournal")}</h2><div class="hint">${this._t("pomSystemJournalSub")}</div></div>
+          <div class="actions">
+            <button id="togglePomJournalBtn" class="secondary">${this._pomJournalExpanded ? this._t("hideEvents") : this._t("showEvents")}</button>
+            <button id="downloadPomSupportReportBtn" class="secondary">${this._t("downloadSupportReport")}</button>
+            <button id="clearPomJournalBtn" class="secondary">${this._t("clearPomJournal")}</button>
+          </div>
+        </div>
+        <div class="body">
+          <div class="note">${this._t("supportReportDownloadHint")}</div>
+          <div class="journal-summary">
+            <div><span>${this._t("journalStatus")}</span><b>${lastError ? this._t("healthWarning") : this._t("healthNormal")}</b></div>
+            <div><span>${this._t("journalLastError")}</span><b>${this._esc(lastError?.title || this._t("none"))}</b></div>
+            <div><span>${this._t("journalLastEvent")}</span><b>${this._esc(lastEvent?.title || this._t("none"))}</b></div>
+            <div><span>${this._t("journalEventCount")}</span><b>${this._esc(String(events.length))} / 500</b></div>
+          </div>
+          <div class="actions compact-actions">
+            <button id="showSystemLogsBtn" class="secondary">${this._t("loadHaLogTail")}</button>
+            <button id="clearSystemLogsBtn" class="secondary">${this._t("clearLogView")}</button>
+          </div>
+          ${this._pomJournalExpanded ? `
+            <div class="journal-list">
+              ${shownEvents.map((item) => `
+                <div class="journal-row ${this._esc(String(item.level || "info").toLowerCase())}">
+                  <span>${this._esc(String(item.ts || "").replace("T", " ").slice(0, 19))}</span>
+                  <b>${this._esc(item.title || "")}</b>
+                  <small>${this._esc(item.module || "panel")}</small>
+                </div>
+              `).join("") || `<div class="note">${this._t("pomJournalEmpty")}</div>`}
+            </div>
+            ${systemLogLines.length ? `<div class="debug-panel debug-output-panel system-logs-panel"><pre>${this._esc(systemLogLines.join("\\n"))}</pre></div>` : ""}
+          ` : ""}
+          <div class="note">${this._t("pomJournalNote")}</div>
+        </div>
+      </section>
+    `;
+  }
+
+  _renderSystemStatusCenter() {
+    return `
+      ${this._renderSystemControlPanel()}
+      ${this._renderPomSystemJournal()}
+    `;
+  }
+
+
   _renderTripSettings() {
     const trip = this._settingsData?.trip_reports || {};
     const tracker = trip.trip_map_tracker_entity || "";
-    const section = this._tripSettingsSection || "tracking";
+    const requestedSection = this._tripSettingsSection || "live_trip";
+    const section = requestedSection === "tracking" ? "live_trip" : requestedSection;
     const fieldToggles = [
       ["trip_show_distance", trip.show_distance, "showDistance"],
       ["trip_show_duration", trip.show_duration, "showDuration"],
@@ -5481,8 +7377,6 @@ class PomTeslaReportPanel extends HTMLElement {
       <div class="note">${this._t("trackingEmptySub")}</div>
     `;
     const liveTripContent = `
-      <div class="section-title">${this._t("liveTripSettings")}</div>
-      <div class="note">${this._t("liveTripSettingsSub")}</div>
       ${this._toggle("trip_auto_trip_tracking", trip.auto_trip_tracking, this._t("enableAutoTripTracking"))}
       <div class="field-grid">
         <div><label>${this._t("startSpeedThreshold")}</label><input id="trip_auto_start_speed_threshold" inputmode="decimal" value="${this._esc(trip.auto_start_speed_threshold ?? 2)}" /><div class="note">${this._t("speedUnit")}</div></div>
@@ -5491,11 +7385,40 @@ class PomTeslaReportPanel extends HTMLElement {
         <div><label>${this._t("liveTripFinishDelaySeconds")}</label><input id="trip_live_trip_finish_delay_minutes" inputmode="decimal" value="${this._esc(this._secondsToMinutesValue(trip.live_trip_finish_delay_seconds ?? 1800))}" /><div class="note">${this._t("minutesShort")} · Park içinde tekrar hareket ederse Live Trip devam eder.</div></div>
         <div><label>${this._t("liveTripMinDistanceKm")}</label><input id="trip_live_trip_min_distance_km" inputmode="decimal" value="${this._esc(trip.live_trip_min_distance_km ?? 0)}" /><div class="note">km</div></div>
       </div>
+      <div class="section-title">${this._lang === "en" ? "Candidate trip / Short maneuver filter" : "Aday sürüş / Kısa manevra filtresi"}</div>
+      <div class="note">${this._t("liveTripCandidateNote")}</div>
+      ${this._toggle("trip_live_trip_ignore_short_maneuvers", trip.live_trip_ignore_short_maneuvers, this._t("liveTripIgnoreShortManeuvers"))}
+      <div class="field-grid">
+        <div><label>${this._t("liveTripCandidateMinDistanceKm")}</label><input id="trip_live_trip_candidate_min_distance_km" inputmode="decimal" value="${this._esc(trip.live_trip_candidate_min_distance_km ?? 0.30)}" /><div class="note">km · ${this._lang === "en" ? "Recommended: 0.30" : "Önerilen: 0.30"}</div></div>
+        <div><label>${this._t("liveTripCandidateMinDurationMinutes")}</label><input id="trip_live_trip_candidate_min_duration_minutes" inputmode="decimal" value="${this._esc(this._secondsToMinutesValue(trip.live_trip_candidate_min_duration_seconds ?? 120))}" /><div class="note">${this._t("minutesShort")} · ${this._lang === "en" ? "Recommended: 2" : "Önerilen: 2"}</div></div>
+      </div>
+      <div class="section-title">${this._t("liveTripAiCommentSettings")}</div>
+      <div class="note">${this._t("liveTripAiCommentSettingsSub")}</div>
+      <div class="field-grid">
+        <div>
+          <label>${this._t("liveTripAiSegmentDistanceKm")}</label>
+          <select id="trip_live_trip_ai_segment_distance_km">
+            ${this._selectOptions(String(trip.live_trip_ai_segment_distance_km ?? 10), [["1", "1 km"], ["5", "5 km"], ["10", "10 km"]])}
+          </select>
+          <div class="note">${this._t("liveTripAiSegmentDistanceNote")}</div>
+        </div>
+        <div class="backup-side-actions">
+          <button id="testLiveTripAiCommentBtn" class="secondary-btn" type="button">${this._t("testLiveTripAiComment")}</button>
+          <div class="note">${this._lang === "en" ? "Creates a panel-only test comment; it does not write Trip Records." : "Sadece panelde test yorumu üretir; Sürüş Kayıtları'na yazmaz."}</div>
+        </div>
+      </div>
       <div class="section-title">${this._lang === "en" ? "AI trip story" : "AI sürüş hikâyesi"}</div>
       <div class="note">${this._lang === "en"
         ? "This belongs to Live Trip. The AI story is sent only after the normal visual Live Trip report. It follows the same Park/report delay, so it cannot arrive before the main report."
         : "Bu ayar Live Trip içindedir. AI hikâyesi sadece normal görsel Live Trip raporu gönderildikten sonra gider. Park/rapor gecikmesini aynen takip eder; ana rapordan önce gelemez."}</div>
       ${this._toggle("trip_ai_story_enabled", trip.ai_trip_story_enabled, this._lang === "en" ? "Send AI story after Live Trip report" : "Live Trip raporundan sonra AI sürüş hikâyesi gönder")}
+      <div class="field-grid single-field">
+        <div>
+          <label>${this._t("aiTripStoryDetailLevel")}</label>
+          <select id="trip_ai_story_detail_level">${this._selectOptions(trip.ai_trip_story_detail_level || "detailed", [["basic", this._t("aiTripStoryDetailBasic")], ["balanced", this._t("aiTripStoryDetailBalanced")], ["detailed", this._t("aiTripStoryDetailDetailed")]])}</select>
+          <div class="note">${this._t("aiTripStoryDetailNote")}</div>
+        </div>
+      </div>
       <div class="note">${this._lang === "en"
         ? `Timing: uses the same Live Trip report delay (${this._secondsToMinutesValue(trip.live_trip_finish_delay_seconds ?? 1800)} min) and then sends after the visual report.`
         : `Zamanlama: aynı Live Trip rapor gecikmesini kullanır (${this._secondsToMinutesValue(trip.live_trip_finish_delay_seconds ?? 1800)} dk) ve görsel rapordan sonra gönderir.`}</div>
@@ -5516,36 +7439,44 @@ class PomTeslaReportPanel extends HTMLElement {
       <div class="visual-grid">
         ${fieldToggles.map(([id, checked, label]) => this._toggle(id, checked, this._t(label))).join("")}
       </div>
+      <div class="periodic-report-box">
+        <div class="orange-title">${this._t("periodicTelegramReports")}</div>
+        <div class="note">${this._t("periodicTelegramReportsSub")}</div>
+        <div class="periodic-grid">
+          ${this._toggle("trip_telegram_weekly_trip_report_enabled", trip.telegram_weekly_trip_report_enabled, this._t("weeklyTripReport"))}
+          ${this._toggle("trip_telegram_monthly_trip_report_enabled", trip.telegram_monthly_trip_report_enabled, this._t("monthlyTripReport"))}
+          ${this._toggle("trip_telegram_weekly_charge_report_enabled", trip.telegram_weekly_charge_report_enabled, this._t("weeklyChargeReport"))}
+          ${this._toggle("trip_telegram_monthly_charge_report_enabled", trip.telegram_monthly_charge_report_enabled, this._t("monthlyChargeReport"))}
+        </div>
+      </div>
     `;
-    const content = section === "live_trip" ? liveTripContent : (section === "report_fields" ? reportContent : trackingContent);
-    const title = section === "live_trip" ? this._t("liveTripSettings") : (section === "report_fields" ? this._t("visualFields") : this._t("tracking"));
+    const content = section === "report_fields" ? reportContent : liveTripContent;
+    const title = section === "live_trip" ? this._t("liveTripSettings") : this._t("visualFields");
+    const sectionHint = section === "live_trip" ? this._t("tripReportSettingsSub") : this._t("visualFieldsSub");
+    const sectionKicker = this._lang === "en" ? "Settings menu" : "Ayar menüsü";
     return `
       <div class="settings-grid wide">
         <section class="card accent">
           <div class="card-h"><div><h2>${this._t("tripReportSettings")}</h2><div class="hint">${this._t("tripReportSettingsSub")}</div></div></div>
           <div class="body">
             <div class="module-list">
-              ${moduleCard("tracking", this._t("tracking"), this._t("trackingEmptySub"))}
               ${moduleCard("live_trip", this._t("liveTripSettings"), this._t("liveTripSettingsSub"))}
               ${moduleCard("report_fields", this._t("visualFields"), this._t("visualFieldsSub"))}
             </div>
             <div class="test-card">
               <h3>${this._t("tripTelegramTest")}</h3>
               <p>${this._t("tripTelegramTestSub")}</p>
-              <div class="actions wrap">
-                <button id="sendTestTripReportBtn">${this._t("sendTestTripReport")}</button>
-                <button id="startLiveTripTestBtn" class="secondary">${this._t("startLiveTripTest")}</button>
-                <button id="finishLiveTripTestBtn" class="secondary">${this._t("finishLiveTripTest")}</button>
-                <button id="resetLiveTripTestBtn" class="secondary">${this._t("resetLiveTripTest")}</button>
+              <div class="test-drive-actions">
+                <button id="sendTestTripCityBtn">${this._t("sendShortCityTrip")}</button>
+                <button id="sendTestTripTrafficBtn">${this._t("sendTrafficTrip")}</button>
+                <button id="sendTestTripEfficientBtn">${this._t("sendEfficientTrip")}</button>
               </div>
-              <div class="note">${this._t("liveTripTestSubNote")}</div>
               <div class="note">${this._t("testTripNoLedger")}</div>
-              ${this._renderLiveTripDebugPanel()}
             </div>
           </div>
         </section>
-        <section class="card">
-          <div class="card-h"><div><h2>${this._esc(title)}</h2><div class="hint">${this._t("tripReportSettingsSub")}</div></div></div>
+        <section class="card section-card">
+          <div class="card-h section-hero"><div><div class="hero-kicker"><span class="hero-dot"></span>${this._esc(sectionKicker)}</div><h2>${this._esc(title)}</h2><div class="hint">${this._esc(sectionHint)}</div></div></div>
           <div class="body">
             ${content}
             <div class="actions"><button id="saveTripSettingsBtn">${this._t("saveTripSettings")}</button><button id="refreshBtn" class="secondary">${this._t("refresh")}</button></div>
@@ -5576,8 +7507,80 @@ class PomTeslaReportPanel extends HTMLElement {
     return Object.entries(options || {}).map(([value, label]) => [value, label]);
   }
 
+  _dashboardSelectFallbackOptions(id = "") {
+    const key = String(id || "");
+    const top = [
+      ["elevation", "Elevation"],
+      ["power", "Power"],
+      ["speed", "Speed"],
+      ["battery_level", "Battery level"],
+      ["est_range", "Estimated range"],
+      ["rated_range", "Rated range"],
+      ["energy_remaining", "Energy remaining"],
+      ["inside_temp", "Inside temperature"],
+      ["outside_temp", "Outside temperature"],
+      ["battery_temp", "Battery/module temperature"],
+      ["odometer", "Odometer"],
+      ["battery_heater", "Battery heater"],
+      ["empty", "Empty / hidden"],
+    ];
+    const center = [
+      ["speed", "Speed"],
+      ["battery_level", "Battery level"],
+      ["power", "Power"],
+      ["energy_remaining", "Energy remaining"],
+      ["empty", "Empty / hidden"],
+    ];
+    const sidebar = [
+      ["empty", "Empty / hidden"],
+      ["honk", "Honk horn"],
+      ["flash_lights", "Flash lights"],
+      ["sentry", "Sentry mode"],
+      ["horn", "Horn"],
+      ["fart", "Fart"],
+      ["windows", "Windows"],
+      ["rear_middle_seat_heater", "Rear middle seat heater"],
+      ["rear_right_seat_heater", "Rear right seat heater"],
+      ["rear_left_seat_heater", "Rear left seat heater"],
+      ["right_seat_heater", "Right seat heater"],
+      ["left_seat_heater", "Left seat heater"],
+      ["charge_cable_lock", "Charge cable lock"],
+      ["charge_port", "Charge port"],
+      ["valet_mode", "Valet mode"],
+      ["wake", "Wake vehicle"],
+      ["home_entity_1", "Home entity 1"],
+      ["home_entity_2", "Home entity 2"],
+    ];
+    const location = [
+      ["auto_short", "Auto short address"],
+      ["neighbourhood", "Neighborhood / quarter"],
+      ["suburb", "Suburb"],
+      ["district", "District"],
+      ["city", "City / town"],
+      ["road", "Road / street"],
+    ];
+    const bottom = [
+      ["energy_remaining", "Energy remaining"],
+      ["inside_temp", "Inside temperature"],
+      ["battery_temp", "Battery/module temperature"],
+      ["outside_temp", "Outside temperature"],
+      ["odometer", "Odometer"],
+      ["battery_heater", "Battery heater"],
+      ["empty", "Empty / hidden"],
+    ];
+    if (key.includes("top_center")) return center;
+    if (key.includes("top_")) return top;
+    if (key.includes("sidebar_slot")) return sidebar;
+    if (key.includes("location_display")) return location;
+    if (key.includes("bottom_slot")) return bottom;
+    return [["empty", "Empty / hidden"]];
+  }
+
   _renderDashboardSelect(id, value, options) {
-    return `<select id="${this._esc(id)}">${this._selectOptions(value, this._optionObjectToPairs(options))}</select>`;
+    const pairs = this._optionObjectToPairs(options);
+    const finalPairs = pairs.length ? pairs : this._dashboardSelectFallbackOptions(id);
+    const finalValue = String(value || (finalPairs[0]?.[0] ?? ""));
+    return `<select id="${this._esc(id)}">${this._selectOptions(finalValue, finalPairs)}</select>`;
   }
 
   _personEntityOptions(selected = "") {
@@ -5608,10 +7611,11 @@ class PomTeslaReportPanel extends HTMLElement {
               <option value="720" ${String(cfg.quality || "480") === "720" ? "selected" : ""}>720p</option>
               <option value="1080_lite" ${String(cfg.quality || "480") === "1080_lite" ? "selected" : ""}>1080 Lite</option>
               <option value="1080" ${String(cfg.quality || "480") === "1080" ? "selected" : ""}>1080 Max</option>
+              <option value="1080_high" ${String(cfg.quality || "480") === "1080_high" ? "selected" : ""}>1080 High</option>
             </select></div>
             <div class="field-wrap"><label>${this._t("dashboardYoutubeStartSeconds")}</label><input id="dashboard_youtube_driving_bg_start_seconds" type="number" min="0" step="1" value="${this._esc(String(cfg.start_seconds ?? 0))}"></div>
           </div>
-          <div class="note">Tesla Safe YouTube: HA içinde yt-dlp + ffmpeg ile WebSocket MPEG-TS üretir, dashboard ise JSMpeg Canvas2D ile gösterir. Reconnect olursa oynatıcı kaldığı yere yakın yeniden bağlanır.</div>
+          <div class="note">Tesla Safe YouTube: HA içinde yt-dlp + ffmpeg ile WebSocket MPEG-TS üretir, dashboard ise JSMpeg Canvas2D ile gösterir. 1080 High daha keskindir ama CPU/ağ yükü daha fazladır. Reconnect olursa oynatıcı kaldığı yere yakın yeniden bağlanır.</div>
         </div>
       </div>
     `;
@@ -5624,11 +7628,9 @@ class PomTeslaReportPanel extends HTMLElement {
           ${this._dashboardPreview(currentUrl)}
         </div>
         <div class="dashboard-upload-main">
-          <div>
-            <div class="dashboard-upload-title">${this._esc(title)}</div>
-            <div class="hint">${this._t("dashboardCurrentAsset")}</div>
-          </div>
-          <div class="dashboard-current-url">${this._esc(currentUrl || "")}</div>
+          <div class="dashboard-upload-title">${this._esc(title)}</div>
+          <div class="hint">${this._t("dashboardCurrentAsset")}</div>
+          <div class="dashboard-current-url">${this._esc(currentUrl || "—")}</div>
         </div>
         <div class="dashboard-upload-side">
           <div class="dashboard-upload-actions">
@@ -5638,6 +7640,7 @@ class PomTeslaReportPanel extends HTMLElement {
             <button class="secondary" id="dashboard_reset_btn_${this._esc(slot)}">${this._t("dashboardResetDefault")}</button>
           </div>
           <div class="note" id="dashboard_file_note_${this._esc(slot)}">${this._t("dashboardNoFileSelected")}</div>
+          <div class="dashboard-upload-progress" id="dashboard_upload_progress_${this._esc(slot)}" style="display:none"><div class="dashboard-upload-progress-bar"><i id="dashboard_upload_progress_bar_${this._esc(slot)}"></i></div><div class="note" id="dashboard_upload_progress_text_${this._esc(slot)}">0%</div></div>
         </div>
       </div>
     `;
@@ -5668,8 +7671,16 @@ class PomTeslaReportPanel extends HTMLElement {
   _renderDashboardGeneralSettings(dashboard) {
     const status = dashboard.resources_status || {};
     const summary = status.summary || {};
+    const map = dashboard.map || {};
+    const mapModes = Array.isArray(map.map_theme_modes_list) && map.map_theme_modes_list.length
+      ? map.map_theme_modes_list.map((item) => [item.value, item.value === "light" ? this._t("dashboardMapThemeLight") : this._t("dashboardMapThemeDark")])
+      : [["dark", this._t("dashboardMapThemeDark")], ["light", this._t("dashboardMapThemeLight")]];
     return `
       <div class="settings-hero"><b>${this._t("dashboardGeneralSettings")}</b><span class="muted">${this._t("dashboardMenuGeneralSub")}</span></div>
+      <div class="field-grid dashboard-map-theme-grid">
+        <div><label>${this._t("dashboardMapThemeMode")}</label>${this._renderDashboardSelect("dashboard_map_theme_mode", map.map_theme_mode || "dark", mapModes)}<div class="note">${this._t("dashboardMapThemeNote")}</div></div>
+      </div>
+      <div class="actions"><button id="saveDashboardSettingsBtn">${this._t("saveDashboardSettings")}</button><button id="refreshBtn" class="secondary">${this._t("refresh")}</button></div>
       <div class="resource-summary-grid">
         <div><span>${this._t("dashboardResourcesTitle")}</span><b>${this._esc(summary.resources_missing ?? 0)} / ${this._esc(summary.resources_total ?? 0)}</b><small>${this._t("dashboardMissing")}</small></div>
         <div><span>${this._t("dashboardCustomCardInfo")}</span><b>${this._esc(summary.dependencies_missing ?? 0)} / ${this._esc(summary.dependencies_total ?? 0)}</b><small>${this._t("dashboardMissing")}</small></div>
@@ -5776,10 +7787,8 @@ class PomTeslaReportPanel extends HTMLElement {
         <div class="settings-hero"><b>${this._t("dashboardBottomBarSettings")}</b><span class="muted">${this._t("dashboardMenuBottomBarSub")}</span></div>
         <div class="field-grid">
           <div><label>${this._t("location_display_mode")}</label>${this._renderDashboardSelect("dashboard_location_display_mode", bottom.location_display_mode || "auto_short", locationOptions)}</div>
-          <div><label>${this._t("bottom_slot_1")}</label>${this._renderDashboardSelect("dashboard_bottom_slot_1", bottomSlots.bottom_slot_1 || "energy_remaining", bottomSlotOptions)}</div>
-          <div><label>${this._t("bottom_slot_2")}</label>${this._renderDashboardSelect("dashboard_bottom_slot_2", bottomSlots.bottom_slot_2 || "inside_temp", bottomSlotOptions)}</div>
-          <div><label>${this._t("bottom_slot_3")}</label>${this._renderDashboardSelect("dashboard_bottom_slot_3", bottomSlots.bottom_slot_3 || "battery_temp", bottomSlotOptions)}</div>
         </div>
+        <div class="note">${this._t("bottomSlotsLiveNote")}</div>
         <div class="visual-grid dashboard-toggle-grid">
           ${this._toggle("dashboard_show_bottom_map_toggle", bottomToggles.show_bottom_map_toggle, "show_bottom_map_toggle")}
           ${this._toggle("dashboard_show_bottom_controls", bottomToggles.show_bottom_controls, "show_bottom_controls")}
@@ -5794,9 +7803,13 @@ class PomTeslaReportPanel extends HTMLElement {
       `;
     }
     if (section === "map") {
+      const mapModes = Array.isArray(map.map_theme_modes_list) && map.map_theme_modes_list.length
+        ? map.map_theme_modes_list.map((item) => [item.value, item.label])
+        : [["dark", this._t("dashboardMapThemeDark")], ["light", this._t("dashboardMapThemeLight")]];
       return `
         <div class="settings-hero"><b>${this._t("dashboardMapSettings")}</b><span class="muted">${this._t("dashboardMenuMapSub")}</span></div>
         <div class="field-grid">
+          <div><label>${this._t("dashboardMapThemeMode")}</label>${this._renderDashboardSelect("dashboard_map_theme_mode", map.map_theme_mode || "dark", mapModes)}<div class="note">${this._t("dashboardMapThemeNote")}</div></div>
           <div><label>${this._t("tesla_map_hours_to_show")}</label><input id="dashboard_tesla_map_hours_to_show" inputmode="numeric" value="${this._esc(map.tesla_map_hours_to_show ?? 1)}" /><div class="note">0-24</div></div>
           <div><label>${this._t("person_map_hours_to_show")}</label><input id="dashboard_person_map_hours_to_show" inputmode="numeric" value="${this._esc(map.person_map_hours_to_show ?? 0)}" /><div class="note">0-24</div></div>
         </div>
@@ -5836,6 +7849,10 @@ class PomTeslaReportPanel extends HTMLElement {
           ${this._renderDashboardUploadCard("charging", this._t("dashboardBackgroundCharging"), images.charging || "")}
           ${this._renderDashboardUploadCard("driving", this._t("dashboardBackgroundDriving"), images.driving || "")}
           ${this._renderYoutubeDrivingBackgroundCard(dashboard.youtube_driving_background || {})}
+          ${this._renderDashboardUploadCard("drive_vehicle", this._t("dashboardDriveVehicleImageTitle"), dashboard.drive_dashboard?.vehicle_image || images.drive_vehicle || "")}
+          <div class="note">${this._t("dashboardDriveVehicleImageSub")}</div>
+          ${this._renderDashboardUploadCard("drive_tire", this._t("dashboardDriveTireImageTitle"), dashboard.drive_dashboard?.tire_pressure_image || images.drive_tire || "")}
+          <div class="note">${this._t("dashboardDriveTireImageSub")}</div>
         </div>
         <div class="sticky-save-row">
           <button class="primary" id="saveDashboardSettingsBtnBackground">${this._t("saveDashboardSettings")}</button>
@@ -5911,6 +7928,11 @@ class PomTeslaReportPanel extends HTMLElement {
         loop: checked("dashboard_youtube_driving_bg_loop", current.youtube_driving_background?.loop ?? true),
         quality: value("dashboard_youtube_driving_bg_quality", current.youtube_driving_background?.quality || "480"),
       },
+      drive_dashboard: {
+        ...(current.drive_dashboard || {}),
+        vehicle_image: current.drive_dashboard?.vehicle_image || "",
+        tire_pressure_image: current.drive_dashboard?.tire_pressure_image || "",
+      },
       fullscreen: {
         ...(current.fullscreen || {}),
         fullscreen_enabled: checked("dashboard_fullscreen_enabled", current.fullscreen?.fullscreen_enabled),
@@ -5961,6 +7983,7 @@ class PomTeslaReportPanel extends HTMLElement {
         },
       },
       map: {
+        map_theme_mode: value("dashboard_map_theme_mode", current.map?.map_theme_mode || "dark"),
         tesla_map_hours_to_show: this._number(root.getElementById("dashboard_tesla_map_hours_to_show")?.value ?? current.map?.tesla_map_hours_to_show ?? 1),
         person_map_hours_to_show: this._number(root.getElementById("dashboard_person_map_hours_to_show")?.value ?? current.map?.person_map_hours_to_show ?? 0),
       },
@@ -6015,7 +8038,7 @@ class PomTeslaReportPanel extends HTMLElement {
     try {
       const payload = await this._hass.callApi("POST", "pom_tesla_report/settings", { dashboard_settings });
       this._settingsData = this._applySettingsSaveResponse(payload, { dashboard_settings });
-      this._status = this._t("dashboardSettingsSaved");
+      this._status = payload?.dashboard_rebuild_started ? this._t("dashboardSettingsSavedRebuild") : this._t("dashboardSettingsSaved");
     } catch (err) {
       this._error = this._formatError(err);
     } finally {
@@ -6154,16 +8177,18 @@ class PomTeslaReportPanel extends HTMLElement {
             <h1>${this._t("title")}</h1>
             <div class="sub">${this._t("subtitle")}</div>
           </div>
-          <div class="pill">${this._currency}</div>
-          <div class="pill build-pill">${this._esc(this._frontendBuild || "")}</div>
+          <div class="pill build-pill" title="Tesla AI version">${this._esc(this._frontendBuild || "")}</div>
         </div>
         ${this._renderTabs()}
         ${loading}${error}${status}
+        ${this._renderAutoFindNoticeBanner()}
         ${this._renderActiveSafe()}
       </div>
       ${this._renderEntityPickerOverlay()}
+      ${this._renderBackupBusyOverlay()}
     `;
     this._syncHAEntityPickers();
+    this.shadowRoot.getElementById("autoFindNoticeClose")?.addEventListener("click", (ev) => { ev.preventDefault(); this._closeAutoFindNotice(); });
     this.shadowRoot.getElementById("tabCharge")?.addEventListener("click", () => { this._activeTab = "charge"; this._status = ""; this._error = ""; this._render(); this._ensureActiveLoaded(); });
     this.shadowRoot.getElementById("tabTrip")?.addEventListener("click", () => { this._activeTab = "trip"; this._status = ""; this._error = ""; this._render(); this._ensureActiveLoaded(); });
     this.shadowRoot.getElementById("tabManual")?.addEventListener("click", () => { this._activeTab = "manual"; this._status = ""; this._error = ""; this._render(); this._ensureActiveLoaded(); });
@@ -6176,6 +8201,8 @@ class PomTeslaReportPanel extends HTMLElement {
     this.shadowRoot.querySelectorAll(".mini-slot-btn").forEach((btn) => btn.addEventListener("click", (ev) => { ev.preventDefault(); ev.stopPropagation(); this._moveStationToReportSlot(btn.dataset.stationIndex, btn.dataset.stationSlot); }));
     this.shadowRoot.querySelectorAll(".station-row").forEach((row) => row.addEventListener("click", () => this._selectStation(row.dataset.stationIndex)));
     this.shadowRoot.getElementById("refreshBtn")?.addEventListener("click", () => this._loadActive());
+    this.shadowRoot.getElementById("refreshBtnHealth")?.addEventListener("click", () => this._loadHealth(true));
+    this.shadowRoot.getElementById("downloadHealthDiagnosticsBtn")?.addEventListener("click", () => this._downloadHealthDiagnostics());
     this.shadowRoot.getElementById("filterChargeToday")?.addEventListener("click", () => this._setDateFilter("charge", "today"));
     this.shadowRoot.getElementById("filterChargeMonth")?.addEventListener("click", () => this._toggleMonthPanel("charge"));
     this.shadowRoot.getElementById("filterChargeAll")?.addEventListener("click", () => this._setDateFilter("charge", "all"));
@@ -6199,6 +8226,7 @@ class PomTeslaReportPanel extends HTMLElement {
     this.shadowRoot.getElementById("saveTripBtn")?.addEventListener("click", () => this._saveTrip(this._selectedTripId ? "update" : "add"));
     this.shadowRoot.getElementById("addTripBtn")?.addEventListener("click", () => this._saveTrip("add"));
     this.shadowRoot.getElementById("deleteTripBtn")?.addEventListener("click", () => this._deleteTrip());
+    this.shadowRoot.getElementById("regenerateTripAiBtn")?.addEventListener("click", () => this._regenerateTripAiSummary());
     ["general","charging","trip","ai_settings","telegram","ai","automations","dashboard"].forEach((tab) => {
       const el = this.shadowRoot.getElementById(`settingsNav_${tab}`);
       const jump = (ev, source) => {
@@ -6230,6 +8258,9 @@ class PomTeslaReportPanel extends HTMLElement {
     });
     this.shadowRoot.getElementById("saveGeneralSettingsBtn")?.addEventListener("click", () => this._saveGeneralSettings());
     this.shadowRoot.getElementById("exportSettingsBtn")?.addEventListener("click", () => this._exportPanelSettings());
+    this.shadowRoot.getElementById("exportRecordsBtn")?.addEventListener("click", () => this._exportRecordsBackup());
+    this.shadowRoot.getElementById("exportFullBackupBtn")?.addEventListener("click", () => this._downloadFullBackup("zip"));
+    this.shadowRoot.getElementById("exportFullBackupJsonBtn")?.addEventListener("click", () => this._downloadFullBackup("json"));
     const dashboardTopFontScaleIds = ["dashboard_top_font_scale","dashboard_top_left_font_scale","dashboard_top_center_font_scale","dashboard_top_right_font_scale"];
     dashboardTopFontScaleIds.forEach((id) => {
       const el = this.shadowRoot.getElementById(id);
@@ -6250,11 +8281,28 @@ class PomTeslaReportPanel extends HTMLElement {
       if (file) this._pushDebugEvent("info", "Import file selected", { name: file.name, size: file.size, type: file.type });
     });
     this.shadowRoot.getElementById("saveTripSettingsBtn")?.addEventListener("click", () => this._saveTripSettings());
-    this.shadowRoot.getElementById("sendTestTripReportBtn")?.addEventListener("click", () => this._sendTestTripReport());
-    this.shadowRoot.getElementById("startLiveTripTestBtn")?.addEventListener("click", () => this._runLiveTripTestAction("start"));
-    this.shadowRoot.getElementById("finishLiveTripTestBtn")?.addEventListener("click", () => this._runLiveTripTestAction("finish"));
-    this.shadowRoot.getElementById("resetLiveTripTestBtn")?.addEventListener("click", () => this._runLiveTripTestAction("reset"));
-    this.shadowRoot.getElementById("refreshLiveTripDebugBtn")?.addEventListener("click", () => this._loadLiveTripDebug(true));
+    this.shadowRoot.getElementById("sendTestTripCityBtn")?.addEventListener("click", () => this._sendTestTripReport("city"));
+    this.shadowRoot.getElementById("sendTestTripTrafficBtn")?.addEventListener("click", () => this._sendTestTripReport("traffic"));
+    this.shadowRoot.getElementById("sendTestTripEfficientBtn")?.addEventListener("click", () => this._sendTestTripReport("efficient"));
+    this.shadowRoot.getElementById("trip_live_trip_ai_segment_distance_km")?.addEventListener("change", async (ev) => {
+      const km = this._applyTripIntervalToLocalSettings(Number(ev?.target?.value || 10));
+      if (ev?.target) ev.target.value = String(km);
+      try {
+        await this._saveLiveTripAiIntervalOnly(km, true);
+        this._render();
+      } catch (err) {
+        this._error = this._formatError(err);
+        this._render();
+      }
+    });
+    this.shadowRoot.getElementById("testLiveTripAiCommentBtn")?.addEventListener("click", () => this._runLiveTripAiCommentTest());
+    this.shadowRoot.getElementById("refreshGeneralLiveTripDebugBtn")?.addEventListener("click", () => this._loadLiveTripDebug(true));
+    this.shadowRoot.getElementById("showSystemLogsBtn")?.addEventListener("click", () => this._loadSystemLogs(true));
+    this.shadowRoot.getElementById("clearSystemLogsBtn")?.addEventListener("click", () => this._clearSystemLogs());
+    this.shadowRoot.getElementById("refreshSystemControlBtn")?.addEventListener("click", () => this._runSystemControlCheck());
+    this.shadowRoot.getElementById("togglePomJournalBtn")?.addEventListener("click", () => this._togglePomJournal());
+    this.shadowRoot.getElementById("downloadPomSupportReportBtn")?.addEventListener("click", () => this._downloadPomSupportReport());
+    this.shadowRoot.getElementById("clearPomJournalBtn")?.addEventListener("click", () => this._clearPomJournal());
     this.shadowRoot.getElementById("saveAISettingsBtn")?.addEventListener("click", () => this._saveAISettings());
     this.shadowRoot.getElementById("runAITestBtn")?.addEventListener("click", () => this._runAITest(false));
     this.shadowRoot.getElementById("runAITestTelegramBtn")?.addEventListener("click", () => this._runAITest(true));
@@ -6265,7 +8313,7 @@ class PomTeslaReportPanel extends HTMLElement {
     this.shadowRoot.getElementById("saveDashboardSettingsBtnBackground")?.addEventListener("click", () => this._saveDashboardSettings());
     this.shadowRoot.getElementById("reloadDashboardSettingsBtnBackground")?.addEventListener("click", () => this._loadAll());
     this.shadowRoot.getElementById("saveDashboardSettingsBtn")?.addEventListener("click", () => this._saveDashboardSettings());
-    ["parked", "charging", "driving"].forEach((slot) => {
+    ["parked", "charging", "driving", "drive_vehicle", "drive_tire"].forEach((slot) => {
       this.shadowRoot.getElementById(`dashboard_upload_btn_${slot}`)?.addEventListener("click", () => this._uploadDashboardBackground(slot));
       this.shadowRoot.getElementById(`dashboard_reset_btn_${slot}`)?.addEventListener("click", () => this._resetDashboardBackground(slot));
       this.shadowRoot.getElementById(`dashboard_file_${slot}`)?.addEventListener("change", (ev) => {
@@ -6277,16 +8325,22 @@ class PomTeslaReportPanel extends HTMLElement {
     this.shadowRoot.getElementById("saveTelegramSettingsBtn")?.addEventListener("click", () => this._saveTelegramSettings());
     this.shadowRoot.getElementById("saveAIEntityManagerBtn")?.addEventListener("click", () => this._saveAIEntityManager());
     this.shadowRoot.getElementById("saveAIEntityManagerBtnBottom")?.addEventListener("click", () => this._saveAIEntityManager());
-    this.shadowRoot.getElementById("autoFindAIEntitiesBtn")?.addEventListener("click", () => this._autoFindAIEntities());
-    this.shadowRoot.getElementById("autoFindAIEntitiesBtnBottom")?.addEventListener("click", () => this._autoFindAIEntities());
+    this.shadowRoot.getElementById("fastAutoFindAIEntitiesBtn")?.addEventListener("click", () => this._autoFindAIEntities(true));
+    this.shadowRoot.getElementById("fastAutoFindAIEntitiesBtnBottom")?.addEventListener("click", () => this._autoFindAIEntities(true));
+    this.shadowRoot.getElementById("autoFindAIEntitiesBtn")?.addEventListener("click", () => this._autoFindAIEntities(false));
+    this.shadowRoot.getElementById("autoFindAIEntitiesBtnBottom")?.addEventListener("click", () => this._autoFindAIEntities(false));
     this.shadowRoot.getElementById("saveReportEntityManagerBtn")?.addEventListener("click", () => this._saveReportEntityManager());
     this.shadowRoot.getElementById("saveReportEntityManagerBtnBottom")?.addEventListener("click", () => this._saveReportEntityManager());
-    this.shadowRoot.getElementById("autoFindReportEntitiesBtn")?.addEventListener("click", () => this._autoFindReportEntities());
-    this.shadowRoot.getElementById("autoFindReportEntitiesBtnBottom")?.addEventListener("click", () => this._autoFindReportEntities());
+    this.shadowRoot.getElementById("fastAutoFindReportEntitiesBtn")?.addEventListener("click", () => this._autoFindReportEntities(true));
+    this.shadowRoot.getElementById("fastAutoFindReportEntitiesBtnBottom")?.addEventListener("click", () => this._autoFindReportEntities(true));
+    this.shadowRoot.getElementById("autoFindReportEntitiesBtn")?.addEventListener("click", () => this._autoFindReportEntities(false));
+    this.shadowRoot.getElementById("autoFindReportEntitiesBtnBottom")?.addEventListener("click", () => this._autoFindReportEntities(false));
     this.shadowRoot.getElementById("saveDashboardEntityManagerBtn")?.addEventListener("click", () => this._saveDashboardEntityManager());
     this.shadowRoot.getElementById("saveDashboardEntityManagerBtnBottom")?.addEventListener("click", () => this._saveDashboardEntityManager());
-    this.shadowRoot.getElementById("autoFindDashboardEntitiesBtn")?.addEventListener("click", () => this._autoFindDashboardEntities());
-    this.shadowRoot.getElementById("autoFindDashboardEntitiesBtnBottom")?.addEventListener("click", () => this._autoFindDashboardEntities());
+    this.shadowRoot.getElementById("fastAutoFindDashboardEntitiesBtn")?.addEventListener("click", () => this._autoFindDashboardEntities(true));
+    this.shadowRoot.getElementById("fastAutoFindDashboardEntitiesBtnBottom")?.addEventListener("click", () => this._autoFindDashboardEntities(true));
+    this.shadowRoot.getElementById("autoFindDashboardEntitiesBtn")?.addEventListener("click", () => this._autoFindDashboardEntities(false));
+    this.shadowRoot.getElementById("autoFindDashboardEntitiesBtnBottom")?.addEventListener("click", () => this._autoFindDashboardEntities(false));
     this.shadowRoot.querySelectorAll(".dashboard-custom-icon-input").forEach((el) => {
       const updateIcon = (ev) => {
         ev.stopPropagation();
@@ -6376,6 +8430,6 @@ if (typeof PomTeslaReportPanel !== "undefined" && !PomTeslaReportPanel.prototype
   };
 }
 
-if (!customElements.get("pom-tesla-report-panel")) {
-  customElements.define("pom-tesla-report-panel-alpha211", PomTeslaReportPanel);
+if (!customElements.get("pom-tesla-report-panel-alpha372")) {
+  customElements.define("pom-tesla-report-panel-alpha372", PomTeslaReportPanel);
 }

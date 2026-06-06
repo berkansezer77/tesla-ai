@@ -114,12 +114,24 @@ class PomTeslaDriveDashboardCard extends HTMLElement {
     };
     collect(document, 0);
 
-    setImportant(document.documentElement, '--header-height', '0px');
-    setImportant(document.documentElement, '--app-toolbar-height', '0px');
+    [
+      document.documentElement,
+      document.body
+    ].forEach((el) => {
+      setImportant(el, '--header-height', '0px');
+      setImportant(el, '--app-toolbar-height', '0px');
+      setImportant(el, '--ha-top-app-bar-width', '100vw');
+      setImportant(el, '--mdc-top-app-bar-width', '100vw');
+      setImportant(el, '--ha-sidebar-width', '0px');
+      setImportant(el, '--ha-drawer-width', '0px');
+      setImportant(el, '--mdc-drawer-width', '0px');
+      setImportant(el, '--app-drawer-width', '0px');
+      setImportant(el, '--sidebar-width', '0px');
+      setImportant(el, '--drawer-width', '0px');
+      setImportant(el, '--mdc-drawer-modal-width', '0px');
+    });
     setImportant(document.documentElement, 'overflow', 'hidden');
     setImportant(document.documentElement, 'height', '100vh');
-    setImportant(document.body, '--header-height', '0px');
-    setImportant(document.body, '--app-toolbar-height', '0px');
     setImportant(document.body, 'overflow', 'hidden');
     setImportant(document.body, 'height', '100vh');
     setImportant(document.body, 'margin', '0');
@@ -175,7 +187,7 @@ class PomTeslaDriveDashboardCard extends HTMLElement {
       ['ha-menu-button','ha-button-menu','ha-control-button-menu','ha-icon-button','mwc-icon-button','paper-icon-button','ha-assist-chip'].forEach((sel) => {
         try { root.querySelectorAll(sel).forEach((el) => { if (isTopChrome(el)) hideEl(el); }); } catch (err) {}
       });
-      ['ha-sidebar','.sidebar','[data-panel="sidebar"]'].forEach((sel) => {
+      ['ha-sidebar','.sidebar','[data-panel="sidebar"]','[slot="sidebar"]','[slot="drawer"]','ha-navigation-list','nav.sidebar','aside.sidebar'].forEach((sel) => {
         try { root.querySelectorAll(sel).forEach(hideEl); } catch (err) {}
       });
       // alpha294: Drive dashboard has a Home Assistant top-right refresh/update
@@ -189,12 +201,22 @@ class PomTeslaDriveDashboardCard extends HTMLElement {
           }
         });
       } catch (err) {}
-      ['home-assistant-main','app-drawer-layout','ha-drawer','mwc-drawer'].forEach((sel) => {
+      ['home-assistant','home-assistant-main','app-drawer-layout','ha-drawer','mwc-drawer','sl-drawer','ha-panel-lovelace','hui-root','hui-view','hui-panel-view','#view'].forEach((sel) => {
         try { root.querySelectorAll(sel).forEach((el) => {
+          setImportant(el, '--ha-sidebar-width', '0px');
+          setImportant(el, '--ha-drawer-width', '0px');
           setImportant(el, '--mdc-drawer-width', '0px');
           setImportant(el, '--app-drawer-width', '0px');
           setImportant(el, '--sidebar-width', '0px');
+          setImportant(el, '--drawer-width', '0px');
           setImportant(el, '--mdc-drawer-modal-width', '0px');
+          setImportant(el, '--ha-top-app-bar-width', '100vw');
+          setImportant(el, '--mdc-top-app-bar-width', '100vw');
+          setImportant(el, 'margin-left', '0px');
+          setImportant(el, 'padding-left', '0px');
+          setImportant(el, 'left', '0px');
+          setImportant(el, 'width', '100vw');
+          setImportant(el, 'max-width', '100vw');
         }); } catch (err) {}
       });
     });
