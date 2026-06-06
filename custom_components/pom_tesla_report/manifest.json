@@ -12,5 +12,5 @@
     "Pillow==12.2.0",
     "yt-dlp"
   ],
-  "version": "2.2.0-alpha.372"
+  "version": "2.2.0-alpha.373"
 }

@@ -301,7 +301,7 @@ from .dashboard.helpers import (
 )
 
 _LOGGER = logging.getLogger(__name__)
-DASHBOARD_FRONTEND_VERSION = "2.2.0-alpha.372"
+DASHBOARD_FRONTEND_VERSION = "2.2.0-alpha.373"
 YOUTUBE_JSMPEG_TOKEN_SECRET_OPTION = "youtube_jsmpeg_signed_token_secret"
 
 PLATFORMS: list[Platform] = [Platform.SWITCH, Platform.SENSOR, Platform.SELECT, Platform.BINARY_SENSOR]
@@ -15525,7 +15525,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     hass.data[DOMAIN][entry.entry_id] = ensure_youtube_jsmpeg_token_secret_for_entry(hass, entry)
 
-    _LOGGER.warning("Tesla AI alpha372 admin API and JS cleanup build loaded. version=2.2.0-alpha.372 entry=%s", entry.entry_id)
+    _LOGGER.warning("Tesla AI alpha373 logo asset refresh build loaded. version=2.2.0-alpha.373 entry=%s", entry.entry_id)
 
     entry.async_on_unload(entry.add_update_listener(async_update_options))
 

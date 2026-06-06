@@ -278,9 +278,9 @@ from .const import (
 _LOGGER = logging.getLogger(__name__)
 
 PANEL_URL_PATH = "pom-tesla-report"
-PANEL_ELEMENT_NAME = "pom-tesla-report-panel-alpha372"
-PANEL_JS_FILE = "pom-tesla-report-panel-alpha372.js"
-DASHBOARD_PANEL_VERSION = "2.2.0-alpha.372"
+PANEL_ELEMENT_NAME = "pom-tesla-report-panel-alpha373"
+PANEL_JS_FILE = "pom-tesla-report-panel-alpha373.js"
+DASHBOARD_PANEL_VERSION = "2.2.0-alpha.373"
 
 TELEGRAM_REPORT_COMMANDS_OPTION_KEY = "telegram_report_commands"
 DEFAULT_TELEGRAM_REPORT_COMMANDS = {

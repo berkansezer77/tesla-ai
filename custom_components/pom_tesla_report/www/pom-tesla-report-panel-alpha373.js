@@ -2,7 +2,7 @@ class PomTeslaReportPanel extends HTMLElement {
   constructor() {
     super();
     this.attachShadow({ mode: "open" });
-    this._frontendBuild = "v2.2.0-alpha.372";
+    this._frontendBuild = "v2.2.0-alpha.373";
     this._manualDebugSnapshot = null;
     this._panelMigrationOutput = null;
     this._lastClickDebug = {};
@@ -8430,6 +8430,6 @@ if (typeof PomTeslaReportPanel !== "undefined" && !PomTeslaReportPanel.prototype
   };
 }
 
-if (!customElements.get("pom-tesla-report-panel-alpha372")) {
-  customElements.define("pom-tesla-report-panel-alpha372", PomTeslaReportPanel);
+if (!customElements.get("pom-tesla-report-panel-alpha373")) {
+  customElements.define("pom-tesla-report-panel-alpha373", PomTeslaReportPanel);
 }

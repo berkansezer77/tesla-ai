@@ -1,3 +1,11 @@
+## alpha373 – Logo and brand assets refresh
+
+- Replaced the old stretched Tesla-style logo assets with a new square Tesla AI logo.
+- Added/updated `brand/icon.png`, `brand/logo.png`, `brand/logo.svg`, integration-root `icon.png`, integration-root `logo.png`, and `images/tesla_ai_logo.png`.
+- Replaced `images/tesla_logo_svg.svg` with the new Tesla AI logo SVG wrapper so stale Tesla-style assets are not reused.
+- Bumped the active panel to `pom-tesla-report-panel-alpha373.js`; top-right panel version shows `v2.2.0-alpha.373`.
+- No Live Trip, AI, Telegram, records, dashboard calculations, security settings, YouTube playback, or entity mapping changed.
+
 ## alpha372 – Admin API hardening, direct media allowlist, cleanup
 
 - Backup export, system logs, Live Trip debug, settings GET/POST, dashboard media upload, and dashboard resources POST now require a Home Assistant admin user.
@@ -14,7 +22,7 @@
 - Existing 360p, 480p, 720p, 1080 Lite and 1080 Max profiles are unchanged.
 - 1080 High keeps 1920-wide output but raises the MPEG-1 encode target to about 8.5 Mbps, maxrate 12 Mbps, bufsize 6 Mbps and 30 fps.
 - YouTube signed-token protection from alpha370 is preserved.
-- The panel top-right build pill shows the exact version as `v2.2.0-alpha.372`.
+- The panel top-right build pill shows the exact version as `v2.2.0-alpha.373`.
 - No Live Trip, AI comments, Telegram reports, records, entity mapping, calculations, or dashboard metrics changed.
 
 ## alpha370 – Signed YouTube background token + visible version
@@ -24,7 +32,7 @@
 - The token secret is generated and stored locally in Home Assistant config entry options before dashboard YAML generation.
 - The dashboard iframe URL includes a signed token for the configured YouTube URL and quality.
 - YouTube host allowlist, direct media URL validation, ffmpeg protocol whitelist and process limit remain active.
-- The panel top-right build pill now shows the exact version as `v2.2.0-alpha.372`.
+- The panel top-right build pill now shows the exact version as `v2.2.0-alpha.373`.
 - No Live Trip, AI comments, Telegram reports, records, entity mapping, calculations, or dashboard metrics changed.
 
 ## alpha369 – YouTube player auth fix
@@ -63,7 +71,7 @@
 
 ## alpha365 – Public security hardening
 
-- Version changed to HACS-friendly `2.2.0-alpha.372`.
+- Version changed to HACS-friendly `2.2.0-alpha.373`.
 - YouTube/JSMpeg endpoints now require Home Assistant authentication.
 - YouTube/JSMpeg input is restricted to YouTube hostnames and http/https media URLs.
 - ffmpeg now uses a protocol whitelist and a process/concurrency cap.
@@ -103,7 +111,7 @@
 - Alert interval/state listeners are now registered unconditionally and read current panel options dynamically, so enabling Automations from the panel does not require a full HA restart just to register listeners.
 - Low-battery state listener now resolves the current configured battery entity dynamically and includes trigger diagnostics.
 - Preserves alpha359 top-area language fix, alpha358 Charge popup tap-close, alpha357 Live AI popup reader, alpha346 stable Live Trip card, Telegram/AI trip pipeline, candidate filter behavior, and all dashboard calculations.
-- Active panel: `pom-tesla-report-panel-alpha372.js` / `pom-tesla-report-panel-alpha372`.
+- Active panel: `pom-tesla-report-panel-alpha373.js` / `pom-tesla-report-panel-alpha373`.
 
 ## alpha359 – Top-area language fix
 
@@ -111,7 +119,7 @@
 - Top slot labels such as `EĞİM`, `BATARYA`, `MENZİL`, `ENERJİ`, temperature and battery-heater labels now render in English during dashboard rebuild when `app_language` is English.
 - No Live Trip calculations, Telegram/AI sending, Trip Records, candidate filter logic, Charge popup layout, entity mapping, or dashboard measurements were changed.
 - Stable Live Trip card type remains `custom:pom-tesla-trip-report-card`.
-- Active panel: `pom-tesla-report-panel-alpha372.js` / `pom-tesla-report-panel-alpha372`.
+- Active panel: `pom-tesla-report-panel-alpha373.js` / `pom-tesla-report-panel-alpha373`.
 
 ## alpha358 – Charge popup tap-to-close
 
